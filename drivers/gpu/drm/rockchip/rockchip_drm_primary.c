@@ -335,17 +335,20 @@ void primary_overlay_commit(struct rk_overlay_api *ovl)
 		rk_win->ysize = ovl->ysize;
 	}
 
-	if(ovl->y_addr && rk_win->xact && rk_win->xsize){
+	if(ovl->y_addr){
 		rk_win->yrgb_addr = ovl->y_addr;
 		rk_win->uv_addr = ovl->uv_addr;
+
+	}
+	if(rk_win->yrgb_addr && rk_win->xact && rk_win->xsize){
 		rk_win->enabled = true;
 
-//		printk(KERN_ERR"----->yzq pos[%dx%d]-act[%dx%d]-size[%dx%d]-xvir[%d] y_addr=%x uv_addr=%x\n",rk_win->xpos,rk_win->ypos,rk_win->xact,rk_win->yact,rk_win->xsize,rk_win->ysize,rk_win->xvir,rk_win->yrgb_addr,rk_win->uv_addr);
+		//		printk(KERN_ERR"----->yzq pos[%dx%d]-act[%dx%d]-size[%dx%d]-xvir[%d] y_addr=%x uv_addr=%x\n",rk_win->xpos,rk_win->ypos,rk_win->xact,rk_win->yact,rk_win->xsize,rk_win->ysize,rk_win->xvir,rk_win->yrgb_addr,rk_win->uv_addr);
 		rk_drm_disp_handle(drm_disp,1<<win,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
 
 		win_data->enabled = true;
-
 	}
+
 
 
 }

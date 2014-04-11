@@ -670,8 +670,8 @@ static int rk3288_win_0_1_reg_update(struct rk_lcdc_driver *dev_drv,int win_id)
 		val =	v_WIN0_HS_FACTOR_CBR(win->scale_cbcr_x) |
 			v_WIN0_VS_FACTOR_CBR(win->scale_cbcr_y);
 		lcdc_writel(lcdc_dev, WIN0_SCL_FACTOR_CBR+off, val); 
-		lcdc_writel(lcdc_dev, WIN0_COLOR_KEY,
-			    0x80000000);
+
+		lcdc_writel(lcdc_dev, WIN0_COLOR_KEY,0x80000000);
 		if(win->alpha_en == 1)
 			rk3288_lcdc_alpha_cfg(dev_drv,win_id);
 		else{
@@ -871,12 +871,9 @@ static int rk3288_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 	int fps;
 	u16 face = 0;
 	u32 v=0;
-	printk("----->yzq %s %d \n",__func__,__LINE__);
 	struct lcdc_device *lcdc_dev =
 	    container_of(dev_drv, struct lcdc_device, driver);
-	printk("----->yzq %s %d \n",__func__,__LINE__);
 	struct rk_screen *screen = dev_drv->cur_screen;
-	printk("----->yzq %s %d \n",__func__,__LINE__);
 	u16 hsync_len = screen->mode.hsync_len;
 	u16 left_margin = screen->mode.left_margin;
 	u16 right_margin = screen->mode.right_margin;
@@ -885,7 +882,6 @@ static int rk3288_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 	u16 lower_margin = screen->mode.lower_margin;
 	u16 x_res = screen->mode.xres;
 	u16 y_res = screen->mode.yres;
-	printk("----->yzq %s %d \n",__func__,__LINE__);
 	u32 mask, val;
 	u16 h_total,v_total;
 
@@ -896,7 +892,6 @@ static int rk3288_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 	screen->post_xsize =x_res;
 	screen->post_ysize = y_res;
 	
-	printk("----->yzq %s %d \n",__func__,__LINE__);
 	spin_lock(&lcdc_dev->reg_lock);
 	if (likely(lcdc_dev->clk_on)) {
 		switch (screen->face) {
@@ -942,7 +937,6 @@ static int rk3288_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 			dev_err(lcdc_dev->dev,"un supported interface!\n");
 			break;
 		}
-	printk("----->yzq %s %d \n",__func__,__LINE__);
 		switch(screen->type){
 		case SCREEN_RGB:
 		case SCREEN_LVDS:
@@ -1024,12 +1018,10 @@ static int rk3288_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 		    v_DSP_VACT_ST(vsync_len + upper_margin);
 		lcdc_msk_reg(lcdc_dev, DSP_VACT_ST_END, mask, val);
 
-	printk("----->yzq %s %d \n",__func__,__LINE__);
 		rk3288_lcdc_post_cfg(dev_drv);
 	}
 	spin_unlock(&lcdc_dev->reg_lock);
 	
-	printk("----->yzq %s %d \n",__func__,__LINE__);
 #ifndef CONFIG_RK_FPGA
 	ret = clk_set_rate(lcdc_dev->dclk, screen->mode.pixclock);
 	if (ret)
@@ -1042,14 +1034,10 @@ static int rk3288_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 	screen->ft = 1000 / fps;
 	dev_info(lcdc_dev->dev, "%s: dclk:%lu>>fps:%d ",
 		 lcdc_dev->driver.name, clk_get_rate(lcdc_dev->dclk), fps);
-	dump_stack();
-	printk("----->yzq %s %d \n",__func__,__LINE__);
 	if (dev_drv->trsm_ops && dev_drv->trsm_ops->enable)
 		dev_drv->trsm_ops->enable();
-	printk("----->yzq %s %d \n",__func__,__LINE__);
 	if (screen->init)
 		screen->init();
-	printk("----->yzq %s %d \n",__func__,__LINE__);
 #endif
 	return 0;
 }
@@ -1729,8 +1717,8 @@ static int rk3288_lcdc_cal_scl_fac(struct rk_lcdc_win *win)
                         	pr_err("cbcr_srcH should be greater than 3 !!!\n");
                     	}                    
                     	cbcr_yscl_factor = GET_SCALE_FACTOR_BIC(cbcr_srcH, cbcr_dstH);
-			break;
-		default :
+                    	break;
+                default :
 			printk(KERN_WARNING "%s:un supported cbr_vsu_mode:%d\n",
 				__func__,win->cbr_vsu_mode);		
                     	break;
@@ -1767,7 +1755,7 @@ static int rk3288_lcdc_cal_scl_fac(struct rk_lcdc_win *win)
 			__func__,win->cbr_ver_scl_mode);			
             	break;
     	}
-	win->scale_cbcr_x = cbcr_xscl_factor;
+    	win->scale_cbcr_x = cbcr_xscl_factor;
     	win->scale_cbcr_y = cbcr_yscl_factor;
    	win->vsd_cbr_gt4  = cbcr_vsd_bil_gt4;
     	win->vsd_cbr_gt2  = cbcr_vsd_bil_gt2;	
@@ -2095,6 +2083,7 @@ static int rk3288_lcdc_set_par(struct rk_lcdc_driver *dev_drv,int win_id)
 	}
 	return 0;
 }
+
 static int rk3288_lcdc_ioctl(struct rk_lcdc_driver *dev_drv, unsigned int cmd,
 			     unsigned long arg, int win_id)
 {
