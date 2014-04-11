@@ -299,6 +299,19 @@ struct rk_overlay_api {
 
 	int xvir;
 };
+void primary_set_overlay_status(int enable)
+{
+	struct primary_context *ctx = get_primary_context(g_dev);
+	struct rk_drm_display *drm_disp = ctx->drm_disp;
+	struct rk_win_data *rk_win = NULL; 
+	struct primary_win_data *win_data;
+	rk_win = &drm_disp->win[1];
+	rk_win->enabled = enable?true:false;
+		  
+	if((rk_win->enabled && rk_win->yrgb_addr && rk_win->xact && rk_win->xsize) || !rk_win->enabled){
+		rk_drm_disp_handle(drm_disp,1<<1,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
+	}
+}
 void primary_overlay_commit(struct rk_overlay_api *ovl)
 {
 	struct primary_context *ctx = get_primary_context(g_dev);
@@ -341,7 +354,7 @@ void primary_overlay_commit(struct rk_overlay_api *ovl)
 
 	}
 	if(rk_win->yrgb_addr && rk_win->xact && rk_win->xsize){
-		rk_win->enabled = true;
+	//	rk_win->enabled = true;
 
 		//		printk(KERN_ERR"----->yzq pos[%dx%d]-act[%dx%d]-size[%dx%d]-xvir[%d] y_addr=%x uv_addr=%x\n",rk_win->xpos,rk_win->ypos,rk_win->xact,rk_win->yact,rk_win->xsize,rk_win->ysize,rk_win->xvir,rk_win->yrgb_addr,rk_win->uv_addr);
 		rk_drm_disp_handle(drm_disp,1<<win,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);

@@ -61,6 +61,7 @@ static int rockchip_drm_fb_mmap(struct fb_info *info,
 }
 #define RK_FBIOSET_OVERLAY_MSG     	0x5001
 #define RK_FBIOGET_OVERLAY_MSG   	0X5002
+#define RK_FBIOOVERLAY_DISABLE  	0X5003
 struct rk_overlay_api {
 	unsigned int y_addr;
 	unsigned int uv_addr;
@@ -76,9 +77,12 @@ struct rk_overlay_api {
 	int xvir;
 };
 extern void primary_overlay_commit(struct rk_overlay_api *ovl);
+extern void primary_overlay_disable(void);
+extern void primary_set_overlay_status(int enable);
 static int drm_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 {
 	struct rk_overlay_api ovl;
+	int enable;
 	void __user *argp = (void __user *)arg;
 	switch(cmd){
 		case RK_FBIOSET_OVERLAY_MSG:
@@ -86,6 +90,12 @@ static int drm_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long ar
 				return -EFAULT;
 			primary_overlay_commit(&ovl);
 			break;
+		case RK_FBIOOVERLAY_DISABLE:
+			if (copy_from_user(&enable, argp, sizeof(int)))
+				return -EFAULT;
+			primary_set_overlay_status(enable);
+			break;
+
 		default:
 			printk("------>%s unknow ioctl cmd=%x\n",__func__,__LINE__);
 			break;

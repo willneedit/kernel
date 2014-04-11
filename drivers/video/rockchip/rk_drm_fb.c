@@ -858,6 +858,11 @@ static int rk_drm_win_commit(struct rk_drm_display *drm_disp,unsigned int win_id
 				printk(KERN_ERR"---->%s can not find display win%d\n",__func__,j);
 				return -1;
 			}
+			if(lcdc_win->state != drm_win->enabled && !drm_win->enabled){
+				lcdc_dev->ops->open(lcdc_dev, j,false);
+				continue;
+			}
+
 			fb_data_fmt = drm_win->format;
 			pixel_width = rk_fb_pixel_width(fb_data_fmt);
 			xvir = drm_win->xvir;
