@@ -285,6 +285,70 @@ static ktime_t win_end;
 static ktime_t win_start1;
 static ktime_t win_end1;
 #endif
+struct rk_overlay_api {
+	unsigned int y_addr;
+	unsigned int uv_addr;
+	int format;
+	
+	int xpos;
+	int ypos;
+	int xact;
+	int yact;
+	int xsize;
+	int ysize;
+
+	int xvir;
+};
+void primary_overlay_commit(struct rk_overlay_api *ovl)
+{
+	struct primary_context *ctx = get_primary_context(g_dev);
+	struct rk_drm_display *drm_disp = ctx->drm_disp;
+	struct rk_win_data *rk_win = NULL; 
+	struct primary_win_data *win_data;
+	int win;
+
+//	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
+
+	if (ctx->suspended)
+		return;
+	win = 1;
+#if 0
+	if(win == 0){
+		win_start = ktime_get();
+		win_start = ktime_sub(win_start, win_end);
+		printk("user flip buffer time %dus\n", (int)ktime_to_us(win_start));
+	//	win_start = ktime_get();
+	}
+#endif
+	rk_win = &drm_disp->win[win];
+	win_data = &ctx->win_data[win];
+
+	if(ovl->xact || ovl->yact){
+		rk_win->format = YUV420;
+		rk_win->xact = ovl->xact;
+		rk_win->yact = ovl->yact;
+		rk_win->xvir = ovl->xvir;
+	}else{
+		rk_win->xpos = ovl->xpos;
+		rk_win->ypos = ovl->ypos;
+		rk_win->xsize = ovl->xsize;
+		rk_win->ysize = ovl->ysize;
+	}
+
+	if(ovl->y_addr && rk_win->xact && rk_win->xsize){
+		rk_win->yrgb_addr = ovl->y_addr;
+		rk_win->uv_addr = ovl->uv_addr;
+		rk_win->enabled = true;
+
+//		printk(KERN_ERR"----->yzq pos[%dx%d]-act[%dx%d]-size[%dx%d]-xvir[%d] y_addr=%x uv_addr=%x\n",rk_win->xpos,rk_win->ypos,rk_win->xact,rk_win->yact,rk_win->xsize,rk_win->ysize,rk_win->xvir,rk_win->yrgb_addr,rk_win->uv_addr);
+		rk_drm_disp_handle(drm_disp,1<<win,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
+
+		win_data->enabled = true;
+
+	}
+
+
+}
 static void primary_win_commit(struct device *dev, int zpos)
 {
 	struct primary_context *ctx = get_primary_context(dev);
@@ -294,8 +358,8 @@ static void primary_win_commit(struct device *dev, int zpos)
 	int win = zpos;
 	unsigned long val,  size;
 	u32 xpos, ypos;
-
-//	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
+	int rk_win_id=win;
+	//	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 
 	if (ctx->suspended)
 		return;
@@ -313,8 +377,22 @@ static void primary_win_commit(struct device *dev, int zpos)
 	//	win_start = ktime_get();
 	}
 #endif
-	rk_win = &drm_disp->win[win];
 	win_data = &ctx->win_data[win];
+       switch(win){
+               case 0:
+                       rk_win_id = 0;
+                       break;
+               case 1: 
+                       rk_win_id = 2;
+		       break;
+               default:
+                       printk("------>un support win id\n");
+       }
+       rk_win = &drm_disp->win[rk_win_id];
+//	if(win==1){
+//		win = 2;
+//	}
+
 	switch(win_data->bpp){
 		case 32:
 			rk_win->format = ARGB888;
@@ -339,8 +417,11 @@ static void primary_win_commit(struct device *dev, int zpos)
 	rk_win->xvir = win_data->fb_width;
 	rk_win->yrgb_addr = win_data->dma_addr;
 	rk_win->enabled = true;
+	if(win == 1){
+		rk_win->alpha_en = true;
+	}
 
-	rk_drm_disp_handle(drm_disp,1<<win,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
+	rk_drm_disp_handle(drm_disp,1<<rk_win_id,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
 		
 	win_data->enabled = true;
 #if 0
@@ -360,6 +441,7 @@ static void primary_win_disable(struct device *dev, int zpos)
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
 	struct primary_win_data *win_data;
 	int win = zpos;
+	int rk_win_id=win;
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
@@ -376,8 +458,18 @@ static void primary_win_disable(struct device *dev, int zpos)
 		win_data->resume = false;
 		return;
 	}
-	drm_disp->win[win].enabled = false;
-	rk_drm_disp_handle(drm_disp,1<<win,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
+       switch(win){
+               case 0:
+                       rk_win_id = 0;
+                       break;
+               case 1: 
+                       rk_win_id = 2;
+		       break;
+               default:
+                       printk("------>un support win id\n");
+       }
+	drm_disp->win[rk_win_id].enabled = false;
+	rk_drm_disp_handle(drm_disp,1<<rk_win_id,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
 
 	win_data->enabled = false;
 }

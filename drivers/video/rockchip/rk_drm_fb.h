@@ -19,13 +19,14 @@ enum drm_screen_type {
 struct rk_win_data {
 	unsigned int		win_id;
 	enum data_format 	format;
-	unsigned int		xpos;
-	unsigned int		ypos;
+	int		xpos;
+	int		ypos;
 	unsigned int		xact;
 	unsigned int		yact;
 	unsigned int		xsize;
 	unsigned int		ysize;
 	unsigned int 		xvir;
+	bool 			alpha_en;
 
 	dma_addr_t		yrgb_addr;
 	dma_addr_t		uv_addr;

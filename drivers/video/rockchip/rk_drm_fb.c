@@ -104,8 +104,8 @@ struct rk_display_device *rk_drm_extend_display_get(int type)
 	}
 	return extend_display;
 }
-#if 0
-struct void *get_extend_drv(void)
+#if 1
+void *get_extend_drv(void)
 {
 	struct rk_display_device *extend_display = rk_drm_extend_display_get(SCREEN_HDMI);
 	return extend_display->priv_data;
@@ -770,11 +770,17 @@ static int rk_drm_screen_videomode_set(struct rk_drm_display *drm_disp)
 	}
 
 //	printk("----->yzq %s %d xres=%d yres=%d refresh=%d \n",__func__,__LINE__,mode->xres,mode->yres,mode->refresh);
-	if(lcdc_dev->prop == PRMRY){
-		if(mode != &lcdc_dev->cur_screen->mode)
-			memcpy(&lcdc_dev->cur_screen->mode,mode,sizeof(struct fb_videomode));
 
-	}else{
+	if(mode != &lcdc_dev->cur_screen->mode){
+		memcpy(&lcdc_dev->cur_screen->mode,mode,sizeof(struct fb_videomode));
+	}
+	if(!lcdc_dev->atv_layer_cnt)
+		lcdc_dev->ops->open(lcdc_dev, 0,true);
+
+	lcdc_dev->ops->ovl_mgr(lcdc_dev, 3201, 1);
+	lcdc_dev->ops->load_screen(lcdc_dev,1);
+
+	if(lcdc_dev->prop == EXTEND){
 		struct rk_display_device *ex_display = drm_screen_priv->ex_display;
 		if(ex_display == NULL)
 			ex_display = rk_drm_extend_display_get(SCREEN_HDMI);
@@ -784,17 +790,44 @@ static int rk_drm_screen_videomode_set(struct rk_drm_display *drm_disp)
 			printk(KERN_ERR"-->%s can not find extend display ops\n",__func__);
 			return -1;
 		}
+	//	ex_display->ops->getmode(ex_display,&cur_mode);
+	//	if(cur_mode != mode)
 		ex_display->ops->setmode(ex_display, mode);
 	}
-	if(!lcdc_dev->atv_layer_cnt)
-		lcdc_dev->ops->open(lcdc_dev, 0,true);
-
-	lcdc_dev->ops->ovl_mgr(lcdc_dev, 3210, 1);
-	lcdc_dev->ops->load_screen(lcdc_dev,1);
-
 	return 0;
 }
-
+int rk_fb_pixel_width(int data_format)
+{
+	int pixel_width;
+	switch(data_format){
+	case XBGR888:
+	case ABGR888:
+	case ARGB888:
+		pixel_width = 4*8;
+		break;
+	case RGB888:
+		pixel_width = 3*8;
+		break;
+	case RGB565:
+		pixel_width = 2*8;
+		break;
+	case YUV422:
+	case YUV420:
+	case YUV444:
+		pixel_width = 1*8;
+		break;
+	case YUV422_A:
+	case YUV420_A:
+	case YUV444_A:
+		pixel_width = 10;
+		break;		
+	default:
+		printk(KERN_WARNING "%s:un supported format:0x%x\n",
+			__func__,data_format);
+		return -EINVAL;
+	}
+	return pixel_width;
+}
 static int rk_drm_win_commit(struct rk_drm_display *drm_disp,unsigned int win_id)
 {
 //	struct rk_drm_private *rk_drm_priv = platform_get_drvdata(drm_fb_pdev);
@@ -803,14 +836,81 @@ static int rk_drm_win_commit(struct rk_drm_display *drm_disp,unsigned int win_id
 	struct rk_lcdc_driver *lcdc_dev = drm_screen_priv->lcdc_dev_drv;
 
 	unsigned int i=0,j=0;
+	u32 cblen = 0, crlen = 0;
+	u8  fb_data_fmt;
+	u8  pixel_width;
+	u32 vir_width_bit;
+	u32 stride,uv_stride;
+    	u32 stride_32bit_1;
+    	u32 stride_32bit_2;
+    	u32 stride_128bit_1;
+    	u32 stride_128bit_2;
+	u16 uv_x_off,uv_y_off,uv_y_act;
+	u8  is_pic_yuv=0;
+	u32 xvir,yvir;
+
 	for( i=1; i < RK_DRM_WIN_MASK; i=i<<1){
 		if(i&win_id ){
 			struct rk_lcdc_win *lcdc_win = lcdc_dev->win[j];
 			struct rk_win_data *drm_win= &drm_disp->win[j];
+			u32 xoffset=0,yoffset=0;
 			if(!lcdc_win && !drm_win){
 				printk(KERN_ERR"---->%s can not find display win%d\n",__func__,j);
 				return -1;
 			}
+			fb_data_fmt = drm_win->format;
+			pixel_width = rk_fb_pixel_width(fb_data_fmt);
+			xvir = drm_win->xvir;
+			yvir = drm_win->yact;
+			if((fb_data_fmt == YUV420_A)||(fb_data_fmt == YUV422_A)||(fb_data_fmt == YUV444_A)){
+				vir_width_bit = xvir * 8;
+				stride_32bit_1 = xvir;
+				stride_32bit_2 = xvir*2;
+			}else{
+				vir_width_bit = pixel_width * xvir;
+				stride_32bit_1	= ((vir_width_bit   + 31 ) & (~31 ))/8; //pixel_width = byte_num *8
+				stride_32bit_2	= ((vir_width_bit*2 + 31 ) & (~31 ))/8; //pixel_width = byte_num *8
+			}
+			stride	  = stride_32bit_1;//default rgb
+			if(drm_win->xpos < 0)
+				xoffset = 0 - drm_win->xpos;
+			switch (fb_data_fmt){
+				case YUV422:
+				case YUV422_A:	
+					is_pic_yuv = 1;
+					stride	   = stride_32bit_1;
+					uv_stride  = stride_32bit_1>> 1 ;//
+					uv_x_off   = xoffset >> 1 ;//
+					uv_y_off   = yoffset;//0
+					cblen = crlen = (xvir*yvir)>>1;
+					uv_y_act = drm_win->yact>>1;
+					break;
+				case YUV420://420sp
+				case YUV420_A:
+					is_pic_yuv = 1;
+					stride	   = stride_32bit_1;
+					uv_stride  = stride_32bit_1;
+					uv_x_off   = xoffset;
+					uv_y_off   = yoffset >> 1;
+					cblen = crlen = (xvir*yvir)>>2;
+					uv_y_act = drm_win->yact>>1;
+					break;
+				case YUV444:
+				case YUV444_A:	
+					is_pic_yuv = 1;
+					stride	   = stride_32bit_1;
+					uv_stride  = stride_32bit_2;
+					uv_x_off   = xoffset*2;
+					uv_y_off   = yoffset;
+					cblen = crlen = (xvir*yvir);
+					uv_y_act = drm_win->yact;
+					break;
+				default:
+					break;
+			}
+
+			// x y mirror ,jump line
+
 			lcdc_win->format = drm_win->format;
 			lcdc_win->area[0].xpos = drm_win->xpos;
 			lcdc_win->area[0].ypos = drm_win->ypos;
@@ -819,10 +919,31 @@ static int rk_drm_win_commit(struct rk_drm_display *drm_disp,unsigned int win_id
 			lcdc_win->area[0].xact = drm_win->xact;
 			lcdc_win->area[0].yact = drm_win->yact;
 			lcdc_win->area[0].xvir = drm_win->xvir;
-			lcdc_win->area[0].y_vir_stride = drm_win->xvir;
+			lcdc_win->area[0].y_vir_stride = stride>>2;
+			lcdc_win->area[0].uv_vir_stride = uv_stride>>2;
+
 			lcdc_win->area[0].smem_start = drm_win->yrgb_addr;
 			lcdc_win->area[0].cbr_start = drm_win->uv_addr;
-			lcdc_win->alpha_en = 1;
+			if(drm_win->xpos < 0){
+				lcdc_win->area[0].xsize = drm_win->xsize - xoffset*drm_win->xsize/drm_win->xact;
+				lcdc_win->area[0].xpos = 0;
+				lcdc_win->area[0].xact = drm_win->xact - xoffset;
+			}
+#if 1
+			else if(drm_win->xpos + drm_win->xsize >  lcdc_dev->cur_screen->mode.xres){
+				lcdc_win->area[0].xsize = lcdc_dev->cur_screen->mode.xres - drm_win->xpos;
+				lcdc_win->area[0].xact = lcdc_win->area[0].xsize*drm_win->xact/drm_win->xsize;
+			}
+#endif
+			lcdc_win->area[0].state=1;
+			lcdc_win->g_alpha_val = 0;
+			lcdc_win->alpha_mode = 4;//AB_SRC_OVER;
+			lcdc_win->area_num = 1;
+			lcdc_win->alpha_en = ((lcdc_win->format == ARGB888)||(lcdc_win->format == ABGR888)) ? 1 : 0;
+			lcdc_win->area[0].y_offset = yoffset*stride+xoffset*pixel_width/8;
+			if (is_pic_yuv == 1) {
+				lcdc_win->area[0].c_offset = uv_y_off*uv_stride+uv_x_off*pixel_width/8;
+			}
 			if(lcdc_win->state != drm_win->enabled){
 				lcdc_dev->ops->open(lcdc_dev, j,drm_win->enabled?true:false);
 			}

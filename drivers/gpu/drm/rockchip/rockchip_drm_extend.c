@@ -39,10 +39,46 @@
 #include "rockchip_drm_extend.h"
 static struct device *g_dev = NULL;
 static int extend_activate(struct extend_context *ctx, bool enable);
-#if 0
-extern struct void *get_extend_drv(void);
+#if 1
+extern void *get_extend_drv(void);
 #endif
-#if 0
+static const char generic_edid_test[] = {
+	0x00,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0x00,0x49,0x63,0x48,0x44,0x01,0x00,0x00,0x00,
+	0x14,0x0E,0x01,0x03,0x80,0x50,0x2D,0x78,0x0A,0x0D,0xC9,0xA0,0x57,0x47,0x98,0x27,
+	0x12,0x48,0x4C,0x00,0x00,0x00,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,
+	0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x00,0xFA,0x00,0x1C,0x16,0x20,0x58,0x2C,
+	0x25,0x00,0xC4,0x8E,0x21,0x00,0x00,0x0A,0x00,0x00,0x00,0xFA,0x00,0xE0,0x2D,0x10,
+	0x10,0x3E,0x02,0x00,0x13,0x8E,0x21,0x00,0x00,0x0A,0x01,0x1D,0x00,0x72,0x51,0xD0,
+	0x1E,0x20,0x00,0x28,0x45,0x00,0x0A,0x20,0x20,0x20,0x20,0x20,0x00,0x00,0x00,0xFC,
+	0x00,0x47,0x45,0x4E,0x45,0x52,0x49,0x43,0x0A,0x20,0x20,0x20,0x20,0x20,0x01,0x50,
+	0x02,0x03,0x22,0x71,0x46,0x85,0x01,0x02,0x01,0x06,0x10,0x23,0x09,0x7F,0x07,0x23,
+	0x0F,0x3F,0x07,0x23,0x15,0x07,0x38,0x83,0x2F,0x00,0x00,0x66,0x03,0x0C,0x00,0x10,
+	0x00,0x80,0x01,0x1D,0x00,0x72,0x51,0xD0,0x1E,0x20,0x6E,0x28,0x55,0x00,0xC4,0x8E,
+	0x21,0x00,0x00,0x1E,0xD6,0x09,0x80,0xA0,0x20,0xE0,0x2D,0x10,0x08,0x60,0x22,0x00,
+	0x12,0x8E,0x21,0x08,0x08,0x18,0x8C,0x0A,0xA0,0x14,0x51,0xF0,0x16,0x00,0x26,0x7C,
+	0x43,0x00,0x13,0x8E,0x21,0x00,0x00,0x98,0x02,0x3A,0x80,0x18,0x71,0x38,0x2D,0x40,
+	0x58,0x2C,0x45,0x00,0xC4,0x8E,0x21,0x00,0x00,0x1E,0x00,0x00,0x00,0x00,0x00,0x00,
+	0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xED,
+};
+static const char generic_edid[] = {
+	0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00,
+	0x31, 0xd8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x05, 0x16, 0x01, 0x03, 0x6d, 0x32, 0x1c, 0x78,
+	0xea, 0x5e, 0xc0, 0xa4, 0x59, 0x4a, 0x98, 0x25,
+	0x20, 0x50, 0x54, 0x00, 0x00, 0x00, 0xd1, 0xc0,
+	0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+	0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x02, 0x3a,
+	0x80, 0x18, 0x71, 0x38, 0x2d, 0x40, 0x58, 0x2c,
+	0x45, 0x00, 0xf4, 0x19, 0x11, 0x00, 0x00, 0x1e,
+	0x00, 0x00, 0x00, 0xff, 0x00, 0x4c, 0x69, 0x6e,
+	0x75, 0x78, 0x20, 0x23, 0x30, 0x0a, 0x20, 0x20,
+	0x20, 0x20, 0x00, 0x00, 0x00, 0xfd, 0x00, 0x3b,
+	0x3d, 0x42, 0x44, 0x0f, 0x00, 0x0a, 0x20, 0x20,
+	0x20, 0x20, 0x20, 0x20, 0x00, 0x00, 0x00, 0xfc,
+	0x00, 0x4c, 0x69, 0x6e, 0x75, 0x78, 0x20, 0x46,
+	0x48, 0x44, 0x0a, 0x20, 0x20, 0x20, 0x00, 0x05,
+};
+#if 1
 static const char fake_edid_info[] = {
 	0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x4c, 0x2d, 0x05, 0x05,
 	0x00, 0x00, 0x00, 0x00, 0x30, 0x12, 0x01, 0x03, 0x80, 0x10, 0x09, 0x78,
@@ -75,7 +111,6 @@ static bool extend_display_is_connected(struct device *dev)
 	struct extend_context *ctx = get_extend_context(dev);
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
 	DRM_DEBUG_KMS("%s\n", __FILE__);
-	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 
 	return drm_disp->is_connected?true:false;
 	
@@ -111,14 +146,29 @@ static void *extend_get_modelist(struct device *dev)
 
 	return drm_disp->modelist;
 }
-static int extend_check_timing(struct device *dev, void *timing)
+static int extend_check_timing(struct device *dev, struct fb_videomode *timing)
 {
+	struct extend_context *ctx = get_extend_context(dev);
+	struct rk_drm_display *drm_disp = ctx->drm_disp;
+	struct list_head *pos;
+	struct fb_modelist *modelist;
+	struct fb_videomode *mode;
+
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 	/* TODO. */
-
-	return 0;
+	list_for_each(pos,drm_disp->modelist){
+		modelist = list_entry(pos, struct fb_modelist, list);
+		mode = &modelist->mode;
+		if(mode->xres == timing->xres 
+			&& mode->yres == timing->yres
+			&& mode->pixclock == timing->pixclock
+			&& mode->refresh == timing->refresh
+			)
+			return 0;
+	}
+	return -1;
 }
 
 static int extend_display_power_on(struct device *dev, int mode)
@@ -134,7 +184,7 @@ static int extend_display_power_on(struct device *dev, int mode)
 struct edid *extend_get_edid(struct device *dev,
 			struct drm_connector *connector)
 {
-#if 0
+#if 1
 	int i, j = 0, valid_extensions = 0;
 	struct hdmi *hdmi = get_extend_drv();
 	u8 *block, *new;
@@ -202,7 +252,7 @@ carp:
 
 out:
 	kfree(block);
-	raw_edid = (struct edid *)fake_edid_info;
+	raw_edid = (struct edid *)generic_edid_test;
 	edid = kmemdup(raw_edid, (1 + raw_edid->extensions) * EDID_LENGTH, GFP_KERNEL);
 	if (!edid) {
 		DRM_DEBUG_KMS("failed to allocate edid\n");
@@ -219,7 +269,7 @@ static struct rockchip_drm_display_ops extend_display_ops = {
 	.get_modelist = extend_get_modelist,
 	.check_timing = extend_check_timing,
 	.power_on = extend_display_power_on,
-//	.get_edid = extend_get_edid,
+	.get_edid = extend_get_edid,
 };
 
 static void extend_dpms(struct device *subdrv_dev, int mode)
@@ -485,6 +535,70 @@ ktime_t win_start;
 ktime_t win_end;
 ktime_t win_start1;
 ktime_t win_end1;
+struct rk_overlay_api {
+	unsigned int y_addr;
+	unsigned int uv_addr;
+	int format;
+	
+	int xpos;
+	int ypos;
+	int xact;
+	int yact;
+	int xsize;
+	int ysize;
+
+	int xvir;
+};
+void extend_overlay_commit(struct rk_overlay_api *ovl)
+{
+	struct extend_context *ctx = get_extend_context(g_dev);
+	struct rk_drm_display *drm_disp = ctx->drm_disp;
+	struct rk_win_data *rk_win = NULL; 
+	struct extend_win_data *win_data;
+	int win;
+
+//	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
+
+	if (ctx->suspended)
+		return;
+	win = 1;
+#if 0
+	if(win == 0){
+		win_start = ktime_get();
+		win_start = ktime_sub(win_start, win_end);
+		printk("user flip buffer time %dus\n", (int)ktime_to_us(win_start));
+	//	win_start = ktime_get();
+	}
+#endif
+	rk_win = &drm_disp->win[win];
+	win_data = &ctx->win_data[win];
+
+	if(ovl->xact || ovl->yact){
+		rk_win->format = YUV420;
+		rk_win->xact = ovl->xact;
+		rk_win->yact = ovl->yact;
+		rk_win->xvir = ovl->xvir;
+	}else{
+		rk_win->xpos = ovl->xpos;
+		rk_win->ypos = ovl->ypos;
+		rk_win->xsize = ovl->xsize;
+		rk_win->ysize = ovl->ysize;
+	}
+
+	if(ovl->y_addr && rk_win->xact){
+		rk_win->yrgb_addr = ovl->y_addr;
+		rk_win->uv_addr = ovl->uv_addr;
+		rk_win->enabled = true;
+
+		printk(KERN_ERR"----->yzq pos[%dx%d]-act[%dx%d]-size[%dx%d]-xvir[%d] y_addr=%x uv_addr=%x\n",rk_win->xpos,rk_win->ypos,rk_win->xact,rk_win->yact,rk_win->xsize,rk_win->ysize,rk_win->xvir,rk_win->yrgb_addr,rk_win->uv_addr);
+		rk_drm_disp_handle(drm_disp,1<<win,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
+
+		win_data->enabled = true;
+
+	}
+
+
+}
 static void extend_win_commit(struct device *dev, int zpos)
 {
 	struct extend_context *ctx = get_extend_context(dev);
@@ -494,8 +608,9 @@ static void extend_win_commit(struct device *dev, int zpos)
 	int win = zpos;
 	unsigned long val,  size;
 	u32 xpos, ypos;
+	int rk_win_id=win;
+	//	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 
-	//printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 	if (ctx->suspended)
 		return;
 
@@ -504,14 +619,30 @@ static void extend_win_commit(struct device *dev, int zpos)
 
 	if (win < 0 || win > WINDOWS_NR)
 		return;
+#if 0
 	if(win == 0){
 		win_start = ktime_get();
 		win_start = ktime_sub(win_start, win_end);
-//		printk("user flip buffer time %dms\n", (int)ktime_to_ms(win_start));
-		//	win_start = ktime_get();
+		printk("user flip buffer time %dus\n", (int)ktime_to_us(win_start));
+	//	win_start = ktime_get();
 	}
-	rk_win = &drm_disp->win[win];
+#endif
 	win_data = &ctx->win_data[win];
+       switch(win){
+               case 0:
+                       rk_win_id = 0;
+                       break;
+               case 1: 
+                       rk_win_id = 2;
+		       break;
+               default:
+                       printk("------>un support win id\n");
+       }
+       rk_win = &drm_disp->win[rk_win_id];
+//	if(win==1){
+//		win = 2;
+//	}
+
 	switch(win_data->bpp){
 		case 32:
 			rk_win->format = ARGB888;
@@ -536,16 +667,22 @@ static void extend_win_commit(struct device *dev, int zpos)
 	rk_win->xvir = win_data->fb_width;
 	rk_win->yrgb_addr = win_data->dma_addr;
 	rk_win->enabled = true;
+	if(win == 1){
+		rk_win->alpha_en = true;
+	}
 
-	rk_drm_disp_handle(drm_disp,1<<win,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
+	rk_drm_disp_handle(drm_disp,1<<rk_win_id,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
 		
 	win_data->enabled = true;
+#if 0
 	if(win ==0){
 	//	win_end = ktime_get();
 	//	win_end = ktime_sub(win_end, win_start);
 	//	printk("flip buffer time %dus\n", (int)ktime_to_us(win_end));
 		win_end = ktime_get();
 	}
+#endif
+
 }
 
 static void extend_win_disable(struct device *dev, int zpos)
@@ -554,6 +691,7 @@ static void extend_win_disable(struct device *dev, int zpos)
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
 	struct extend_win_data *win_data;
 	int win = zpos;
+	int rk_win_id=win;
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
@@ -570,8 +708,18 @@ static void extend_win_disable(struct device *dev, int zpos)
 		win_data->resume = false;
 		return;
 	}
-	drm_disp->win[win].enabled = false;
-	rk_drm_disp_handle(drm_disp,1<<win,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
+       switch(win){
+               case 0:
+                       rk_win_id = 0;
+                       break;
+               case 1: 
+                       rk_win_id = 2;
+		       break;
+               default:
+                       printk("------>un support win id\n");
+       }
+	drm_disp->win[rk_win_id].enabled = false;
+	rk_drm_disp_handle(drm_disp,1<<rk_win_id,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
 
 	win_data->enabled = false;
 }
