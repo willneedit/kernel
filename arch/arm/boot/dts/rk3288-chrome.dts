@@ -1,7 +1,7 @@
 /dts-v1/;
 
 #include "rk3288.dtsi"
-#include "lcd-b101ew05.dtsi"
+#include "lcd-n133bge.dtsi"
 
 / {
 	fiq-debugger {
@@ -467,17 +467,17 @@
 		rockchip,mirror = <NO_MIRROR>;
 		lcd_en:lcd_en {
 			rockchip,power_type = <GPIO>;
-			gpios = <&gpio7 GPIO_A3 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio7 GPIO_B3 GPIO_ACTIVE_HIGH>;
 			rockchip,delay = <10>;
 		};
 		
-		lcd_cs:lcd_cs {
-rockchip,power_type = <GPIO>;
+		/*lcd_cs:lcd_cs {
+		rockchip,power_type = <GPIO>;
 			gpios = <&gpio7 GPIO_A4 GPIO_ACTIVE_HIGH>;
 			rockchip,delay = <10>;
 		};
 
-		/*lcd_rst:lcd_rst {
+		lcd_rst:lcd_rst {
 			rockchip,power_type = <GPIO>;
 			gpios = <&gpio3 GPIO_D6 GPIO_ACTIVE_HIGH>;
 			rockchip,delay = <5>;
@@ -498,17 +498,17 @@ rockchip,power_type = <GPIO>;
 &adc {
 	status = "okay";
 
-	rockchip_headset {
+	/*rockchip_headset {
 		compatible = "rockchip_headset";
-		headset_gpio = <&gpio7 GPIO_C0 GPIO_ACTIVE_LOW>;
+		headset_gpio = <&gpio0 GPIO_C2 GPIO_ACTIVE_LOW>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&gpio0_c2>;
-	//	io-channels = <&adc 2>; 
-       /*
+		io-channels = <&adc 2>; 
+       
                hook_gpio = ;
                hook_down_type = ; //interrupt hook key down status 
-		*/       
-       };
+		       
+       };*/
 
 	key {
 		compatible = "rockchip,key";
@@ -571,16 +571,19 @@ rockchip,power_type = <GPIO>;
 &clk_core_dvfs_table {
 	operating-points = <
 		/* KHz    uV */
-	//	126000 1050000
-	//	216000 1050000
-	//	312000 1050000
-	//	408000 1050000
-	//	600000 1050000
-	//	696000 1050000
-		816000 1050000
-		1008000 1050000
-		1200000 1100000
-		1416000 1150000
+		100000 850000
+		200000 850000
+		300000 850000
+		400000 850000
+		500000 850000
+		600000 850000
+		700000 900000
+		800000 950000
+		1000000 1100000
+		1200000 1150000
+		1400000 1200000
+		1600000 1275000
+		1650000 1300000
 		>;
 	status="okay";
 };
@@ -588,12 +591,12 @@ rockchip,power_type = <GPIO>;
 &clk_gpu_dvfs_table {
 	operating-points = <
 		/* KHz    uV */
-	//	100000 1100000
-	//	200000 1100000
-		300000 1100000
-		400000 1100000
-		500000 1100000
-		600000 1250000
+		100000 850000
+		200000 850000
+		300000 900000
+		400000 1050000
+		500000 1150000
+		600000 1200000
 		>;
 	status="okay";
 };
@@ -604,12 +607,13 @@ rockchip,power_type = <GPIO>;
 		200000 950000
 		300000 950000
 		400000 1000000
-		533000 1050000
+		533000 1150000
+		666000 1200000
 		>;
 
 	freq_table = <
 		/*status		freq(KHz)*/
-		SYS_STATUS_NORMAL	400000
+		SYS_STATUS_NORMAL	666000
 		SYS_STATUS_SUSPEND	200000
 		SYS_STATUS_VIDEO	300000
 		SYS_STATUS_DUALVIEW	500000
