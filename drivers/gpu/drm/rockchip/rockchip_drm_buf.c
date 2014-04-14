@@ -79,12 +79,11 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 #ifdef CONFIG_ION_ROCKCHIP
 		buf->handle = ion_alloc(buf->ion_client, buf->size, 0, ION_HEAP(ION_CMA_HEAP_ID), 0);
 		if (IS_ERR(buf->handle)){
-			printk("----->yzq %s %d alloc ion_handle fail\n",__func__,__LINE__);
+			printk("----->%s %d alloc ion_handle fail\n",__func__,__LINE__);
 			return PTR_ERR(buf->handle);
 		}
 
 		ret = ion_phys(buf->ion_client, buf->handle, &buf->dma_addr, &buf->size);
-		printk("---->yzq dma_addr=%x size=%d\n",buf->dma_addr,buf->size);
 		if (ret<0){
 			ion_free(buf->ion_client, buf->handle);
 			return ret;
@@ -198,7 +197,7 @@ struct rockchip_drm_gem_buf *rockchip_drm_init_buf(struct drm_device *dev,
 	buffer->ion_client = rockchip_ion_client_create("drm_ion");
 
 	if (IS_ERR(buffer->ion_client)){ 
-		printk("----->yzq %s %d init ion_client fail\n",__func__,__LINE__);
+		printk("----->%s %d init ion_client fail\n",__func__,__LINE__);
 		return PTR_ERR(buffer->ion_client);
 	}
 #endif

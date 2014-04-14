@@ -156,7 +156,6 @@ static int extend_check_timing(struct device *dev, struct fb_videomode *timing)
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
-	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 	/* TODO. */
 	list_for_each(pos,drm_disp->modelist){
 		modelist = list_entry(pos, struct fb_modelist, list);
@@ -176,7 +175,6 @@ static int extend_display_power_on(struct device *dev, int mode)
 	struct extend_context *ctx = get_extend_context(dev);
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 	/* TODO */
-	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 	extend_activate(ctx,mode == DRM_MODE_DPMS_ON?true:false);
 	
 	return 0;
@@ -280,7 +278,6 @@ static void extend_dpms(struct device *subdrv_dev, int mode)
 
 	mutex_lock(&ctx->lock);
 
-	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 	switch (mode) {
 	case DRM_MODE_DPMS_ON:
 		/*
@@ -316,7 +313,6 @@ static void extend_apply(struct device *subdrv_dev)
 	struct extend_win_data *win_data;
 	int i;
 
-	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	for (i = 0; i < WINDOWS_NR; i++) {
@@ -335,7 +331,6 @@ static void extend_commit(struct device *dev)
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
 	struct rockchip_drm_panel_info *panel = (struct rockchip_drm_panel_info *)extend_get_panel(dev);
 
-//	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 	if (ctx->suspended)
 		return;
 
