@@ -306,10 +306,13 @@ void primary_set_overlay_status(int enable)
 	struct rk_win_data *rk_win = NULL; 
 	struct primary_win_data *win_data;
 	rk_win = &drm_disp->win[1];
-	rk_win->enabled = enable?true:false;
-		  
-	if((rk_win->enabled && rk_win->yrgb_addr && rk_win->xact && rk_win->xsize) || !rk_win->enabled){
-		rk_drm_disp_handle(drm_disp,1<<1,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
+	bool enabled = enable?true:false;
+	if(rk_win->enabled != enabled){
+		rk_win->enabled = enabled;
+
+		if(!rk_win->enabled){
+			rk_drm_disp_handle(drm_disp,1<<1,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
+		}
 	}
 }
 void primary_overlay_commit(struct rk_overlay_api *ovl)
