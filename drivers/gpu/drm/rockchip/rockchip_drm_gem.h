@@ -12,6 +12,14 @@
  */
 #ifndef _ROCKCHIP_DRM_GEM_H_
 #define _ROCKCHIP_DRM_GEM_H_
+#if defined(CONFIG_ION_ROCKCHIP)
+#include <linux/rockchip_ion.h>
+#ifdef USE_ION_MMU
+#include <linux/rockchip/iovmm.h>
+#include <linux/rockchip/sysmmu.h>
+#include <linux/dma-buf.h>
+#endif
+#endif
 
 #define to_rockchip_gem_obj(x)	container_of(x,\
 			struct rockchip_drm_gem_obj, base)
@@ -43,6 +51,10 @@ struct rockchip_drm_gem_buf {
 	struct sg_table		*sgt;
 	unsigned long		size;
 	bool			pfnmap;
+#ifdef CONFIG_ION_ROCKCHIP
+	struct ion_client 	*ion_client;
+	struct ion_handle       *handle;
+#endif
 };
 
 /*

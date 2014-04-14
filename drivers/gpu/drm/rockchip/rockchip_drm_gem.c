@@ -249,6 +249,7 @@ struct rockchip_drm_gem_obj *rockchip_drm_gem_create(struct drm_device *dev,
 	/* set memory type and cache attribute from user side. */
 	rockchip_gem_obj->flags = flags;
 
+
 	ret = rockchip_drm_alloc_buf(dev, buf, flags);
 	if (ret < 0) {
 		drm_gem_object_release(&rockchip_gem_obj->base);

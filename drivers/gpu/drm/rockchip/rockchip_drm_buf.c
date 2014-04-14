@@ -20,6 +20,9 @@
 #include "rockchip_drm_buf.h"
 #include "rockchip_drm_iommu.h"
 
+#if defined(CONFIG_ION_ROCKCHIP)
+extern struct ion_client *rockchip_ion_client_create(const char * name);
+#endif
 static int lowlevel_buffer_allocate(struct drm_device *dev,
 		unsigned int flags, struct rockchip_drm_gem_buf *buf)
 {
@@ -33,6 +36,7 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 		DRM_DEBUG_KMS("already allocated.\n");
 		return 0;
 	}
+
 
 	init_dma_attrs(&buf->dma_attrs);
 
@@ -58,7 +62,11 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 
 	nr_pages = buf->size >> PAGE_SHIFT;
 
-	if (!is_drm_iommu_supported(dev)) {
+#if defined(CONFIG_ION_ROCKCHIP)
+	if(1){
+#else
+	if(!is_drm_iommu_supported(dev)) {
+#endif
 		dma_addr_t start_addr;
 		unsigned int i = 0;
 
@@ -68,16 +76,32 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 			DRM_ERROR("failed to allocate pages.\n");
 			return -ENOMEM;
 		}
+#ifdef CONFIG_ION_ROCKCHIP
+		buf->handle = ion_alloc(buf->ion_client, buf->size, 0, ION_HEAP(ION_CMA_HEAP_ID), 0);
+		if (IS_ERR(buf->handle)){
+			printk("----->yzq %s %d alloc ion_handle fail\n",__func__,__LINE__);
+			return PTR_ERR(buf->handle);
+		}
 
+		ret = ion_phys(buf->ion_client, buf->handle, &buf->dma_addr, &buf->size);
+		printk("---->yzq dma_addr=%x size=%d\n",buf->dma_addr,buf->size);
+		if (ret<0){
+			ion_free(buf->ion_client, buf->handle);
+			return ret;
+		}
+
+		buf->kvaddr = ion_map_kernel(buf->ion_client, buf->handle);
+#else
 		buf->kvaddr = dma_alloc_attrs(dev->dev, buf->size,
 					&buf->dma_addr, GFP_KERNEL,
 					&buf->dma_attrs);
+#endif
 		if (!buf->kvaddr) {
 			DRM_ERROR("failed to allocate buffer.\n");
+			ion_free(buf->ion_client, buf->handle);
 			kfree(buf->pages);
 			return -ENOMEM;
 		}
-
 		start_addr = buf->dma_addr;
 		while (i < nr_pages) {
 			buf->pages[i] = phys_to_page(start_addr);
@@ -113,9 +137,10 @@ err_free_attrs:
 			(dma_addr_t)buf->dma_addr, &buf->dma_attrs);
 	buf->dma_addr = (dma_addr_t)NULL;
 
-	if (!is_drm_iommu_supported(dev))
-		kfree(buf->pages);
-
+#ifdef CONFIG_ION_ROCKCHIP
+	ion_free(buf->ion_client, buf->handle);
+#endif
+	kfree(buf->pages);
 	return ret;
 }
 
@@ -129,6 +154,8 @@ static void lowlevel_buffer_deallocate(struct drm_device *dev,
 		return;
 	}
 
+
+#if 1
 	DRM_DEBUG_KMS("dma_addr(0x%lx), size(0x%lx)\n",
 			(unsigned long)buf->dma_addr,
 			buf->size);
@@ -138,15 +165,17 @@ static void lowlevel_buffer_deallocate(struct drm_device *dev,
 	kfree(buf->sgt);
 	buf->sgt = NULL;
 
-	if (!is_drm_iommu_supported(dev)) {
-		dma_free_attrs(dev->dev, buf->size, buf->kvaddr,
-				(dma_addr_t)buf->dma_addr, &buf->dma_attrs);
+	if (1){//!is_drm_iommu_supported(dev)) {
+		ion_free(buf->ion_client, buf->handle);
+		//dma_free_attrs(dev->dev, buf->size, buf->kvaddr,
+		//		(dma_addr_t)buf->dma_addr, &buf->dma_attrs);
 		kfree(buf->pages);
 	} else
 		dma_free_attrs(dev->dev, buf->size, buf->pages,
 				(dma_addr_t)buf->dma_addr, &buf->dma_attrs);
 
 	buf->dma_addr = (dma_addr_t)NULL;
+#endif
 }
 
 struct rockchip_drm_gem_buf *rockchip_drm_init_buf(struct drm_device *dev,
@@ -164,6 +193,16 @@ struct rockchip_drm_gem_buf *rockchip_drm_init_buf(struct drm_device *dev,
 	}
 
 	buffer->size = size;
+
+#ifdef CONFIG_ION_ROCKCHIP
+	buffer->ion_client = rockchip_ion_client_create("drm_ion");
+
+	if (IS_ERR(buffer->ion_client)){ 
+		printk("----->yzq %s %d init ion_client fail\n",__func__,__LINE__);
+		return PTR_ERR(buffer->ion_client);
+	}
+#endif
+
 	return buffer;
 }
 
@@ -177,6 +216,10 @@ void rockchip_drm_fini_buf(struct drm_device *dev,
 		return;
 	}
 
+
+#ifdef CONFIG_ION_ROCKCHIP
+	ion_client_destroy(buffer->ion_client);
+#endif
 	kfree(buffer);
 	buffer = NULL;
 }
