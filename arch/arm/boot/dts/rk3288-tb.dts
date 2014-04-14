@@ -573,19 +573,21 @@ rockchip,power_type = <GPIO>;
 &clk_core_dvfs_table {
 	operating-points = <
 		/* KHz    uV */
-		100000 850000
+/*		100000 850000
 		200000 850000
 		300000 850000
 		400000 850000
 		500000 850000
 		600000 850000
 		700000 900000
-		800000 950000
+		800000 950000*/
 		1000000 1000000
+		/*
 		1200000 1050000
 		1400000 1150000
 		1600000 1200000
 		1650000 1225000
+		*/
 		>;
 	status="okay";
 };
@@ -593,12 +595,13 @@ rockchip,power_type = <GPIO>;
 &clk_gpu_dvfs_table {
 	operating-points = <
 		/* KHz    uV */
-		100000 850000
+/*		100000 850000
 		200000 850000
-		300000 900000
+		300000 900000*/
 		400000 1000000
+		/*
 		500000 1100000
-		600000 1150000
+		600000 1150000*/
 		>;
 	status="okay";
 };
@@ -615,7 +618,7 @@ rockchip,power_type = <GPIO>;
 
 	freq_table = <
 		/*status		freq(KHz)*/
-		SYS_STATUS_NORMAL	666000
+		SYS_STATUS_NORMAL	533000
 		SYS_STATUS_SUSPEND	200000
 		SYS_STATUS_VIDEO	300000
 		SYS_STATUS_DUALVIEW	500000
