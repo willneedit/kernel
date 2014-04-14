@@ -597,14 +597,11 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 		drm_display->is_connected = 1;
 		memcpy(&modelist_new->mode,&dev_drv->cur_screen->mode,sizeof(struct fb_videomode));
 
-	//	printk("---->yzq mode xres=%d yres=%d \n",modelist_new->mode.xres,modelist_new->mode.yres);
 		list_add_tail(&modelist_new->list,drm_display->modelist);
 
 		modelist = list_first_entry(drm_display->modelist, struct fb_modelist, list);
 		mode=&modelist->mode;
-		//mode->xres = 1376;
-       // mode->xres = (mode->xres + 31)&(~31);
-	//	printk("---->yzq 1mode xres=%d yres=%d \n",mode->xres,mode->yres);
+		mode->xres = (mode->xres + 31)&(~31);
 
 	}else if(dev_drv->prop == EXTEND){
 		struct list_head *modelist;
