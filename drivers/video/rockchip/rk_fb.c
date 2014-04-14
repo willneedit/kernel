@@ -587,11 +587,27 @@ int rk_fb_poll_prmry_screen_vblank(void)
 bool rk_fb_poll_wait_frame_complete(void)
 {
 	uint32_t timeout = RK_LF_MAX_TIMEOUT;
-	if (rk_fb_poll_prmry_screen_vblank() == RK_LF_STATUS_NC)
+	struct rk_lcdc_driver *dev_drv = rk_get_prmry_lcdc_drv();
+	
+	if (likely(dev_drv)) {
+		if (dev_drv->ops->set_irq_to_cpu)
+			dev_drv->ops->set_irq_to_cpu(dev_drv,0);
+	}
+
+       
+	if (rk_fb_poll_prmry_screen_vblank() == RK_LF_STATUS_NC){
+		if(dev_drv->ops->set_irq_to_cpu)
+                        dev_drv->ops->set_irq_to_cpu(dev_drv,1);		
 		return false;
+	}	
 
 	while (!(rk_fb_poll_prmry_screen_vblank() == RK_LF_STATUS_FR)  &&  --timeout);
 	while (!(rk_fb_poll_prmry_screen_vblank() == RK_LF_STATUS_FC)  &&  --timeout);
+
+	if (likely(dev_drv)) {
+                if (dev_drv->ops->set_irq_to_cpu)
+                        dev_drv->ops->set_irq_to_cpu(dev_drv,1);
+        }
 
 	return true;
 }
@@ -815,7 +831,7 @@ static int rk_fb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info
 	u32 xoffset = var->xoffset;
 	u32 yoffset = var->yoffset;
 	u32 xvir = var->xres_virtual;
-	u32 yvir = var->yres_virtual;
+	/*u32 yvir = var->yres_virtual;*/
 	/*u8 data_format = var->nonstd&0xff;*/
 
 	u8  pixel_width;
@@ -1270,6 +1286,36 @@ static void rk_fb_update_regs_handler(struct kthread_work *work)
 		kfree(data);
 	}
 }
+static int rk_fb_check_config_var(struct rk_fb_area_par *area_par,struct rk_screen *screen)
+{
+	if ((area_par->x_offset+area_par->xact > area_par->xvir) ||
+		(area_par->xact <= 0) || (area_par->yact <= 0) ||
+		(area_par->xvir <= 0) || (area_par->yvir <= 0)) {
+		pr_err("check config var fail 0:\n"
+			"x_offset=%d,xact=%d,xvir=%d\n",
+			area_par->x_offset,
+			area_par->xact,
+			area_par->xvir);
+		return -EINVAL;
+	}
+
+	if ((area_par->xpos+area_par->xsize > screen->mode.xres) ||
+		(area_par->ypos+area_par->ysize > screen->mode.yres) ||
+		(area_par->xsize <= 0) || (area_par->ysize <= 0)) {
+		pr_err("check config var fail 1:\n"
+			"xpos=%d,xsize=%d,xres=%d\n"
+			"ypos=%d,ysize=%d,yres=%d\n",
+			area_par->xpos,
+			area_par->xsize,
+			screen->mode.xres,
+			area_par->ypos,
+			area_par->ysize,
+			screen->mode.yres			
+			);
+		return -EINVAL;
+	}
+	return 0;
+}
 
 static int rk_fb_set_win_buffer(struct fb_info *info,
 	struct rk_fb_win_par *win_par,struct rk_fb_reg_win_data *reg_win_data)
@@ -1280,7 +1326,7 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
     	struct rk_lcdc_driver * dev_drv = (struct rk_lcdc_driver * )info->par;
 	struct rk_screen *screen = dev_drv->cur_screen;
 
-	int i,j,ion_fd,acq_fence_fd;
+	int i,ion_fd,acq_fence_fd;
 	u32 xvir,yvir;
 	u32 xoffset,yoffset;
 
@@ -1293,8 +1339,6 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
 	u32 stride,uv_stride;
     	u32 stride_32bit_1;
     	u32 stride_32bit_2;
-    	u32 stride_128bit_1;
-    	u32 stride_128bit_2;
 	u16 uv_x_off,uv_y_off,uv_y_act;
 	u8  is_pic_yuv=0;
 	u8  ppixel_a=0,global_a=0;
@@ -1375,6 +1419,7 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
 		reg_win_data->win_id  = -1;
 	}
 	for(i=0;i<reg_win_data->area_num;i++){
+		rk_fb_check_config_var(&win_par->area_par[i],screen);
 		reg_win_data->reg_area_data[i].xpos = win_par->area_par[i].xpos;//visiable pos in panel
 		reg_win_data->reg_area_data[i].ypos = win_par->area_par[i].ypos;
 
@@ -1509,7 +1554,6 @@ static int rk_fb_set_win_config(struct fb_info *info,
 	struct sync_fence *retire_fence;
 	struct sync_pt *release_sync_pt[RK_MAX_BUF_NUM];
 	struct sync_pt *retire_sync_pt;
-	int fencd_fd;
 	char fence_name[20];
 #endif
 	int ret,i,j=0;
@@ -1961,8 +2005,6 @@ static int rk_fb_set_par(struct fb_info *info)
 	u32 stride,uv_stride;
     	u32 stride_32bit_1;
     	u32 stride_32bit_2;
-    	u32 stride_128bit_1;
-    	u32 stride_128bit_2;
 	u16 uv_x_off,uv_y_off,uv_y_act;
 	u8  is_pic_yuv=0;
 

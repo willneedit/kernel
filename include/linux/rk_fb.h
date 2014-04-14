@@ -299,6 +299,7 @@ struct rk_lcdc_win {
 	char name[5];
 	int id;
 	bool state;		/*on or off*/
+	bool last_state;		/*on or off*/
 	u32 pseudo_pal[16];
 	enum data_format format;
 	int z_order;		/*win sel layer*/
@@ -371,6 +372,7 @@ struct rk_lcdc_drv_ops {
 	int (*set_dsp_lut) (struct rk_lcdc_driver * dev_drv, int *lut);
 	int (*read_dsp_lut) (struct rk_lcdc_driver * dev_drv, int *lut);
 	int (*lcdc_hdmi_process) (struct rk_lcdc_driver * dev_drv, int mode);	//some lcdc need to some process in hdmi mode
+	int (*set_irq_to_cpu)(struct rk_lcdc_driver *dev_drv,int enable);
 	int (*poll_vblank) (struct rk_lcdc_driver * dev_drv);
 	int (*lcdc_rst) (struct rk_lcdc_driver * dev_drv);
 	int (*dpi_open) (struct rk_lcdc_driver * dev_drv, bool open);

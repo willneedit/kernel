@@ -303,7 +303,7 @@
 		compatible = "nxp,pcf8563";
 		reg = <0x51>;
 	};
-/*
+	
 	sensor@1d {
 		compatible = "gs_mma8452";
 		reg = <0x1d>;
@@ -312,7 +312,6 @@
 		irq_enable = <1>;
 		poll_delay_ms = <30>;
 		layout = <8>;
-		status = "disabled";
 	};
 
 	sensor@0d {
@@ -323,9 +322,8 @@
 		irq_enable = <1>;
 		poll_delay_ms = <30>;
 		layout = <1>;
-		status = "disabled";
 	};
-*/
+
 	sensor@10 {
               compatible = "ls_cm3218";
               reg = <0x10>;
@@ -335,7 +333,7 @@
               poll_delay_ms = <30>;
               layout = <1>;
        };
-	      
+/*	      
  	mpu6050:mpu@68{
 	compatible = "mpu6050";
 	reg = <0x68>;
@@ -348,7 +346,7 @@
 	irq-gpio = <&gpio8 GPIO_A0 IRQ_TYPE_LEVEL_LOW>;			
 	mpu-debug = <0>;
 	};
-/*
+
 	ak8963:compass@0d{
 	compatible = "ak8963";
 	reg = <0x0d>;
@@ -361,7 +359,7 @@
 	compass-debug = <1>;
 	status = "disabled";
 	};
-*/
+
 	ak8975:compass@0d{
 	compatible = "ak8975";
 	reg = <0x0d>;
@@ -373,7 +371,7 @@
 	orientation-z= <0>;	
 	compass-debug = <0>;
 	};
-
+*/
 };
 
 &i2c2 {
@@ -551,8 +549,8 @@
 		/* KHz    uV */
 		200000 950000
 		300000 950000
-		400000 1000000
-		533000 1050000
+		400000 1100000
+		533000 1150000
 		>;
 
 	freq_table = <
@@ -567,7 +565,7 @@
 
 /include/ "rk808.dtsi"
 &rk808 {
-	gpios =<&gpio0 GPIO_A4 GPIO_ACTIVE_HIGH>,<&gpio0 GPIO_B3 GPIO_ACTIVE_LOW>;
+	gpios =<&gpio0 GPIO_A4 GPIO_ACTIVE_HIGH>,<&gpio0 GPIO_A0 GPIO_ACTIVE_LOW>;
 	rk808,system-power-controller;
 
 	regulators {
