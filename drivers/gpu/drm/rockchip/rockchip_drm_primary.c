@@ -439,9 +439,6 @@ static void primary_win_commit(struct device *dev, int zpos)
 	if(win == 1){
 		rk_win->alpha_en = true;
 	}
-	if(win == 0){
-		rk_win->xvir = (rk_win->xvir + 31)&(~31);
-	}
 
 	rk_drm_disp_handle(drm_disp,1<<rk_win_id,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
 		
