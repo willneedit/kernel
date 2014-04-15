@@ -601,7 +601,6 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 
 		modelist = list_first_entry(drm_display->modelist, struct fb_modelist, list);
 		mode=&modelist->mode;
-		mode->xres = (mode->xres + 31)&(~31);
 
 	}else if(dev_drv->prop == EXTEND){
 		struct list_head *modelist;
