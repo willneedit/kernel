@@ -890,10 +890,10 @@ static u32  rkpm_slp_mode_set(u32 ctrbits)
     
     //mode_set1=pmu_pwr_mode_con1;
     //mode_set=pmu_pwr_mode_con0;
-  
-   //pmu_writel(0x1<<3,RK3188_PMU_WAKEUP_CFG1);  
-   pmu_writel(0x1<<0,RK3188_PMU_WAKEUP_CFG1);  
 
+    pmu_writel(pmu_readl(RK3188_PMU_WAKEUP_CFG1)|(0x1<<3),RK3188_PMU_WAKEUP_CFG1);  
+    dsb();
+	
     // enable boot ram    
     reg_writel((0x1<<8)|(0x1<<(8+16)),RK_SGRF_VIRT+RK3288_SGRF_SOC_CON0);
     dsb();
@@ -1125,11 +1125,11 @@ static inline void  rkpm_peri_resume_first(u32 power_mode)
 
 static void rkpm_slp_setting(void)
 {
-   //rkpm_gic_disable(130);
-  //  rkpm_gic_disable(132);
+	//rkpm_gic_disable(130);
+	//rkpm_gic_disable(132);
 
-    //rkpm_ddr_printhex(pmu_readl(RK3288_PMU_WAKEUP_CFG1));
-    //rkpm_ddr_printhex(pmu_readl(RK3288_PMU_PWRMODE_CON));
+	//rkpm_ddr_printhex(pmu_readl(RK3288_PMU_WAKEUP_CFG1));
+	//rkpm_ddr_printhex(pmu_readl(RK3288_PMU_PWRMODE_CON));
 }
 
 
@@ -2246,7 +2246,7 @@ static  void interface_ctr_reg_pread(void)
         readl_relaxed(RK_DDR_VIRT);
         readl_relaxed(RK_GPIO_VIRT(0));     
         //readl_relaxed(RK30_I2C1_BASE+SZ_4K);
-        //readl_relaxed(RK_GPIO_VIRT(3));
+        readl_relaxed(RK_GPIO_VIRT(8));
 }
 void PIE_FUNC(ddr_leakage_tst)(void)
 {
