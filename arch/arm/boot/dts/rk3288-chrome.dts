@@ -449,9 +449,9 @@
 		       
        };*/
 
-	key {
+	/*key {
 		compatible = "rockchip,key";
-		/*
+		
 		io-channels = <&adc 1>;
 
 		vol-up-key {
@@ -495,8 +495,8 @@
 			linux,code = <212>;
 			label = "camera";
 			rockchip,adc_value = <450>;
-		};*/
-	};
+		};
+	};*/
 };
 
 &pwm0 {
