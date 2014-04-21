@@ -43,7 +43,9 @@
 
 static struct miscdevice blueberry_ec_device;
 
-static struct blueberry_kb *g_bbkb;
+static struct blueberry_kb *g_bbkb;     
+
+extern void rk_send_power_key(int state);
 
 static int pwrkey_send_once = 0;
 
@@ -259,12 +261,10 @@ static void blueberry_kb_input_work(struct work_struct *work)
 	{
 	    if((pwrkey_send_once == 0) && (bbkb->arm_early_suspend == 1) && (bbkb->i2c_data[2] == 1))
     	{
-    	#if defined(CONFIG_KEYS_RK)
         	rk_send_power_key(1);
         	rk_send_power_key(0);
-		printk("blueberry_kb: rk_send_power_key-----------\n");
-	#endif
-		pwrkey_send_once = 1;
+			printk("blueberry_kb: rk_send_power_key-----------\n");
+			pwrkey_send_once = 1;
         	goto enable_irq;
     	}
 
@@ -1128,14 +1128,14 @@ static int blueberry_kb_probe(struct i2c_client *client,
 //while(1)
 {
 	ec_cmd[0] = 0x10;
-	ec_cmd[1] = 0x00;
+    ec_cmd[1] = 0x00;
 	ec_cmd[2] = ((bbkb->kb_enable) ? 1 : 0);
 	printk("defalte enable keyboard\n");
 	ret = blueberry_kb_i2c_write_data(bbkb->client, ec_cmd, 3);
 	if(ret){
 		printk("%s: defalte enable keyboard err = %d\n", __func__, ret);
 	}//else break;
-	msleep(100);
+//    mdelay(1000);
 }
    // ec_cmd[0] = 0x10;
 	//ec_cmd[1] = 0x00;

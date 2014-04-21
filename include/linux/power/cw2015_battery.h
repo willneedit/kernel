@@ -17,6 +17,7 @@
 
 #define SIZE_BATINFO    64 
 
+extern void rk_send_wakeup_key(void);
 struct cw_bat_platform_data {
 
         int is_dc_charge;

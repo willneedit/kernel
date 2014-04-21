@@ -563,9 +563,7 @@ struct rkehci_platform_data rkohci_pdata_rk3288 = {
 #define WAKE_LOCK_TIMEOUT (HZ * 10)
 inline static void do_wakeup(struct work_struct *work)
 {
-#if defined(CONFIG_KEYS_RK)
 	rk_send_wakeup_key(); // wake up the system
-#endif
 }
 
 static void usb_battery_charger_detect_work(struct work_struct *work)

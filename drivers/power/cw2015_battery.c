@@ -1097,9 +1097,9 @@ static void dc_detect_do_wakeup(struct work_struct *work)
 
         delay_work = container_of(work, struct delayed_work, work);
         cw_bat = container_of(delay_work, struct cw_battery, dc_wakeup_work);
-#if defined(CONFIG_KEYS_RK)
+
         rk_send_wakeup_key();
-#endif
+
         /* this assume if usb insert or extract dc_det pin is change */
 #if 0
         if(cw_bat->charger_init_mode)
