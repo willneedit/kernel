@@ -3220,9 +3220,10 @@ static irqreturn_t rk3288_lcdc_isr(int irq, void *dev_id)
 		}
 #ifdef CONFIG_DRM_ROCKCHIP
 		lcdc_dev->driver.irq_call_back(&lcdc_dev->driver);
-#endif 
+#else 
 		lcdc_dev->driver.vsync_info.timestamp = timestamp;
 		wake_up_interruptible_all(&lcdc_dev->driver.vsync_info.wait);
+#endif
 
 	}else if(intr0_reg & m_LINE_FLAG_INTR_STS){
 		lcdc_msk_reg(lcdc_dev, INTR_CTRL0, m_LINE_FLAG_INTR_CLR,

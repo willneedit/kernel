@@ -116,7 +116,9 @@ int rk3288_hdmi_read_edid(struct hdmi *hdmi_drv, int block, unsigned char *buff)
 	unsigned long flags;
 	struct rk3288_hdmi_device *hdmi_dev = container_of(hdmi_drv, struct rk3288_hdmi_device, driver);
 
+	printk(KERN_ERR"------>yzq %s %d \n",__func__,__LINE__);
 	return -1;
+	printk(KERN_ERR"------>yzq %s %d \n",__func__,__LINE__);
 	hdmi_dbg(hdmi_drv->dev, "[%s] block %d\n", __FUNCTION__, block);
 	//spin_lock_irqsave(&hdmi_drv->irq_lock, flags);
 	hdmi_dev->i2cm_int = 0;
