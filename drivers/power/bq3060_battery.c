@@ -498,7 +498,13 @@ static int bq3060_battery_probe(struct i2c_client *client,
 	di->interval = msecs_to_jiffies(1 * 1000);
 	if (bq3060_node)
 		pdev = bq3060_parse_dt(di);
-
+	
+	retval = bq3060_read(di->client,0x00,buf);
+	if (retval < 0){
+		printk("The device is not bq3060 %d\n",retval);
+		goto batt_failed_4;
+	}
+	
 	bq3060_powersupply_init(di);
 	retval = power_supply_register(&client->dev, &di->bat);
 	if (retval) {

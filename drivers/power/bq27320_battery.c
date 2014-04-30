@@ -1295,7 +1295,7 @@ static int bq27320_battery_probe(struct i2c_client *client,
 	retval = bq27320_read(di->client,0x00,buf,2);
 	if (retval < 0){
 		printk("The device is not bq27320 %d\n",retval);
-		goto batt_failed_2;
+		goto batt_failed_4;
 	}
 	
 	bq27320_powersupply_init(di);
