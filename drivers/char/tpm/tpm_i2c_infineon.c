@@ -101,13 +101,19 @@ static int iic_tpm_read(u8 addr, u8 *buffer, size_t len)
 	struct i2c_msg msg1 = {
 		.addr = tpm_dev.client->addr,
 		.len = 1,
-		.buf = &addr
+		.buf = &addr,
+#ifdef CONFIG_I2C_ROCKCHIP_COMPAT
+		.scl_rate = 100*1000,
+#endif
 	};
 	struct i2c_msg msg2 = {
 		.addr = tpm_dev.client->addr,
 		.flags = I2C_M_RD,
 		.len = len,
-		.buf = buffer
+		.buf = buffer,
+#ifdef CONFIG_I2C_ROCKCHIP_COMPAT
+		.scl_rate = 100*1000,
+#endif
 	};
 	struct i2c_msg msgs[] = {msg1, msg2};
 
@@ -182,7 +188,10 @@ static int iic_tpm_write_generic(u8 addr, u8 *buffer, size_t len,
 	struct i2c_msg msg1 = {
 		.addr = tpm_dev.client->addr,
 		.len = len + 1,
-		.buf = tpm_dev.buf
+		.buf = tpm_dev.buf,
+#ifdef CONFIG_I2C_ROCKCHIP_COMPAT
+		.scl_rate = 100*1000,
+#endif
 	};
 
 	if (len > TPM_BUFSIZE)

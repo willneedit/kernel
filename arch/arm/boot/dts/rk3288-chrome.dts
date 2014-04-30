@@ -323,18 +323,12 @@
 		playback-if1-data_control = <0>;
 		playback-if2-data_control = <0>;
 	};
-/*	rt5631: rt5631@1a {
-		compatible = "rt5631";
-		reg = <0x1a>;
+
+	tpm: tpm@20 {
+		compatible = "infineon,slb9635tt";
+		reg = <0x20>;
 	};
-	es8323: es8323@10 {
-		compatible = "es8323";
-		reg = <0x10>;
-	};
-	rt5616: rt5616@1b {
-		compatible = "rt5616";
-		reg = <0x1b>;
-	};*/
+
 };
 
 &i2c3 {
