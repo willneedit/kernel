@@ -33,7 +33,7 @@ int get_cpu_clock_speed(u32 *cpu_clock);
 
 #define HZ_IN_MHZ                           (1000000)
 #ifdef CONFIG_MALI_T6XX_RT_PM
-#define RUNTIME_PM_DELAY_TIME 100
+#define RUNTIME_PM_DELAY_TIME 50
 #endif
 
 /* Versatile Express (VE) configuration defaults shared between config_attributes[]
@@ -213,6 +213,7 @@ static int pm_callback_runtime_on(kbase_device *kbdev)
 #ifdef CONFIG_MALI_T6XX_DVFS	
 	struct rk_context *platform = (struct rk_context *)kbdev->platform_context;
 #endif
++	kbase_platform_power_on(kbdev);
 	kbase_platform_clock_on(kbdev);
 #ifdef CONFIG_MALI_T6XX_DVFS
 	if (platform->dvfs_enabled) {
@@ -229,6 +230,7 @@ static int pm_callback_runtime_on(kbase_device *kbdev)
 static void pm_callback_runtime_off(kbase_device *kbdev)
 {
 	kbase_platform_clock_off(kbdev);
++	kbase_platform_power_off(kbdev);
 #ifdef CONFIG_MALI_T6XX_DVFS
 	if (kbase_platform_dvfs_enable(false, MALI_DVFS_CURRENT_FREQ)!= MALI_TRUE)
 		printk("[err] disabling dvfs is faled\n");
