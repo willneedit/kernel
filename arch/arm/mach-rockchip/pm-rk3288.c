@@ -6,7 +6,7 @@
 #include <asm/hardware/cache-l2x0.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
-
+#include <linux/wakeup_reason.h>
 #include <linux/pm.h>
 #include <linux/suspend.h>
 #include <linux/of.h>
@@ -25,6 +25,8 @@
 //#include "sram.h"
 #include "pm-pie.c"
 
+__weak void rk_usb_power_down(void);
+__weak void rk_usb_power_up(void);
 
 static void ddr_pin_set_pull(u8 port,u8 bank,u8 b_gpio,u8 fun);
 static void ddr_gpio_set_in_output(u8 port,u8 bank,u8 b_gpio,u8 type);
@@ -871,10 +873,9 @@ enum rk3288_pwr_mode_con {
   
 };
  static u32 rk3288_powermode=0;
-
 static void ddr_pin_set_fun(u8 port,u8 bank,u8 b_gpio,u8 fun);
 
-static u32 sgrf_soc_con0,pmu_pwr_mode_con0,pmu_pwr_mode_con1;
+static u32 sgrf_soc_con0,pmu_wakeup_cfg0,pmu_wakeup_cfg1,pmu_pwr_mode_con0,pmu_pwr_mode_con1;
 
 static u32  rkpm_slp_mode_set(u32 ctrbits)
 {
@@ -882,11 +883,17 @@ static u32  rkpm_slp_mode_set(u32 ctrbits)
     
     // setting gpio0_a0 arm off pin
 
-    ddr_pin_set_fun(0x0,0xa,0x0,0x1);
-
     sgrf_soc_con0=reg_readl(RK_SGRF_VIRT+RK3288_SGRF_SOC_CON0);
+    
+    pmu_wakeup_cfg0=pmu_readl(RK3288_PMU_WAKEUP_CFG0);  
+    pmu_wakeup_cfg1=pmu_readl(RK3288_PMU_WAKEUP_CFG1);
+    
     pmu_pwr_mode_con0=pmu_readl(RK3288_PMU_PWRMODE_CON);  
     pmu_pwr_mode_con1=pmu_readl(RK3288_PMU_PWRMODE_CON1);
+    
+    ddr_pin_set_fun(0x0,0xa,0x0,0x1);
+
+
     
     //mode_set1=pmu_pwr_mode_con1;
     //mode_set=pmu_pwr_mode_con0;
@@ -941,7 +948,7 @@ static u32  rkpm_slp_mode_set(u32 ctrbits)
                             |BIT(pmu_sref0_enter_en)|BIT(pmu_sref1_enter_en) 
                             |BIT(pmu_ddr0_gating_en)|BIT(pmu_ddr1_gating_en)              
                             |BIT(pmu_ddr1io_ret_en)|BIT(pmu_ddr0io_ret_en)   
-                            |BIT(pmu_osc_24m_dis)|BIT(pmu_pmu_use_lf)|BIT(pmu_alive_use_lf)
+                            |BIT(pmu_osc_24m_dis)|BIT(pmu_pmu_use_lf)|BIT(pmu_alive_use_lf)|BIT(pmu_pll_pd_en)
                             ;
         mode_set1=BIT(pmu_clr_core)|BIT(pmu_clr_cpup)
                            |BIT(pmu_clr_alive)
@@ -991,6 +998,9 @@ static u32  rkpm_slp_mode_set(u32 ctrbits)
 static inline void  rkpm_slp_mode_set_resume(void)
 {
 
+    pmu_writel(pmu_wakeup_cfg0,RK3288_PMU_WAKEUP_CFG0);  
+    pmu_writel(pmu_wakeup_cfg1,RK3288_PMU_WAKEUP_CFG1);  
+    
     pmu_writel(pmu_pwr_mode_con0,RK3288_PMU_PWRMODE_CON);  
     pmu_writel(pmu_pwr_mode_con1,RK3288_PMU_PWRMODE_CON1);  
     reg_writel(sgrf_soc_con0|(0x1<<(8+16)),RK_SGRF_VIRT+RK3288_SGRF_SOC_CON0);
@@ -1125,8 +1135,10 @@ static inline void  rkpm_peri_resume_first(u32 power_mode)
 
 static void rkpm_slp_setting(void)
 {
-	//rkpm_gic_disable(130);
-	//rkpm_gic_disable(132);
+	rk_usb_power_down();
+
+   //rkpm_gic_disable(130);
+  //  rkpm_gic_disable(132);
 
 	//rkpm_ddr_printhex(pmu_readl(RK3288_PMU_WAKEUP_CFG1));
 	//rkpm_ddr_printhex(pmu_readl(RK3288_PMU_PWRMODE_CON));
@@ -1135,6 +1147,7 @@ static void rkpm_slp_setting(void)
 
 static void rkpm_save_setting_resume_first(void)
 {
+	rk_usb_power_up();
         rkpm_peri_resume_first(rk3288_powermode);
         
         // rkpm_ddr_printhex(cru_readl(RK3288_CRU_MODE_CON));
@@ -1787,10 +1800,24 @@ void PIE_FUNC(gtclks_sram_resume)(void)
         cru_writel(rkpm_clkgt_last_save[i]|0xffff0000, RK3288_CRU_CLKGATES_CON(i));
     }
 }
+#define grf_readl(offset)	readl_relaxed(RK_GRF_VIRT + offset)
+#define grf_writel(v, offset)	do { writel_relaxed(v, RK_GRF_VIRT + offset); dsb(); } while (0)
+
+#define gpio7_readl(offset)	readl_relaxed(RK_GPIO_VIRT(7)+ offset)
+#define gpio7_writel(v, offset)	do { writel_relaxed(v, RK_GPIO_VIRT(7) + offset); dsb(); } while (0)
+
+int gpio7_pin_data1, gpio7_pin_dir1;
+int gpio7_pin_iomux1;
 
 static void gtclks_suspend(void)
 {
     int i;
+	gpio7_pin_data1= gpio7_readl(0);
+	gpio7_pin_dir1 = gpio7_readl(0x04);
+	gpio7_pin_iomux1 =  gpio7_readl(0x6c);
+	grf_writel(0x00040000, 0x6c);
+	gpio7_writel(gpio7_pin_dir1|0x2, 0x04);
+	gpio7_writel((gpio7_pin_data1|2), 0x00);
 
   // rkpm_ddr_regs_dump(RK_CRU_VIRT,RK3288_CRU_CLKGATES_CON(0)
                                           //          ,RK3288_CRU_CLKGATES_CON(RK3288_CRU_CLKGATES_CON_CNT-1));
@@ -1858,7 +1885,8 @@ static void gtclks_resume(void)
      }
      //rkpm_ddr_regs_dump(RK_CRU_VIRT,RK3288_CRU_CLKGATES_CON(0)
                                                  //   ,RK3288_CRU_CLKGATES_CON(RK3288_CRU_CLKGATES_CON_CNT-1));
-    
+	grf_writel(0x00040004, 0x6c);
+
 }
 /********************************pll power down***************************************/
 
@@ -2161,29 +2189,23 @@ static void clks_gating_suspend_init(void)
 
 
 #define GIC_DIST_PENDING_SET		0x200
-#define DUMP_GPIO_INT_STATUS(ID) \
-do { \
-	if (irq_gpio & (1 << ID)) \
-		printk("wakeup gpio" #ID ": %08x\n", readl_relaxed(RK_GPIO_VIRT(ID) + GPIO_INT_STATUS)); \
-} while (0)
-static noinline void rk30_pm_dump_irq(void)
+static noinline void rk3288_pm_dump_irq(void)
 {
 	u32 irq_gpio = (readl_relaxed(RK_GIC_VIRT + GIC_DIST_PENDING_SET + 12) >> 17) & 0x1FF;
-	printk("wakeup irq: %08x %08x %08x %08x\n",
-		readl_relaxed(RK_GIC_VIRT + GIC_DIST_PENDING_SET + 4),
-		readl_relaxed(RK_GIC_VIRT + GIC_DIST_PENDING_SET + 8),
-		readl_relaxed(RK_GIC_VIRT + GIC_DIST_PENDING_SET + 12),
-		readl_relaxed(RK_GIC_VIRT + GIC_DIST_PENDING_SET + 16));
-        DUMP_GPIO_INT_STATUS(0);
-        DUMP_GPIO_INT_STATUS(1);
-        DUMP_GPIO_INT_STATUS(2);
-        DUMP_GPIO_INT_STATUS(3);
-        DUMP_GPIO_INT_STATUS(4);
-        DUMP_GPIO_INT_STATUS(5);
-        DUMP_GPIO_INT_STATUS(6);
-        DUMP_GPIO_INT_STATUS(7);
-        DUMP_GPIO_INT_STATUS(8);
-        
+	u32 irq[4];
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(irq); i++)
+		irq[i] = readl_relaxed(RK_GIC_VIRT + GIC_DIST_PENDING_SET + (1 + i) * 4);
+	for (i = 0; i < ARRAY_SIZE(irq); i++) {
+		if (irq[i])
+			log_wakeup_reason(32 * (i + 1) + fls(irq[i]) - 1);
+	}
+	printk("wakeup irq: %08x %08x %08x %08x\n", irq[0], irq[1], irq[2], irq[3]);
+	for (i = 0; i <= 8; i++) {
+		if (irq_gpio & (1 << i))
+			printk("wakeup gpio%d: %08x\n", i, readl_relaxed(RK_GPIO_VIRT(i) + GPIO_INT_STATUS));
+	}
 }
 
 #define DUMP_GPIO_INTEN(ID) \
@@ -2198,7 +2220,7 @@ do { \
 } while (0)
 
 //dump while irq is enable
-static noinline void rk30_pm_dump_inten(void)
+static noinline void rk3288_pm_dump_inten(void)
 {
 	DUMP_GPIO_INTEN(0);
 	DUMP_GPIO_INTEN(1);
@@ -2222,12 +2244,12 @@ static  void rkpm_prepare(void)
        // rkpm_ddr_printhex(temp);
         #endif             
 	// dump GPIO INTEN for debug
-	rk30_pm_dump_inten();
+	rk3288_pm_dump_inten();
 }
 
 static void rkpm_finish(void)
 {
-	rk30_pm_dump_irq();
+	rk3288_pm_dump_irq();
 }
 
 

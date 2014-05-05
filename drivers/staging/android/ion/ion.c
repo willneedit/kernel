@@ -116,7 +116,13 @@ struct ion_handle {
 	int id;
 };
 
+#ifdef CONFIG_ROCKCHIP_IOMMU
 static void ion_iommu_force_unmap(struct ion_buffer *buffer);
+#endif
+#ifdef CONFIG_ION_ROCKCHIP_SNAPSHOT
+extern char *rockchip_ion_snapshot_get(unsigned *size);
+extern int rockchip_ion_snapshot_debugfs(struct dentry* root);
+#endif
 
 bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer)
 {
@@ -935,7 +941,7 @@ static int ion_debug_client_show_buffer(struct seq_file *s, void *unused)
 			buffer->heap->ops->phys(buffer->heap, buffer, &pa, &len);
 
 		seq_printf(s, "%16.16s:   0x%08lx   0x%08lx %8zuKB %4d %4d %4d\n",
-			buffer->heap->name, buffer->vaddr, pa, len>>10, buffer->handle_count,
+			buffer->heap->name, (unsigned long)buffer->vaddr, pa, len>>10, buffer->handle_count,
 			atomic_read(&buffer->ref.refcount), atomic_read(&handle->ref.refcount));
 #ifdef CONFIG_ROCKCHIP_IOMMU
 		ion_debug_client_show_buffer_map(s, buffer);
@@ -1969,6 +1975,10 @@ struct ion_device *ion_device_create(long (*custom_ioctl)
 	if (!idev->clients_debug_root)
 		pr_err("ion: failed to create debugfs clients directory.\n");
 
+#ifdef CONFIG_ION_ROCKCHIP_SNAPSHOT
+	rockchip_ion_snapshot_debugfs(idev->debug_root);
+#endif
+
 debugfs_done:
 
 	idev->custom_ioctl = custom_ioctl;
@@ -2023,7 +2033,30 @@ void __init ion_reserve(struct ion_platform_data *data)
 	}
 }
 
-#define ION_SNAPSHOT_BUFFER_LEN		1<<18
+#ifdef CONFIG_ION_ROCKCHIP_SNAPSHOT
+
+// Find the maximum can be allocated memory
+static unsigned long ion_find_max_zero_area(unsigned long *map, unsigned long size)
+{
+	unsigned long index, i, zero_sz, max_zero_sz, start;
+	start = 0;
+	max_zero_sz = 0;
+
+	do {
+		index = find_next_zero_bit(map, size, start);
+		if (index>=size) break;
+
+		i = find_next_bit(map, size, index);
+		zero_sz = i-index;
+		pr_debug("zero[%lx, %lx]\n", index, zero_sz);
+		max_zero_sz = max(max_zero_sz, zero_sz);
+		start = i + 1;
+	} while(start<=size);
+
+	pr_debug("max_zero_sz=%lx\n", max_zero_sz);
+	return max_zero_sz;
+}
+
 int ion_snapshot_save(struct ion_device *idev)
 {
 	static struct seq_file seqf;
@@ -2031,18 +2064,14 @@ int ion_snapshot_save(struct ion_device *idev)
 	struct rb_node *n;
 
 	if (!seqf.buf) {
-		seqf.size = ION_SNAPSHOT_BUFFER_LEN;
-		seqf.buf = kmalloc(seqf.size, GFP_KERNEL);
+		seqf.buf = rockchip_ion_snapshot_get(&seqf.size);
 		if (!seqf.buf)
 			return -ENOMEM;
-		printk("%s: create snapshot 0x%x@0x%lx\n", __func__, seqf.size,
-			__pa(seqf.buf));
-	} else {
-		printk("%s: save snapshot 0x%x@0x%lx\n", __func__, seqf.size,
-			__pa(seqf.buf));
-		memset(seqf.buf, 0, seqf.size);
-		seqf.count = 0;
 	}
+	memset(seqf.buf, 0, seqf.size);
+	seqf.count = 0;
+	pr_info("%s: save snapshot 0x%x@0x%lx\n", __func__, seqf.size,
+		__pa(seqf.buf));
 
 	down_read(&idev->lock);
 
@@ -2051,9 +2080,16 @@ int ion_snapshot_save(struct ion_device *idev)
 		seq_printf(&seqf, "++++++++++++++++ HEAP: %s ++++++++++++++++\n",
 			heap->name);
 		ion_debug_heap_show(&seqf, NULL);
-		seq_printf(&seqf, "\n");
-		if (ION_HEAP_TYPE_DMA==heap->type)
-			ion_cma_heap_debug_show(&seqf, NULL);
+		if (ION_HEAP_TYPE_DMA==heap->type) {
+			struct ion_cma_heap *cma_heap = container_of(heap,
+									struct ion_cma_heap,
+									heap);
+			struct cma *cma = dev_get_cma_area(cma_heap->dev);
+			seq_printf(&seqf, "\n");
+			seq_printf(&seqf, "Maximum allocation of pages: %ld\n",
+					ion_find_max_zero_area(cma->bitmap, cma->count));
+			seq_printf(&seqf, "\n");
+		}
 	}
 
 	for (n = rb_first(&idev->clients); n; n = rb_next(n)) {
@@ -2078,3 +2114,9 @@ int ion_snapshot_save(struct ion_device *idev)
 
 	return 0;
 }
+#else
+int ion_snapshot_save(struct ion_device *idev)
+{
+	return 0;
+}
+#endif

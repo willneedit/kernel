@@ -84,7 +84,7 @@
 #define Y_MIRROR    	2
 #define X_Y_MIRROR    	3
 
-/*#define USE_ION_MMU 1*/
+//#define USE_ION_MMU 1
 #if defined(CONFIG_ION_ROCKCHIP)
 extern struct ion_client *rockchip_ion_client_create(const char * name);
 #endif
@@ -284,6 +284,7 @@ struct rk_lcdc_win_area{
 #if defined(CONFIG_ION_ROCKCHIP)
 		struct ion_handle *ion_hdl;
 		int dma_buf_fd;
+		struct dma_buf *dma_buf;
 #endif
 	u32 dsp_stx;
 	u32 dsp_sty;
@@ -383,7 +384,7 @@ struct rk_lcdc_drv_ops {
 	int (*set_dsp_hue) (struct rk_lcdc_driver *dev_drv,int hue);
 	int (*set_dsp_bcsh_bcs)(struct rk_lcdc_driver *dev_drv,int bri,int con,int sat);
 	int (*dump_reg) (struct rk_lcdc_driver * dev_drv);
-	int (*mmu_en) (struct rk_lcdc_driver * dev_drv,bool en);
+	int (*mmu_en) (struct rk_lcdc_driver * dev_drv);
 	int (*cfg_done) (struct rk_lcdc_driver * dev_drv);
 };
 
@@ -574,4 +575,5 @@ extern int rkfb_create_sysfs(struct fb_info *fbi);
 extern char *get_format_string(enum data_format, char *fmt);
 extern int support_uboot_display(void);
 extern int  rk_fb_calc_fps(struct rk_screen * screen, u32 pixclock);
+extern int rk_get_real_fps(int time);
 #endif

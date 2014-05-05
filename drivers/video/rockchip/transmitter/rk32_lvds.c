@@ -19,10 +19,11 @@ static struct rk32_lvds *rk32_lvds;
 static int rk32_lvds_disable(void)
 {
 	struct rk32_lvds *lvds = rk32_lvds;
-	writel_relaxed(0x80008000, RK_GRF_VIRT + RK3288_GRF_SOC_CON7);
+	writel_relaxed(0xffff8000, RK_GRF_VIRT + RK3288_GRF_SOC_CON7);
 	writel_relaxed(0x00, lvds->regs + LVDS_CFG_REG_21); /*disable tx*/
 	writel_relaxed(0xff, lvds->regs + LVDS_CFG_REG_c); /*disable pll*/
 	clk_disable_unprepare(lvds->clk);
+	clk_disable_unprepare(lvds->pd);
 	return 0;
 }
 
@@ -34,6 +35,7 @@ static int rk32_lvds_en(void)
 	u32 i,j, val ;
 
 	clk_prepare_enable(lvds->clk);
+	clk_prepare_enable(lvds->pd);
 	screen->type = SCREEN_RGB;
 	
 	screen->lcdc_id = 1;
@@ -259,7 +261,8 @@ static int rk32_lvds_probe(struct platform_device *pdev)
 	if ((lvds->screen.type != SCREEN_RGB) && 
 		(lvds->screen.type != SCREEN_LVDS) &&
 		(lvds->screen.type != SCREEN_DUAL_LVDS)) {
-		dev_err(&pdev->dev, "screen is not lvds/rgb!\n");
+		dev_err(&pdev->dev, "screen is not lvds/rgb!\n");		
+		writel_relaxed(0xffff8000, RK_GRF_VIRT + RK3288_GRF_SOC_CON7);
 		return -EINVAL;
 	}
 	platform_set_drvdata(pdev, lvds);
@@ -270,11 +273,21 @@ static int rk32_lvds_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "ioremap reg failed\n");
 		return PTR_ERR(lvds->regs);
 	}
-	lvds->clk = devm_clk_get(&pdev->dev,NULL);
+	lvds->clk = devm_clk_get(&pdev->dev,"pclk_lvds");
 	if (IS_ERR(lvds->clk)) {
 		dev_err(&pdev->dev, "get clk failed\n");
 		return PTR_ERR(lvds->clk);
 	}
+	lvds->pd = devm_clk_get(&pdev->dev,"pd_lvds");
+	if (IS_ERR(lvds->pd)) {
+		dev_err(&pdev->dev, "get clk failed\n");
+		return PTR_ERR(lvds->pd);
+	}	
+	if (support_uboot_display()) {
+		clk_prepare_enable(lvds->clk);
+		clk_prepare_enable(lvds->pd);
+	}
+
 	rk32_lvds = lvds;
 	rk_fb_trsm_ops_register(&trsm_lvds_ops,SCREEN_LVDS);
 	dev_info(&pdev->dev, "rk32 lvds driver probe success\n");

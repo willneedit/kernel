@@ -23,9 +23,9 @@
 #include <asm/cputype.h>
 #include <asm/hardware/cache-l2x0.h>
 #include <linux/rockchip/common.h>
+#include <linux/rockchip/pmu.h>
 #include "cpu_axi.h"
 #include "loader.h"
-#include "pmu.h"
 #include "sram.h"
 
 static int __init rockchip_cpu_axi_init(void)
@@ -177,9 +177,13 @@ int __init rockchip_pie_init(void)
 #endif
 
 static bool is_panic = false;
+extern void console_disable_suspend(void);
 
 static int panic_event(struct notifier_block *this, unsigned long event, void *ptr)
 {
+#if CONFIG_RK_DEBUG_UART >= 0
+	console_disable_suspend();
+#endif
 	is_panic = true;
 	return NOTIFY_DONE;
 }
@@ -272,3 +276,11 @@ void __init rockchip_ion_reserve(void)
 #endif
 }
 
+bool rockchip_jtag_enabled = false;
+static int __init rockchip_jtag_enable(char *__unused)
+{
+	rockchip_jtag_enabled = true;
+	printk("rockchip jtag enabled\n");
+	return 1;
+}
+__setup("rockchip_jtag", rockchip_jtag_enable);
