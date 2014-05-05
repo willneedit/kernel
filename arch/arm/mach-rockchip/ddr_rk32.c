@@ -3735,7 +3735,8 @@ void PIE_FUNC(ddr_change_freq_sram)(void *arg)
 }
 EXPORT_PIE_SYMBOL(FUNC(ddr_change_freq_sram));
 
-static int dclk_div;
+//modify by yzq, do not change dclk when ddr freq change 
+//static int dclk_div;
 static noinline uint32 ddr_change_freq_sram(uint32 nMHz , struct ddr_freq_t ddr_freq_t)
 {
     uint32 freq;
@@ -3756,7 +3757,8 @@ static noinline uint32 ddr_change_freq_sram(uint32 nMHz , struct ddr_freq_t ddr_
     }
 #endif
 
-    dclk_div = (cru_readl(RK3288_CRU_CLKSELS_CON(29)) >> 8) & 0xff;
+//modify by yzq, do not change dclk when ddr freq change 
+   // dclk_div = (cru_readl(RK3288_CRU_CLKSELS_CON(29)) >> 8) & 0xff;
 
     param.arm_freq = ddr_get_pll_freq(APLL);
     gpllvaluel = ddr_get_pll_freq(GPLL);
@@ -3830,11 +3832,13 @@ static noinline uint32 ddr_change_freq_sram(uint32 nMHz , struct ddr_freq_t ddr_
     param.freq = freq;
     param.freq_slew = freq_slew;
     param.dqstr_value = dqstr_value;
-    cru_writel(0 |CRU_W_MSK_SETBITS(0xff,8,0xff), RK3288_CRU_CLKSELS_CON(29));
+//modify by yzq, do not change dclk when ddr freq change 
+//    cru_writel(0 |CRU_W_MSK_SETBITS(0xff,8,0xff), RK3288_CRU_CLKSELS_CON(29));
     call_with_stack(fn_to_pie(rockchip_pie_chunk, &FUNC(ddr_change_freq_sram)),
                     &param,
                     rockchip_sram_stack-(NR_CPUS-1)*PAUSE_CPU_STACK_SZIE);
-    cru_writel(0 |CRU_W_MSK_SETBITS(dclk_div,8,0xff), RK3288_CRU_CLKSELS_CON(29));
+//modify by yzq, do not change dclk when ddr freq change 
+//    cru_writel(0 |CRU_W_MSK_SETBITS(dclk_div,8,0xff), RK3288_CRU_CLKSELS_CON(29));
 #if defined (DDR_CHANGE_FREQ_IN_LCDC_VSYNC)
 end:
 #endif
