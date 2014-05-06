@@ -28,6 +28,10 @@
 #define CLK_IS_BASIC		BIT(5) /* Basic clk, can't do a to_clk_foo() */
 #define CLK_GET_RATE_NOCACHE	BIT(6) /* do not use the cached clk rate */
 #define CLK_SET_RATE_NO_REPARENT BIT(7) /* don't re-parent on rate change */
+#define CLK_SET_RATE_PARENT_IN_ORDER BIT(8) /* consider the order of re-parent
+						and set_div on rate change */
+
+
 
 /* Rockchip pll flags */
 #define CLK_PLL_3188		BIT(0)
@@ -35,6 +39,8 @@
 #define CLK_PLL_3188PLUS	BIT(2)
 #define CLK_PLL_3188PLUS_APLL	BIT(3)
 #define CLK_PLL_3288_APLL	BIT(4)
+#define CLK_PLL_3188PLUS_AUTO	BIT(5)
+
 
 /* rate_ops index */
 #define CLKOPS_RATE_MUX_DIV		1
@@ -51,6 +57,27 @@
 #define CLKOPS_RATE_CORE_CHILD		12
 #define CLKOPS_RATE_DDR			13
 #define CLKOPS_RATE_RK3288_I2S		14
+#define CLKOPS_RATE_RK3288_USB480M	15
+#define CLKOPS_RATE_RK3288_DCLK_LCDC0	16
+#define CLKOPS_RATE_RK3288_DCLK_LCDC1	17
 #define CLKOPS_TABLE_END		(~0)
+
+/* pd id */
+#define CLK_PD_BCPU		0
+#define CLK_PD_BDSP		1
+#define CLK_PD_BUS		2
+#define CLK_PD_CPU_0 		3
+#define CLK_PD_CPU_1 		4
+#define CLK_PD_CPU_2 		5
+#define CLK_PD_CPU_3 		6
+#define CLK_PD_CS 		7
+#define CLK_PD_GPU 		8
+#define CLK_PD_HEVC 		9
+#define CLK_PD_PERI 		10
+#define CLK_PD_SCU 		11
+#define CLK_PD_VIDEO 		12
+#define CLK_PD_VIO		13
+#define CLK_PD_VIRT		255
+
 
 #endif /* _DT_BINDINGS_CLOCK_ROCKCHIP_H */

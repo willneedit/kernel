@@ -136,6 +136,73 @@ struct rk_fb_trsm_ops *rk_fb_trsm_ops_get(int type)
 	return ops;
 }
 
+int rk_fb_get_prmry_screen_ft(void)
+{
+	struct rk_drm_display *drm_disp = rk_drm_get_diplay(RK_DRM_PRIMARY_SCREEN);
+	struct rk_drm_screen_private *drm_screen_priv =
+	     	container_of(drm_disp, struct rk_drm_screen_private, drm_disp);
+	struct rk_lcdc_driver *dev_drv = drm_screen_priv->lcdc_dev_drv;
+	uint32_t htotal, vtotal, pix_total, ft_us, pixclock_ns;
+
+	if (unlikely(!dev_drv))
+		return 0;
+
+	pixclock_ns = dev_drv->pixclock/1000;
+
+	htotal = (dev_drv->cur_screen->mode.upper_margin + dev_drv->cur_screen->mode.lower_margin +
+		dev_drv->cur_screen->mode.yres + dev_drv->cur_screen->mode.vsync_len);
+	vtotal = (dev_drv->cur_screen->mode.left_margin + dev_drv->cur_screen->mode.right_margin +
+		dev_drv->cur_screen->mode.xres + dev_drv->cur_screen->mode.hsync_len);
+	pix_total = htotal*vtotal/1000;
+	ft_us = pix_total * pixclock_ns;
+	return ft_us;
+}
+int rk_fb_poll_prmry_screen_vblank(void)
+{
+	struct rk_drm_display *drm_disp = rk_drm_get_diplay(RK_DRM_PRIMARY_SCREEN);
+	struct rk_drm_screen_private *drm_screen_priv =
+	     	container_of(drm_disp, struct rk_drm_screen_private, drm_disp);
+	struct rk_lcdc_driver *dev_drv = drm_screen_priv->lcdc_dev_drv;
+	if (likely(dev_drv)) {
+		if (dev_drv->ops->poll_vblank)
+			return dev_drv->ops->poll_vblank(dev_drv);
+		else
+			return RK_LF_STATUS_NC;
+	} else
+		return RK_LF_STATUS_NC;
+}
+bool rk_fb_poll_wait_frame_complete(void)
+{
+	uint32_t timeout = RK_LF_MAX_TIMEOUT;
+	struct rk_drm_display *drm_disp = rk_drm_get_diplay(RK_DRM_PRIMARY_SCREEN);
+	struct rk_drm_screen_private *drm_screen_priv =
+	     	container_of(drm_disp, struct rk_drm_screen_private, drm_disp);
+	struct rk_lcdc_driver *dev_drv = drm_screen_priv->lcdc_dev_drv;
+	
+	if (likely(dev_drv)) {
+		if (dev_drv->ops->set_irq_to_cpu)
+			dev_drv->ops->set_irq_to_cpu(dev_drv,0);
+	}
+
+       
+	if (rk_fb_poll_prmry_screen_vblank() == RK_LF_STATUS_NC){
+		if (likely(dev_drv)) {
+			if(dev_drv->ops->set_irq_to_cpu)
+	                        dev_drv->ops->set_irq_to_cpu(dev_drv,1);
+		}
+		return false;
+	}	
+
+	while (!(rk_fb_poll_prmry_screen_vblank() == RK_LF_STATUS_FR)  &&  --timeout);
+	while (!(rk_fb_poll_prmry_screen_vblank() == RK_LF_STATUS_FC)  &&  --timeout);
+
+	if (likely(dev_drv)) {
+                if (dev_drv->ops->set_irq_to_cpu)
+                        dev_drv->ops->set_irq_to_cpu(dev_drv,1);
+        }
+
+	return true;
+}
 static int rk_screen_setenable(struct rk_drm_display *drm_display, int enable)
 {
 	struct rk_drm_screen_private *drm_screen_priv =

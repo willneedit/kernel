@@ -1,5 +1,6 @@
 #define pr_fmt(fmt) "ddrfreq: " fmt
 #include <linux/clk.h>
+#include <linux/fb.h>
 #include <linux/cpu.h>
 #include <linux/cpufreq.h>
 #include <linux/delay.h>
@@ -13,6 +14,8 @@
 #include <linux/uaccess.h>
 #include <linux/sched/rt.h>
 #include <linux/of.h>
+#include <linux/fb.h>
+#include <linux/input.h>
 #include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
 #include <linux/vmalloc.h>
@@ -23,6 +26,12 @@
 #include <linux/rockchip/grf.h>
 #include <linux/rockchip/iomap.h>
 
+extern int rockchip_cpufreq_reboot_limit_freq(void);
+
+static struct dvfs_node *clk_cpu_dvfs_node = NULL;
+static int ddr_boost = 0;
+static int reboot_config_done = 0;
+
 enum {
 	DEBUG_DDR = 1U << 0,
 	DEBUG_VIDEO_STATE = 1U << 1,
@@ -30,6 +39,7 @@ enum {
 	DEBUG_VERBOSE = 1U << 3,
 };
 static int debug_mask = DEBUG_DDR;
+
 module_param(debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP);
 #define dprintk(mask, fmt, ...) do { if (mask & debug_mask) pr_info(fmt, ##__VA_ARGS__); } while (0)
 
@@ -37,9 +47,6 @@ module_param(debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP);
 #define KHZ	1000
 
 struct ddr {
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	struct early_suspend early_suspend;
-#endif
 	struct dvfs_node *clk_dvfs_node;
 	unsigned long normal_rate;
 	unsigned long video_rate;
@@ -47,6 +54,7 @@ struct ddr {
 	unsigned long idle_rate;
 	unsigned long suspend_rate;
 	unsigned long reboot_rate;
+	bool auto_freq;
 	bool auto_self_refresh;
 	char *mode;
 	unsigned long sys_status;
@@ -70,10 +78,12 @@ static noinline void ddrfreq_clear_sys_status(int status)
 	ddr.sys_status &= ~status;
 	wake_up(&ddr.wait);
 }
-int ddr_set_rate(uint32_t nMHz);
 
 static void ddrfreq_mode(bool auto_self_refresh, unsigned long *target_rate, char *name)
 {
+	unsigned int min_rate, max_rate;
+	int freq_limit_en;
+
 	ddr.mode = name;
 	if (auto_self_refresh != ddr.auto_self_refresh) {
 		ddr_set_auto_self_refresh(auto_self_refresh);
@@ -81,12 +91,217 @@ static void ddrfreq_mode(bool auto_self_refresh, unsigned long *target_rate, cha
 		dprintk(DEBUG_DDR, "change auto self refresh to %d when %s\n", auto_self_refresh, name);
 	}
 	if (*target_rate != dvfs_clk_get_rate(ddr.clk_dvfs_node)) {
+		freq_limit_en = dvfs_clk_get_limit(clk_cpu_dvfs_node, &min_rate, &max_rate);
+		dvfs_clk_enable_limit(clk_cpu_dvfs_node, 600000000, -1);
 		if (dvfs_clk_set_rate(ddr.clk_dvfs_node, *target_rate) == 0) {
 			*target_rate = dvfs_clk_get_rate(ddr.clk_dvfs_node);
 			dprintk(DEBUG_DDR, "change freq to %lu MHz when %s\n", *target_rate / MHZ, name);
 		}
+
+		if (freq_limit_en) {
+			dvfs_clk_enable_limit(clk_cpu_dvfs_node, min_rate, max_rate);
+		} else {
+			dvfs_clk_disable_limit(clk_cpu_dvfs_node);
+		}
 	}
 }
+
+static void ddr_freq_input_event(struct input_handle *handle, unsigned int type,
+		unsigned int code, int value)
+{
+	if (type == EV_ABS)
+		ddr_boost = 1;
+}
+
+static int ddr_freq_input_connect(struct input_handler *handler,
+		struct input_dev *dev, const struct input_device_id *id)
+{
+	struct input_handle *handle;
+	int error;
+
+	handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
+	if (!handle)
+		return -ENOMEM;
+
+	handle->dev = dev;
+	handle->handler = handler;
+	handle->name = "ddr_freq";
+
+	error = input_register_handle(handle);
+	if (error)
+		goto err2;
+
+	error = input_open_device(handle);
+	if (error)
+		goto err1;
+
+	return 0;
+err1:
+	input_unregister_handle(handle);
+err2:
+	kfree(handle);
+	return error;
+}
+
+static void ddr_freq_input_disconnect(struct input_handle *handle)
+{
+	input_close_device(handle);
+	input_unregister_handle(handle);
+	kfree(handle);
+}
+
+static const struct input_device_id ddr_freq_ids[] = {
+	
+	{
+		.flags = INPUT_DEVICE_ID_MATCH_EVBIT |
+			INPUT_DEVICE_ID_MATCH_ABSBIT,
+		.evbit = { BIT_MASK(EV_ABS) },
+		.absbit = { [BIT_WORD(ABS_MT_POSITION_X)] =
+			BIT_MASK(ABS_MT_POSITION_X) |
+			BIT_MASK(ABS_MT_POSITION_Y) },
+	},
+	
+	{
+		.flags = INPUT_DEVICE_ID_MATCH_KEYBIT |
+			INPUT_DEVICE_ID_MATCH_ABSBIT,
+		.keybit = { [BIT_WORD(BTN_TOUCH)] = BIT_MASK(BTN_TOUCH) },
+		.absbit = { [BIT_WORD(ABS_X)] =
+			BIT_MASK(ABS_X) | BIT_MASK(ABS_Y) },
+	},
+	
+	{
+		.flags = INPUT_DEVICE_ID_MATCH_EVBIT,
+		.evbit = { BIT_MASK(EV_KEY) },
+	},
+	{ },
+};
+
+static struct input_handler ddr_freq_input_handler = {
+	.event		= ddr_freq_input_event,
+	.connect	= ddr_freq_input_connect,
+	.disconnect	= ddr_freq_input_disconnect,
+	.name		= "ddr_freq",
+	.id_table	= ddr_freq_ids,
+};
+
+enum ddr_bandwidth_id{
+    ddrbw_wr_num=0,
+    ddrbw_rd_num,
+    ddrbw_act_num,
+    ddrbw_time_num,  
+    ddrbw_eff,
+    ddrbw_id_end
+};
+
+
+
+#define DDR_BOOST_HOLD_MS	300
+#define HIGH_LOAD_HOLD_MS	300
+#define HIGH_LOAD_DELAY_MS	0
+#define LOW_LOAD_DELAY_MS	200
+#define DDR_BOOST_HOLD		(DDR_BOOST_HOLD_MS/ddrbw_work_delay_ms)
+#define HIGH_LOAD_HOLD		(DDR_BOOST_HOLD_MS/ddrbw_work_delay_ms)
+#define HIGH_LOAD_DELAY		(HIGH_LOAD_DELAY_MS/ddrbw_work_delay_ms)
+#define LOW_LOAD_DELAY		(LOW_LOAD_DELAY_MS/ddrbw_work_delay_ms)
+#define DDR_RATE_NORMAL 	240000000
+#define DDR_RATE_BOOST		324000000
+#define DDR_RATE_HIGH_LOAD	533000000
+#define DDR_RATE_1080P		240000000
+#define DDR_RATE_4K		300000000
+#define HIGH_LOAD_NORMAL	70
+#define HGIH_LOAD_VIDEO		50
+
+static struct workqueue_struct *ddr_freq_wq;
+static u32 high_load = HIGH_LOAD_NORMAL;
+static u32 ddrbw_work_delay_ms = 20; 
+static u32 ddr_rate_normal = DDR_RATE_NORMAL;
+static u32 ddr_rate_boost = DDR_RATE_BOOST;
+static u32 ddr_rate_high_load = DDR_RATE_HIGH_LOAD;
+
+
+//#define  ddr_monitor_start() grf_writel(0xc000c000,RK3288_GRF_SOC_CON4)
+#define  ddr_monitor_start() grf_writel((((readl_relaxed(RK_PMU_VIRT + 0x9c)>>13)&7)==3)?0xc000c000:0xe000e000,RK3288_GRF_SOC_CON4)
+#define  ddr_monitor_stop() grf_writel(0xc0000000,RK3288_GRF_SOC_CON4)
+
+#define grf_readl(offset)	readl_relaxed(RK_GRF_VIRT + offset)
+#define grf_writel(v, offset)	do { writel_relaxed(v, RK_GRF_VIRT + offset); dsb(); } while (0)
+
+
+void ddr_bandwidth_get(u32 *ch0_eff, u32 *ch1_eff)
+{
+	u32 ddr_bw_val[2][ddrbw_id_end];
+	u64 temp64;
+	int i, j;
+
+	for(j = 0; j < 2; j++) {
+		for(i = 0; i < ddrbw_eff; i++ ){
+	        	ddr_bw_val[j][i] = grf_readl(RK3288_GRF_SOC_STATUS11+i*4+j*16);
+		}
+	}
+
+	temp64 = ((u64)ddr_bw_val[0][0]+ddr_bw_val[0][1])*4*100;
+	do_div(temp64, ddr_bw_val[0][ddrbw_time_num]);
+	ddr_bw_val[0][ddrbw_eff] = temp64;
+	*ch0_eff = temp64;
+	
+	temp64 = ((u64)ddr_bw_val[1][0]+ddr_bw_val[1][1])*4*100;
+	do_div(temp64, ddr_bw_val[1][ddrbw_time_num]);   
+	ddr_bw_val[1][ddrbw_eff] = temp64;
+	*ch1_eff = temp64;
+}
+
+
+static void ddrbw_work_fn(struct work_struct *work)
+{
+	unsigned long rate;
+	u32 ch0_eff, ch1_eff;
+	static u32 ddr_boost_hold=0, high_load_hold=0;
+	static u32 high_load_delay = 0, low_load_delay = 0;
+	
+	ddr_monitor_stop();
+        ddr_bandwidth_get(&ch0_eff, &ch1_eff);
+
+	if (ddr_boost) {
+		ddr_boost = 0;
+		//dvfs_clk_set_rate(ddr.clk_dvfs_node, DDR_BOOST_RATE);
+		if (!high_load_hold && !low_load_delay) {
+			rate = ddr_rate_boost;
+			ddrfreq_mode(false, &rate, "boost");
+			ddr_boost_hold = DDR_BOOST_HOLD;
+		}
+	} else if(!ddr_boost_hold && ((ch0_eff>high_load)||(ch1_eff>high_load))){
+		low_load_delay = LOW_LOAD_DELAY;
+		if (!high_load_delay) {
+			//dvfs_clk_set_rate(ddr.clk_dvfs_node, HIGH_LOAD_RATE);
+			rate = ddr_rate_high_load;
+			ddrfreq_mode(false, &rate, "high load");
+			high_load_hold = HIGH_LOAD_HOLD;
+		} else {
+			high_load_delay--;
+		}
+	} else {
+		if (ddr_boost_hold) {
+			ddr_boost_hold--;
+		} else if (high_load_hold) {
+			high_load_hold--;
+		} else {
+			high_load_delay = HIGH_LOAD_DELAY;
+	       		//dvfs_clk_set_rate(ddr.clk_dvfs_node, DDR_NORMAL_RATE);
+	       		if (!low_load_delay) {
+	       			rate = ddr_rate_normal;
+	       			ddrfreq_mode(false, &rate, "normal");
+	       		} else {
+	       			low_load_delay--;
+	       		}
+		}
+  	  }
+
+	ddr_monitor_start();
+
+	queue_delayed_work_on(0, ddr_freq_wq, to_delayed_work(work), HZ*ddrbw_work_delay_ms/1000);
+}
+
+static DECLARE_DELAYED_WORK(ddrbw_work, ddrbw_work_fn);
 
 static noinline void ddrfreq_work(unsigned long sys_status)
 {
@@ -100,9 +315,14 @@ static noinline void ddrfreq_work(unsigned long sys_status)
 		gpu = clk_get(NULL, "gpu");
 	
 	dprintk(DEBUG_VERBOSE, "sys_status %02lx\n", sys_status);
+
+	if (ddr.auto_freq)
+		cancel_delayed_work_sync(&ddrbw_work);
 	
 	if (ddr.reboot_rate && (s & SYS_STATUS_REBOOT)) {
 		ddrfreq_mode(false, &ddr.reboot_rate, "shutdown/reboot");
+		rockchip_cpufreq_reboot_limit_freq();
+		reboot_config_done = 1;
 	} else if (ddr.suspend_rate && (s & SYS_STATUS_SUSPEND)) {
 		ddrfreq_mode(true, &ddr.suspend_rate, "suspend");
 	} else if (ddr.dualview_rate && 
@@ -121,7 +341,10 @@ static noinline void ddrfreq_work(unsigned long sys_status)
 		) {
 		ddrfreq_mode(false, &ddr.idle_rate, "idle");
 	} else {
-		ddrfreq_mode(false, &ddr.normal_rate, "normal");
+		if (ddr.auto_freq)
+			queue_delayed_work_on(0, ddr_freq_wq, &ddrbw_work, 0);
+		else
+			ddrfreq_mode(false, &ddr.normal_rate, "normal");
 	}
 }
 
@@ -133,24 +356,10 @@ static int ddrfreq_task(void *data)
 		unsigned long status = ddr.sys_status;
 		ddrfreq_work(status);
 		wait_event_freezable(ddr.wait, (status != ddr.sys_status) || kthread_should_stop());
-	} while (!kthread_should_stop());
+	} while (!kthread_should_stop() && !reboot_config_done);
 
 	return 0;
 }
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void ddrfreq_early_suspend(struct early_suspend *h)
-{
-	dprintk(DEBUG_SUSPEND, "early suspend\n");
-	ddrfreq_set_sys_status(SYS_STATUS_SUSPEND);
-}
-
-static void ddrfreq_late_resume(struct early_suspend *h)
-{
-	dprintk(DEBUG_SUSPEND, "late resume\n");
-	ddrfreq_clear_sys_status(SYS_STATUS_SUSPEND);
-}
-#endif
 
 static int video_state_release(struct inode *inode, struct file *file)
 {
@@ -203,20 +412,30 @@ static ssize_t video_state_write(struct file *file, const char __user *buffer,
 
 	switch (state) {
 	case '0':
-		ddrfreq_clear_sys_status(SYS_STATUS_VIDEO);
+		high_load = HIGH_LOAD_NORMAL;
+		ddr_rate_normal = DDR_RATE_NORMAL;
+		ddr_rate_high_load = DDR_RATE_HIGH_LOAD;
+		if (!ddr.auto_freq)
+			ddrfreq_clear_sys_status(SYS_STATUS_VIDEO);
 		break;
 	case '1':
+		high_load = HGIH_LOAD_VIDEO;
+		ddr_rate_normal = DDR_RATE_1080P;
+		ddr_rate_high_load = DDR_RATE_4K;
 		if( (v_width == 0) && (v_height == 0)){
-			ddrfreq_set_sys_status(SYS_STATUS_VIDEO_1080P);
-		}
-		/*else if(v_sync==1){
-			if(ddr.video_low_rate && ((v_width*v_height) <= VIDEO_LOW_RESOLUTION) )
-				ddrfreq_set_sys_status(SYS_STATUS_VIDEO_720P);
-			else
+			if (!ddr.auto_freq)
 				ddrfreq_set_sys_status(SYS_STATUS_VIDEO_1080P);
-		}*/
+		}
+		else if(v_sync==1){
+			//if(ddr.video_low_rate && ((v_width*v_height) <= VIDEO_LOW_RESOLUTION) )
+			//	ddrfreq_set_sys_status(SYS_STATUS_VIDEO_720P);
+			//else
+			if (!ddr.auto_freq)
+				ddrfreq_set_sys_status(SYS_STATUS_VIDEO_1080P);
+		}
 		else{
-			ddrfreq_clear_sys_status(SYS_STATUS_VIDEO);
+			if (!ddr.auto_freq)
+				ddrfreq_clear_sys_status(SYS_STATUS_VIDEO);
 		}
 		break;
 	default:
@@ -286,12 +505,13 @@ static int ddrfreq_reboot_notifier_event(struct notifier_block *this, unsigned l
 {
 	u32 timeout = 1000; // 10s
 	ddrfreq_set_sys_status(SYS_STATUS_REBOOT);
-	while (dvfs_clk_get_rate(ddr.clk_dvfs_node) != ddr.reboot_rate && --timeout) {
+	while (!reboot_config_done && --timeout) {
 		msleep(10);
 	}
 	if (!timeout) {
 		pr_err("failed to set ddr clk from %luMHz to %luMHz when shutdown/reboot\n", dvfs_clk_get_rate(ddr.clk_dvfs_node) / MHZ, ddr.reboot_rate / MHZ);
 	}
+
 	return NOTIFY_OK;
 }
 
@@ -311,6 +531,10 @@ int of_init_ddr_freq_table(void)
 		pr_err("%s: get clk ddr dev node err\n", __func__);
 		return PTR_ERR(clk_ddr_dev_node);
 	}
+
+	prop = of_find_property(clk_ddr_dev_node, "auto_freq", NULL);
+	if (prop && prop->value)
+		ddr.auto_freq = be32_to_cpup(prop->value);
 
 	prop = of_find_property(clk_ddr_dev_node, "freq_table", NULL);
 	if (!prop)
@@ -347,34 +571,79 @@ int of_init_ddr_freq_table(void)
 
 	return 0;
 }
-#if defined(CONFIG_RK_PM_TESTS)
+#if 0//defined(CONFIG_RK_PM_TESTS)
 static void ddrfreq_tst_init(void);
 #endif
+
+static int ddr_freq_suspend_notifier_call(struct notifier_block *self,
+				unsigned long action, void *data)
+{
+	struct fb_event *event = data;
+	int blank_mode = *((int *)event->data);
+
+	if (action == FB_EARLY_EVENT_BLANK) {
+		switch (blank_mode) {
+		case FB_BLANK_UNBLANK:
+			ddrfreq_clear_sys_status(SYS_STATUS_SUSPEND);
+			break;
+		default:
+			break;
+		}
+	}
+	else if (action == FB_EVENT_BLANK) {
+		switch (blank_mode) {
+		case FB_BLANK_POWERDOWN:
+			ddrfreq_set_sys_status(SYS_STATUS_SUSPEND);
+			break;
+		default:
+			break;
+		}
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block ddr_freq_suspend_notifier = {
+		.notifier_call = ddr_freq_suspend_notifier_call,
+};
+
+
+
+
 static int ddrfreq_init(void)
 {
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
 	int ret;
-#if defined(CONFIG_RK_PM_TESTS)
+#if 0//defined(CONFIG_RK_PM_TESTS)
         ddrfreq_tst_init();
 #endif
+	clk_cpu_dvfs_node = clk_get_dvfs_node("clk_core");
+	if (!clk_cpu_dvfs_node){
+		return -EINVAL;
+	}
+	
+	memset(&ddr, 0x00, sizeof(ddr));
 	ddr.clk_dvfs_node = clk_get_dvfs_node("clk_ddr");
 	if (!ddr.clk_dvfs_node){
 		return -EINVAL;
 	}
 	
 	clk_enable_dvfs(ddr.clk_dvfs_node);
+
+	ddr_freq_wq = alloc_workqueue("ddr_freq", WQ_NON_REENTRANT | WQ_MEM_RECLAIM | WQ_HIGHPRI | WQ_FREEZABLE, 1);	
 	
 	init_waitqueue_head(&ddr.wait);
 	ddr.mode = "normal";
 
 	ddr.normal_rate = dvfs_clk_get_rate(ddr.clk_dvfs_node);
-	ddr.video_rate = ddr.normal_rate;
-	ddr.dualview_rate = 0;
-	ddr.idle_rate = 0;
 	ddr.suspend_rate = ddr.normal_rate;
-	ddr.reboot_rate = ddr.normal_rate;	
+	ddr.reboot_rate = ddr.normal_rate;
 
 	of_init_ddr_freq_table();
+
+	ret = input_register_handler(&ddr_freq_input_handler);
+	if (ret)
+		ddr.auto_freq = false;
 
 	if (ddr.idle_rate) {
 		//REGISTER_CLK_NOTIFIER(pd_gpu);
@@ -394,12 +663,6 @@ static int ddrfreq_init(void)
 		goto err;
 	}
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	ddr.early_suspend.suspend = ddrfreq_early_suspend;
-	ddr.early_suspend.resume = ddrfreq_late_resume;
-	ddr.early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 50;
-	register_early_suspend(&ddr.early_suspend);
-#endif
 
 	ddr.task = kthread_create(ddrfreq_task, NULL, "ddrfreqd");
 	if (IS_ERR(ddr.task)) {
@@ -413,6 +676,7 @@ static int ddrfreq_init(void)
 	kthread_bind(ddr.task, 0);
 	wake_up_process(ddr.task);
 
+	fb_register_client(&ddr_freq_suspend_notifier);
 	register_reboot_notifier(&ddrfreq_reboot_notifier);
 
 	pr_info("verion 1.0 20140228\n");
@@ -422,9 +686,6 @@ static int ddrfreq_init(void)
 	return 0;
 
 err1:
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	unregister_early_suspend(&ddr.early_suspend);
-#endif
 	misc_deregister(&video_state_dev);
 err:
 	if (ddr.idle_rate) {
@@ -443,7 +704,7 @@ err:
 late_initcall(ddrfreq_init);
 
 /****************************ddr bandwith tst************************************/
-#if defined(CONFIG_RK_PM_TESTS)
+#if 0//defined(CONFIG_RK_PM_TESTS)
 
 #define USE_NORMAL_TIME
 

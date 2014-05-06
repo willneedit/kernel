@@ -76,6 +76,16 @@ iep_service_info iep_service;
 
 static void iep_reg_deinit(struct iep_reg *reg)
 {
+#if defined(CONFIG_IEP_IOMMU)
+    struct iep_mem_region *mem_region = NULL, *n;
+    // release memory region attach to this registers table.
+    list_for_each_entry_safe(mem_region, n, &reg->mem_region_list, reg_lnk) {
+        ion_unmap_iommu(iep_service.iommu_dev, iep_service.ion_client, mem_region->hdl);
+        ion_free(iep_service.ion_client, mem_region->hdl);
+        list_del_init(&mem_region->reg_lnk);
+        kfree(mem_region);
+    }
+#endif 
     list_del_init(&reg->session_link);
     list_del_init(&reg->status_link);
     kfree(reg);
@@ -202,10 +212,9 @@ static void iep_power_on(void)
     //iep_soft_rst(iep_drvdata1->iep_base);
 
 #ifdef IEP_CLK_ENABLE
-    //clk_prepare_enable(iep_drvdata1->pd_iep);
+    clk_prepare_enable(iep_drvdata1->pd_iep);
     clk_prepare_enable(iep_drvdata1->aclk_iep);
     clk_prepare_enable(iep_drvdata1->hclk_iep);
-    //clk_prepare_enable(iep_drvdata1->aclk_vio1);
 #endif
 
     wake_lock(&iep_drvdata1->wake_lock);
@@ -233,7 +242,7 @@ static void iep_power_off(void)
 #ifdef IEP_CLK_ENABLE
     clk_disable_unprepare(iep_drvdata1->aclk_iep);
     clk_disable_unprepare(iep_drvdata1->hclk_iep);
-    //clk_disable(iep_drvdata1->pd_iep);
+    clk_disable_unprepare(iep_drvdata1->pd_iep);
 #endif
 
     wake_unlock(&iep_drvdata1->wake_lock);
@@ -711,6 +720,9 @@ static long iep_ioctl(struct file *filp, uint32_t cmd, unsigned long arg)
             
             if (ret == 0) {
                 if (atomic_read(&iep_service.waitcnt) < 10) {
+#if defined(CONFIG_IEP_IOMMU)
+                    iep_power_on(); /* for iep iommu reg configure. */
+#endif
                     iep_config(session, msg);
                     atomic_inc(&iep_service.waitcnt);
                 } else {
@@ -763,11 +775,17 @@ static struct miscdevice iep_dev = {
     .fops  = &iep_fops,
 };
 
+#if defined(CONFIG_IEP_IOMMU)
+extern struct ion_client *rockchip_ion_client_create(const char * name);
+#endif
 static int iep_drv_probe(struct platform_device *pdev)
 {
     struct iep_drvdata *data;
     int ret = 0;
     struct resource *res = NULL;
+#if defined(CONFIG_IEP_IOMMU)
+    struct device *mmu_dev = NULL;
+#endif
 
     data = (struct iep_drvdata*)devm_kzalloc(&pdev->dev, sizeof(struct iep_drvdata), GFP_KERNEL);
     if (NULL == data) {
@@ -788,11 +806,11 @@ static int iep_drv_probe(struct platform_device *pdev)
     iep_service.enable = false;
 
 #ifdef IEP_CLK_ENABLE
-    /*data->pd_iep = clk_get(NULL, "pd_display");
+    data->pd_iep = devm_clk_get(&pdev->dev, "pd_iep");
     if (IS_ERR(data->pd_iep)) {
         IEP_ERR("failed to find iep power down clock source.\n");
         goto err_clock;
-    }*/
+    }
 
     data->aclk_iep = devm_clk_get(&pdev->dev, "aclk_iep");
     if (IS_ERR(data->aclk_iep)) {
@@ -807,13 +825,6 @@ static int iep_drv_probe(struct platform_device *pdev)
         ret = -ENOENT;
         goto err_clock;
     }
-
-    /*data->aclk_vio1 = clk_get(NULL, "aclk_lcdc1_pre");
-    if (IS_ERR(data->aclk_vio1)) {
-        IEP_ERR("failed to find vio1 axi clock source.\n");
-        ret = -ENOENT;
-        goto err_clock;
-    }*/
 #endif
 
     iep_service.enable = false;
@@ -842,7 +853,7 @@ static int iep_drv_probe(struct platform_device *pdev)
     }
 
     /* request the IRQ */
-    ret = devm_request_threaded_irq(&pdev->dev, data->irq0, iep_irq, iep_isr, 0, dev_name(&pdev->dev), pdev);
+    ret = devm_request_threaded_irq(&pdev->dev, data->irq0, iep_irq, iep_isr, IRQF_SHARED, dev_name(&pdev->dev), pdev);
     if (ret) {
         IEP_ERR("iep request_irq failed (%d).\n", ret);
         goto err_irq;
@@ -857,6 +868,27 @@ static int iep_drv_probe(struct platform_device *pdev)
         IEP_ERR("cannot register miscdev (%d)\n", ret);
         goto err_misc_register;
     }
+    
+#if defined(CONFIG_IEP_IOMMU)
+    iep_power_on();
+    iep_service.ion_client = rockchip_ion_client_create("iep");
+    if (IS_ERR(iep_service.ion_client)) {
+        dev_err(&pdev->dev, "failed to create ion client for vcodec");
+        return PTR_ERR(iep_service.ion_client);
+    } else {
+        dev_info(&pdev->dev, "vcodec ion client create success!\n");
+    }
+   
+    mmu_dev = rockchip_get_sysmmu_device_by_compatible("iommu,iep");
+    
+    if (mmu_dev) {
+        platform_set_sysmmu(mmu_dev, &pdev->dev);
+        iovmm_activate(&pdev->dev);
+    }
+    
+    iep_service.iommu_dev = &pdev->dev;
+    iep_power_off();
+#endif
 
     IEP_INFO("IEP Driver loaded succesfully\n");
 
@@ -903,11 +935,11 @@ static int iep_drv_remove(struct platform_device *pdev)
 
     /*if (data->aclk_vio1) {
         clk_put(data->aclk_vio1);
-    }
+    }*/
 
     if (data->pd_iep) {
-        clk_put(data->pd_iep);
-    }*/
+        devm_clk_put(&pdev->dev, data->pd_iep);
+    }
 #endif
 
     //devm_kfree(data);

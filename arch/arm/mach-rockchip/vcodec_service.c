@@ -43,7 +43,9 @@
 #include <linux/rockchip_ion.h>
 #endif
 
-//#define CONFIG_VCODEC_MMU
+#if defined(CONFIG_ROCKCHIP_IOMMU) & defined(CONFIG_ION_ROCKCHIP)
+#define CONFIG_VCODEC_MMU
+#endif
 
 #ifdef CONFIG_VCODEC_MMU
 #include <linux/rockchip/iovmm.h>
@@ -62,7 +64,7 @@
 #include "vcodec_service.h"
 
 #define HEVC_TEST_ENABLE    0
-#define HEVC_SIM_ENABLE		0
+#define HEVC_SIM_ENABLE     0
 #define VCODEC_CLOCK_ENABLE 1
 
 typedef enum {
@@ -184,8 +186,29 @@ static VPU_HW_INFO_E vpu_hw_set[] = {
 #define VPU_REG_DEC_PP_GATE 			61
 #define VPU_REG_DEC_PP_GATE_BIT 		(1<<8)
 
-static u8 addr_tbl_vpu_dec[] = {
+#if defined(CONFIG_VCODEC_MMU)
+static u8 addr_tbl_vpu_h264dec[] = {
 	12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 40, 41
+};
+
+static u8 addr_tbl_vpu_vp8dec[] = {
+	10,12,13, 14, 18, 19, 27, 40
+};
+
+static u8 addr_tbl_vpu_vp6dec[] = {
+	12, 13, 14, 18, 27, 40
+};
+
+static u8 addr_tbl_vpu_vc1dec[] = {
+	12, 13, 14, 15, 16, 17, 27, 41
+};
+
+static u8 addr_tbl_vpu_jpegdec[] = {
+	12, 40, 66, 67
+};
+
+static u8 addr_tbl_vpu_defaultdec[] = {
+	12, 13, 14, 15, 16, 17, 40, 41
 };
 
 static u8 addr_tbl_vpu_enc[] = {
@@ -193,7 +216,28 @@ static u8 addr_tbl_vpu_enc[] = {
 };
 
 static u8 addr_tbl_hevc_dec[] = {
-    4, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 42, 43
+	4, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 42, 43
+};
+#endif
+
+enum VPU_DEC_FMT {
+	VPU_DEC_FMT_H264,
+	VPU_DEC_FMT_MPEG4,
+	VPU_DEC_FMT_H263,
+	VPU_DEC_FMT_JPEG,
+	VPU_DEC_FMT_VC1,
+	VPU_DEC_FMT_MPEG2,
+	VPU_DEC_FMT_MPEG1,
+	VPU_DEC_FMT_VP6,
+	VPU_DEC_FMT_RV,
+	VPU_DEC_FMT_VP7,
+	VPU_DEC_FMT_VP8,
+	VPU_DEC_FMT_AVS,
+	VPU_DEC_FMT_SVC,
+	VPU_DEC_FMT_VC2,
+	VPU_DEC_FMT_MVC,
+	VPU_DEC_FMT_THEORA,
+	VPU_DEC_FMT_RES
 };
 
 /**
@@ -228,9 +272,9 @@ typedef struct vpu_reg {
 	struct list_head	session_link;		/* link to vpu service session */
 	struct list_head	status_link;		/* link to register set list */
 	unsigned long		size;
-#if defined(CONFIG_VCODEC_MMU)    
-    struct list_head    mem_region_list;
-#endif    
+#if defined(CONFIG_VCODEC_MMU)
+	struct list_head	mem_region_list;
+#endif
 	unsigned long		*reg;
 } vpu_reg;
 
@@ -251,10 +295,8 @@ struct vcodec_mem_region {
     struct list_head srv_lnk;
     struct list_head reg_lnk;
     struct list_head session_lnk;
-    dma_addr_t       iova;              /* virtual address for iommu */
-    struct dma_buf   *buf;
-    struct dma_buf_attachment *attachment;
-    struct sg_table *sg_table;
+    unsigned long iova;              /* virtual address for iommu */
+    unsigned long len;
     struct ion_handle *hdl;
 };
 
@@ -283,6 +325,7 @@ typedef struct vpu_service_info {
     struct clk *hclk_vcodec;
     struct clk *clk_core;
     struct clk *clk_cabac;
+    struct clk *pd_video;
 
     int irq_dec;
     int irq_enc;
@@ -301,7 +344,7 @@ typedef struct vpu_service_info {
     struct dentry   *debugfs_file_regs;
 
     u32 irq_status;
-#if defined(CONFIG_ION_ROCKCHIP)	
+#if defined(CONFIG_VCODEC_MMU)	
 	struct ion_client * ion_client;
 #endif	
 
@@ -331,10 +374,10 @@ static struct dentry* vcodec_debugfs_create_device_dir(char *dirname, struct den
 static int debug_vcodec_open(struct inode *inode, struct file *file);
 
 static const struct file_operations debug_vcodec_fops = {
-	.open = debug_vcodec_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
+    .open = debug_vcodec_open,
+    .read = seq_read,
+    .llseek = seq_lseek,
+    .release = single_release,
 };
 #endif
 
@@ -343,42 +386,61 @@ static const struct file_operations debug_vcodec_fops = {
 
 #define VPU_SIMULATE_DELAY      msecs_to_jiffies(15)
 
-static void vpu_get_clk(struct vpu_service_info *pservice)
+static int vpu_get_clk(struct vpu_service_info *pservice)
 {
 #if VCODEC_CLOCK_ENABLE
-	/*pd_video	= clk_get(NULL, "pd_video");
-	if (IS_ERR(pd_video)) {
-		pr_err("failed on clk_get pd_video\n");
-	}*/
-
-	pservice->aclk_vcodec 	= devm_clk_get(pservice->dev, "aclk_vcodec");
-	if (IS_ERR(pservice->aclk_vcodec)) {
-		dev_err(pservice->dev, "failed on clk_get aclk_vcodec\n");
-	}
-
-	pservice->hclk_vcodec 	= devm_clk_get(pservice->dev, "hclk_vcodec");
-	if (IS_ERR(pservice->hclk_vcodec)) {
-		dev_err(pservice->dev, "failed on clk_get hclk_vcodec\n");
-	}
-
-	if (pservice->dev_id == VCODEC_DEVICE_ID_HEVC) {
-		pservice->clk_core = devm_clk_get(pservice->dev, "clk_core");
-		if (IS_ERR(pservice->clk_core)) {
-			dev_err(pservice->dev, "failed on clk_get clk_core\n");
-		}
-
-		pservice->clk_cabac = devm_clk_get(pservice->dev, "clk_cabac");
-		if (IS_ERR(pservice->clk_cabac)) {
-			dev_err(pservice->dev, "failed on clk_get clk_cabac\n");
-		}
-	}
+    do {
+        pservice->aclk_vcodec   = devm_clk_get(pservice->dev, "aclk_vcodec");
+        if (IS_ERR(pservice->aclk_vcodec)) {
+            dev_err(pservice->dev, "failed on clk_get aclk_vcodec\n");
+            break;
+        }
+    
+        pservice->hclk_vcodec   = devm_clk_get(pservice->dev, "hclk_vcodec");
+        if (IS_ERR(pservice->hclk_vcodec)) {
+            dev_err(pservice->dev, "failed on clk_get hclk_vcodec\n");
+            break;
+        }
+    
+        if (pservice->dev_id == VCODEC_DEVICE_ID_HEVC) {
+            pservice->clk_core = devm_clk_get(pservice->dev, "clk_core");
+            if (IS_ERR(pservice->clk_core)) {
+                dev_err(pservice->dev, "failed on clk_get clk_core\n");
+                break;
+            }
+    
+            pservice->clk_cabac = devm_clk_get(pservice->dev, "clk_cabac");
+            if (IS_ERR(pservice->clk_cabac)) {
+                dev_err(pservice->dev, "failed on clk_get clk_cabac\n");
+                break;
+            }
+            
+            pservice->pd_video = devm_clk_get(pservice->dev, "pd_hevc");
+            if (IS_ERR(pservice->pd_video)) {
+                dev_err(pservice->dev, "failed on clk_get pd_hevc\n");
+                break;
+            }
+        } else {
+            pservice->pd_video = devm_clk_get(pservice->dev, "pd_video");
+            if (IS_ERR(pservice->pd_video)) {
+                dev_err(pservice->dev, "failed on clk_get pd_video\n");
+                break;
+            }
+        }
+        
+        return 0;
+    } while (0);
+    
+    return -1;
 #endif
 }
 
 static void vpu_put_clk(struct vpu_service_info *pservice)
 {
 #if VCODEC_CLOCK_ENABLE
-    //clk_put(pd_video);
+    if (pservice->pd_video) {
+        devm_clk_put(pservice->dev, pservice->pd_video);
+    }
 
     if (pservice->aclk_vcodec) {
         devm_clk_put(pservice->dev, pservice->aclk_vcodec);
@@ -478,37 +540,33 @@ static void vpu_service_dump(struct vpu_service_info *pservice)
 
 static void vpu_service_power_off(struct vpu_service_info *pservice)
 {
-	int total_running;
-	if (!pservice->enabled) {
-		return;
-	}
+    int total_running;
+    if (!pservice->enabled) {
+        return;
+    }
 
-	pservice->enabled = false;
-	total_running = atomic_read(&pservice->total_running);
-	if (total_running) {
-		pr_alert("alert: power off when %d task running!!\n", total_running);
-		mdelay(50);
-		pr_alert("alert: delay 50 ms for running task\n");
-		vpu_service_dump(pservice);
-	}
+    pservice->enabled = false;
+    total_running = atomic_read(&pservice->total_running);
+    if (total_running) {
+        pr_alert("alert: power off when %d task running!!\n", total_running);
+        mdelay(50);
+        pr_alert("alert: delay 50 ms for running task\n");
+        vpu_service_dump(pservice);
+    }
 
-	printk("%s: power off...", dev_name(pservice->dev));
-#ifdef CONFIG_ARCH_RK29
-	pmu_set_power_domain(PD_VCODEC, false);
-#else
-	//clk_disable(pd_video);
-#endif
-	udelay(10);
+    printk("%s: power off...", dev_name(pservice->dev));
+    udelay(10);
 #if VCODEC_CLOCK_ENABLE
-	clk_disable_unprepare(pservice->hclk_vcodec);
-	clk_disable_unprepare(pservice->aclk_vcodec);
+    clk_disable_unprepare(pservice->pd_video);
+    clk_disable_unprepare(pservice->hclk_vcodec);
+    clk_disable_unprepare(pservice->aclk_vcodec);
     if (pservice->dev_id == VCODEC_DEVICE_ID_HEVC) {
         clk_disable_unprepare(pservice->clk_core);
         clk_disable_unprepare(pservice->clk_cabac);
     }
 #endif
-	wake_unlock(&pservice->wake_lock);
-	printk("done\n");
+    wake_unlock(&pservice->wake_lock);
+    printk("done\n");
 }
 
 static inline void vpu_queue_power_off_work(struct vpu_service_info *pservice)
@@ -532,27 +590,29 @@ static void vpu_power_off_work(struct work_struct *work_s)
 
 static void vpu_service_power_on(struct vpu_service_info *pservice)
 {
-	static ktime_t last;
-	ktime_t now = ktime_get();
-	if (ktime_to_ns(ktime_sub(now, last)) > NSEC_PER_SEC) {
-		cancel_delayed_work_sync(&pservice->power_off_work);
-		vpu_queue_power_off_work(pservice);
-		last = now;
-	}
-	if (pservice->enabled)
-		return ;
+    static ktime_t last;
+    ktime_t now = ktime_get();
+    if (ktime_to_ns(ktime_sub(now, last)) > NSEC_PER_SEC) {
+        cancel_delayed_work_sync(&pservice->power_off_work);
+        vpu_queue_power_off_work(pservice);
+        last = now;
+    }
+    if (pservice->enabled)
+        return ;
 
-	pservice->enabled = true;
-	printk("%s: power on\n", dev_name(pservice->dev));
+    pservice->enabled = true;
+    printk("%s: power on\n", dev_name(pservice->dev));
 
 #if VCODEC_CLOCK_ENABLE
     clk_prepare_enable(pservice->aclk_vcodec);
-	clk_prepare_enable(pservice->hclk_vcodec);
+    clk_prepare_enable(pservice->hclk_vcodec);
 
     if (pservice->dev_id == VCODEC_DEVICE_ID_HEVC) {
         clk_prepare_enable(pservice->clk_core);
         clk_prepare_enable(pservice->clk_cabac);
     }
+    
+    clk_prepare_enable(pservice->pd_video);
 #endif
 
 #if defined(CONFIG_ARCH_RK319X)
@@ -560,14 +620,9 @@ static void vpu_service_power_on(struct vpu_service_info *pservice)
     #define BIT_VCODEC_SEL  (1<<7)
     writel_relaxed(readl_relaxed(RK319X_GRF_BASE + GRF_SOC_CON1) | (BIT_VCODEC_SEL) | (BIT_VCODEC_SEL << 16), RK319X_GRF_BASE + GRF_SOC_CON1);
 #endif
-	udelay(10);
-#ifdef CONFIG_ARCH_RK29
-	pmu_set_power_domain(PD_VCODEC, true);
-#else
-	//clk_enable(pd_video);
-#endif
-	udelay(10);
-	wake_lock(&pservice->wake_lock);
+    
+    udelay(10);
+    wake_lock(&pservice->wake_lock);
 }
 
 static inline bool reg_check_rmvb_wmv(vpu_reg *reg)
@@ -582,10 +637,10 @@ static inline bool reg_check_interlace(vpu_reg *reg)
 	return (type > 0);
 }
 
-static inline bool reg_check_avc(vpu_reg *reg)
+static inline enum VPU_DEC_FMT reg_check_fmt(vpu_reg *reg)
 {
-	unsigned long type = (reg->reg[3] & 0xF0000000) >> 28;
-	return (type == 0);
+	enum VPU_DEC_FMT type = (enum VPU_DEC_FMT)((reg->reg[3] & 0xF0000000) >> 28);
+	return type;
 }
 
 static inline int reg_probe_width(vpu_reg *reg)
@@ -596,112 +651,128 @@ static inline int reg_probe_width(vpu_reg *reg)
 }
 
 #if defined(CONFIG_VCODEC_MMU)
-
-static unsigned int vcodec_map_ion_handle(vpu_service_info *pservice, 
-                                          vpu_reg *reg,
-                                          struct ion_handle *ion_handle,
-                                          struct dma_buf *buf, int offset)
+static int vcodec_bufid_to_iova(struct vpu_service_info *pservice, u8 *tbl, int size, vpu_reg *reg)
 {
-    struct vcodec_mem_region *mem_region = kzalloc(sizeof(struct vcodec_mem_region), GFP_KERNEL);
-    if (mem_region == NULL) {
-        dev_err(pservice->dev, "allocate memory for iommu memory region failed\n");
-        return -1;
-    }
-    
-    mem_region->buf = buf;
-    mem_region->hdl = ion_handle;
-    
-    mem_region->attachment = dma_buf_attach(buf, pservice->dev);
-    if (IS_ERR_OR_NULL(mem_region->attachment)) {
-        dev_err(pservice->dev, "dma_buf_attach() failed: %ld\n", PTR_ERR(mem_region->attachment));
-        goto err_buf_map_attach;
-    }
-    
-    mem_region->sg_table = dma_buf_map_attachment(mem_region->attachment, DMA_BIDIRECTIONAL);
-    if (IS_ERR_OR_NULL(mem_region->sg_table)) {
-        dev_err(pservice->dev, "dma_buf_map_attachment() failed: %ld\n", PTR_ERR(mem_region->sg_table));
-        goto err_buf_map_attachment;
-    }
-    
-    mem_region->iova = iovmm_map(pservice->dev, mem_region->sg_table->sgl, offset, buf->size);
-    if (mem_region->iova == 0 || IS_ERR_VALUE(mem_region->iova)) {
-        dev_err(pservice->dev, "iovmm_map() failed: %d\n", mem_region->iova);
-        goto err_iovmm_map;
-    }
-    
-    INIT_LIST_HEAD(&mem_region->reg_lnk);
-    list_add_tail(&mem_region->reg_lnk, &reg->mem_region_list);
-    
-    return mem_region->iova;
-    
-err_iovmm_map:
-	dma_buf_unmap_attachment(mem_region->attachment, mem_region->sg_table, DMA_BIDIRECTIONAL);
-err_buf_map_attachment:
-	dma_buf_detach(buf, mem_region->attachment);
-err_buf_map_attach:
-    kfree(mem_region);
+	int i;
+	int usr_fd = 0;
+	int offset = 0;
+
+	if (tbl == NULL || size <= 0) {
+		dev_err(pservice->dev, "input arguments invalidate\n");
+		return -1;
+	}
+
+	vpu_service_power_on(pservice);
+
+	for (i = 0; i < size; i++) {
+		usr_fd = reg->reg[tbl[i]] & 0x3FF;
+
+		if (tbl[i] == 41 && pservice->hw_info->hw_id != HEVC_ID && (reg->type == VPU_DEC || reg->type == VPU_DEC_PP)) {
+			/* special for vpu dec num 41 regitster */
+			offset = reg->reg[tbl[i]] >> 10 << 4;
+		} else {
+			offset = reg->reg[tbl[i]] >> 10;
+		}
+
+		if (usr_fd != 0) {
+			struct ion_handle *hdl;
+			int ret;
+			struct vcodec_mem_region *mem_region;
+
+			hdl = ion_import_dma_buf(pservice->ion_client, usr_fd);
+			if (IS_ERR(hdl)) {
+				dev_err(pservice->dev, "import dma-buf from fd %d failed, reg[%d]\n", usr_fd, tbl[i]);
+				return PTR_ERR(hdl);
+			}
+
+			mem_region = kzalloc(sizeof(struct vcodec_mem_region), GFP_KERNEL);
+
+			if (mem_region == NULL) {
+				dev_err(pservice->dev, "allocate memory for iommu memory region failed\n");
+				ion_free(pservice->ion_client, hdl);
+				return -1;
+			}
+
+			mem_region->hdl = hdl;
+
+			ret = ion_map_iommu(pservice->dev, pservice->ion_client, mem_region->hdl, &mem_region->iova, &mem_region->len);
+			if (ret < 0) {
+				dev_err(pservice->dev, "ion map iommu failed\n");
+				kfree(mem_region);
+				ion_free(pservice->ion_client, hdl);
+				return ret;
+			}
+			reg->reg[tbl[i]] = mem_region->iova + offset;
+			INIT_LIST_HEAD(&mem_region->reg_lnk);
+			list_add_tail(&mem_region->reg_lnk, &reg->mem_region_list);
+		}
+	}
 	return 0;
 }
 
 static int vcodec_reg_address_translate(struct vpu_service_info *pservice, vpu_reg *reg)
 {
 	VPU_HW_ID hw_id;
-	int i;
+	u8 *tbl;
+	int size = 0;
 
 	hw_id = pservice->hw_info->hw_id;
 
-    if (hw_id == HEVC_ID) {
+	if (hw_id == HEVC_ID) {
+		tbl = addr_tbl_hevc_dec;
+		size = sizeof(addr_tbl_hevc_dec);
+	} else {
+		if (reg->type == VPU_DEC || reg->type == VPU_DEC_PP) {
+			switch (reg_check_fmt(reg)) {
+			case VPU_DEC_FMT_H264:
+				{
+					tbl = addr_tbl_vpu_h264dec;
+					size = sizeof(addr_tbl_vpu_h264dec);
+					break;
+				}
+			case VPU_DEC_FMT_VP8:
+			case VPU_DEC_FMT_VP7:
+				{
+					tbl = addr_tbl_vpu_vp8dec;
+					size = sizeof(addr_tbl_vpu_vp8dec);
+					break;
+				}
 
-    } else {
-        if (reg->type == VPU_DEC) {
-            for (i=0; i<sizeof(addr_tbl_vpu_dec); i++) {
-				int usr_fd;
-				struct ion_handle *hdl;
-				//ion_phys_addr_t phy_addr;
-                struct dma_buf *buf;
-				//size_t len;
-				int offset;
+			case VPU_DEC_FMT_VP6:
+				{
+					tbl = addr_tbl_vpu_vp6dec;
+					size = sizeof(addr_tbl_vpu_vp6dec);
+					break;
+				}
+			case VPU_DEC_FMT_VC1:
+				{
+					tbl = addr_tbl_vpu_vc1dec;
+					size = sizeof(addr_tbl_vpu_vc1dec);
+					break;
+				}
 
-#if 0
-				if (copy_from_user(&usr_fd, &reg->reg[addr_tbl_vpu_dec[i]], sizeof(usr_fd)))
-					return -EFAULT;
-#else
-				usr_fd = reg->reg[addr_tbl_vpu_dec[i]] & 0xFF;
-				offset = reg->reg[addr_tbl_vpu_dec[i]] >> 8;
-#endif
-                if (usr_fd != 0) {
-
-					hdl = ion_import_dma_buf(pservice->ion_client, usr_fd);
-                    if (IS_ERR(hdl)) {
-						pr_err("import dma-buf from fd %d failed\n", usr_fd);
-						return PTR_ERR(hdl);
-                    }
-
-#if 0
-					ion_phys(pservice->ion_client, hdl, &phy_addr, &len);
-
-					reg->reg[addr_tbl_vpu_dec[i]] = phy_addr + offset;
-                    
-                    ion_free(pservice->ion_client, hdl);
-#else 
-                    buf = ion_share_dma_buf(pservice->ion_client, hdl);
-                    if (IS_ERR_OR_NULL(buf)) {
-                        dev_err(pservice->dev, "ion_share_dma_buf() failed\n");
-                        ion_free(pservice->ion_client, hdl);
-                        return PTR_ERR(buf);
-                    }
-                    
-                    reg->reg[addr_tbl_vpu_dec[i]] = vcodec_map_ion_handle(pservice, reg, hdl, buf, offset);
-#endif
-					
-                }
-            }
-        } else if (reg->type == VPU_ENC) {
-
-        }
+			case VPU_DEC_FMT_JPEG:
+				{
+					tbl = addr_tbl_vpu_jpegdec;
+					size = sizeof(addr_tbl_vpu_jpegdec);
+					break;
+				}
+			default:
+				tbl = addr_tbl_vpu_defaultdec;
+				size = sizeof(addr_tbl_vpu_defaultdec);
+				break;
+			}
+		} else if (reg->type == VPU_ENC) {
+			tbl = addr_tbl_vpu_enc;
+			size = sizeof(addr_tbl_vpu_enc);
+		}
 	}
 
-	return 0;
+	if (size != 0) {
+		return vcodec_bufid_to_iova(pservice, tbl, size, reg);
+	} else {
+		return -1;
+	}
 }
 #endif
 
@@ -726,8 +797,8 @@ static vpu_reg *reg_init(struct vpu_service_info *pservice, vpu_session *session
 	INIT_LIST_HEAD(&reg->status_link);
 
 #if defined(CONFIG_VCODEC_MMU)    
-    INIT_LIST_HEAD(&reg->mem_region_list);
-#endif    
+	INIT_LIST_HEAD(&reg->mem_region_list);
+#endif
 
 	if (copy_from_user(&reg->reg[0], (void __user *)src, size)) {
 		pr_err("error: copy_from_user failed in reg_init\n");
@@ -736,11 +807,11 @@ static vpu_reg *reg_init(struct vpu_service_info *pservice, vpu_session *session
 	}
 
 #if defined(CONFIG_VCODEC_MMU)
-    if (0 > vcodec_reg_address_translate(pservice, reg)) {
+	if (0 > vcodec_reg_address_translate(pservice, reg)) {
 		pr_err("error: translate reg address failed\n");
 		kfree(reg);
 		return NULL;
-    }
+	}
 #endif
 
 	mutex_lock(&pservice->lock);
@@ -753,12 +824,12 @@ static vpu_reg *reg_init(struct vpu_service_info *pservice, vpu_session *session
 			if (reg->type == VPU_DEC || reg->type == VPU_DEC_PP) {
 				if (reg_check_rmvb_wmv(reg)) {
 					reg->freq = VPU_FREQ_200M;
-				} else if (reg_check_avc(reg)) {
-                    if (reg_probe_width(reg) > 3200) {
-                        // raise frequency for 4k avc.
-                        reg->freq = VPU_FREQ_500M;
-                    }
-                } else {
+				} else if (reg_check_fmt(reg) == VPU_DEC_FMT_H264) {
+					if (reg_probe_width(reg) > 3200) {
+						// raise frequency for 4k avc.
+						reg->freq = VPU_FREQ_500M;
+					}
+				} else {
 					if (reg_check_interlace(reg)) {
 						reg->freq = VPU_FREQ_400M;
 					}
@@ -775,38 +846,33 @@ static vpu_reg *reg_init(struct vpu_service_info *pservice, vpu_session *session
 
 static void reg_deinit(struct vpu_service_info *pservice, vpu_reg *reg)
 {
-#if defined(CONFIG_VCODEC_MMU)    
-    struct vcodec_mem_region *mem_region = NULL, *n;
+#if defined(CONFIG_VCODEC_MMU)
+	struct vcodec_mem_region *mem_region = NULL, *n;
 #endif
-    
+
 	list_del_init(&reg->session_link);
 	list_del_init(&reg->status_link);
-	if (reg == pservice->reg_codec) pservice->reg_codec = NULL;
-	if (reg == pservice->reg_pproc) pservice->reg_pproc = NULL;
-    
+	if (reg == pservice->reg_codec)
+		pservice->reg_codec = NULL;
+	if (reg == pservice->reg_pproc)
+		pservice->reg_pproc = NULL;
+
 #if defined(CONFIG_VCODEC_MMU)
-    // release memory region attach to this registers table.
-    list_for_each_entry_safe(mem_region, n, &reg->mem_region_list, reg_lnk) {
-        iovmm_unmap(pservice->dev, mem_region->iova);
-        
-        dma_buf_unmap_attachment(mem_region->attachment, mem_region->sg_table, DMA_BIDIRECTIONAL);
-        dma_buf_detach(mem_region->buf, mem_region->attachment);
-        
-        dma_buf_put(mem_region->buf);
-        ion_free(pservice->ion_client, mem_region->hdl);
-        
-        list_del_init(&mem_region->reg_lnk);
-        
-        kfree(mem_region);
-    }
-#endif    
-    
-    kfree(reg);
+	// release memory region attach to this registers table.
+	list_for_each_entry_safe(mem_region, n, &reg->mem_region_list, reg_lnk) {
+		ion_unmap_iommu(pservice->dev, pservice->ion_client, mem_region->hdl);
+		ion_free(pservice->ion_client, mem_region->hdl);
+		list_del_init(&mem_region->reg_lnk);
+		kfree(mem_region);
+	}
+#endif
+
+	kfree(reg);
 }
 
 static void reg_from_wait_to_run(struct vpu_service_info *pservice, vpu_reg *reg)
 {
-    list_del_init(&reg->status_link);
+	list_del_init(&reg->status_link);
 	list_add_tail(&reg->status_link, &pservice->running);
 
 	list_del_init(&reg->session_link);
@@ -818,12 +884,12 @@ static void reg_copy_from_hw(vpu_reg *reg, volatile u32 *src, u32 count)
 	int i;
 	u32 *dst = (u32 *)&reg->reg[0];
 	for (i = 0; i < count; i++)
-        *dst++ = *src++;
+		*dst++ = *src++;
 }
 
 static void reg_from_run_to_done(struct vpu_service_info *pservice, vpu_reg *reg)
 {
-    int irq_reg = -1;
+	int irq_reg = -1;
 	list_del_init(&reg->status_link);
 	list_add_tail(&reg->status_link, &pservice->done);
 
@@ -834,14 +900,14 @@ static void reg_from_run_to_done(struct vpu_service_info *pservice, vpu_reg *reg
 	case VPU_ENC : {
 		pservice->reg_codec = NULL;
 		reg_copy_from_hw(reg, pservice->enc_dev.hwregs, pservice->hw_info->enc_reg_num);
-                irq_reg = ENC_INTERRUPT_REGISTER;
+		irq_reg = ENC_INTERRUPT_REGISTER;
 		break;
 	}
 	case VPU_DEC : {
-        int reg_len = pservice->hw_info->hw_id == HEVC_ID ? REG_NUM_HEVC_DEC : REG_NUM_9190_DEC;
+		int reg_len = pservice->hw_info->hw_id == HEVC_ID ? REG_NUM_HEVC_DEC : REG_NUM_9190_DEC;
 		pservice->reg_codec = NULL;
 		reg_copy_from_hw(reg, pservice->dec_dev.hwregs, reg_len);
-                irq_reg = DEC_INTERRUPT_REGISTER;
+		irq_reg = DEC_INTERRUPT_REGISTER;
 		break;
 	}
 	case VPU_PP : {
@@ -863,9 +929,9 @@ static void reg_from_run_to_done(struct vpu_service_info *pservice, vpu_reg *reg
 	}
 	}
 
-    if (irq_reg != -1) {
-        reg->reg[irq_reg] = pservice->irq_status;
-    }
+	if (irq_reg != -1) {
+		reg->reg[irq_reg] = pservice->irq_status;
+	}
 
 	atomic_sub(1, &reg->session->task_running);
 	atomic_sub(1, &pservice->total_running);
@@ -896,12 +962,12 @@ static void vpu_service_set_freq(struct vpu_service_info *pservice, vpu_reg *reg
 		clk_set_rate(pservice->aclk_vcodec, 400*MHZ);
 		//printk("default: 400M\n");
 	} break;
-    case VPU_FREQ_500M : {
-        clk_set_rate(pservice->aclk_vcodec, 500*MHZ);
-    } break;
-    case VPU_FREQ_600M : {
-        clk_set_rate(pservice->aclk_vcodec, 600*MHZ);
-    } break;
+	case VPU_FREQ_500M : {
+		clk_set_rate(pservice->aclk_vcodec, 500*MHZ);
+	} break;
+	case VPU_FREQ_600M : {
+		clk_set_rate(pservice->aclk_vcodec, 600*MHZ);
+	} break;
 	default : {
 		if (soc_is_rk2928g()) {
 			clk_set_rate(pservice->aclk_vcodec, 400*MHZ);
@@ -929,18 +995,7 @@ static void reg_copy_to_hw(struct vpu_service_info *pservice, vpu_reg *reg)
 	case VPU_ENC : {
 		int enc_count = pservice->hw_info->enc_reg_num;
 		u32 *dst = (u32 *)pservice->enc_dev.hwregs;
-#if 0
-		if (pservice->bug_dec_addr) {
-#if !defined(CONFIG_ARCH_RK319X)
-			cru_set_soft_reset(SOFT_RST_CPU_VCODEC, true);
-#endif
-			cru_set_soft_reset(SOFT_RST_VCODEC_AHB, true);
-			cru_set_soft_reset(SOFT_RST_VCODEC_AHB, false);
-#if !defined(CONFIG_ARCH_RK319X)
-			cru_set_soft_reset(SOFT_RST_CPU_VCODEC, false);
-#endif
-		}
-#endif
+
 		pservice->reg_codec = reg;
 
 		dst[VPU_REG_EN_ENC] = src[VPU_REG_EN_ENC] & 0x6;
@@ -966,13 +1021,13 @@ static void reg_copy_to_hw(struct vpu_service_info *pservice, vpu_reg *reg)
 
 		pservice->reg_codec = reg;
 
-        if (pservice->hw_info->hw_id != HEVC_ID) {
+		if (pservice->hw_info->hw_id != HEVC_ID) {
 			for (i = REG_NUM_9190_DEC - 1; i > VPU_REG_DEC_GATE; i--)
 				dst[i] = src[i];
-        } else {
-            for (i = REG_NUM_HEVC_DEC - 1; i > VPU_REG_EN_DEC; i--) {
+		} else {
+			for (i = REG_NUM_HEVC_DEC - 1; i > VPU_REG_EN_DEC; i--) {
 				dst[i] = src[i];
-            }
+			}
 		}
 
 		dsb();
@@ -984,8 +1039,8 @@ static void reg_copy_to_hw(struct vpu_service_info *pservice, vpu_reg *reg)
 			dst[VPU_REG_EN_DEC] = src[VPU_REG_EN_DEC];
 		}
 
-        dsb();
-        dmb();
+		dsb();
+		dmb();
 
 #if VPU_SERVICE_SHOW_TIME
 		do_gettimeofday(&dec_start);
@@ -1039,9 +1094,9 @@ static void reg_copy_to_hw(struct vpu_service_info *pservice, vpu_reg *reg)
 	}
 
 #if HEVC_SIM_ENABLE
-    if (pservice->hw_info->hw_id == HEVC_ID) {
-        simulate_start(pservice);
-    }
+	if (pservice->hw_info->hw_id == HEVC_ID) {
+		simulate_start(pservice);
+	}
 #endif
 }
 
@@ -1104,7 +1159,7 @@ static int return_reg(struct vpu_service_info *pservice, vpu_reg *reg, u32 __use
 		break;
 	}
 	case VPU_DEC : {
-        int reg_len = pservice->hw_info->hw_id == HEVC_ID ? REG_NUM_HEVC_DEC : REG_NUM_9190_DEC;
+		int reg_len = pservice->hw_info->hw_id == HEVC_ID ? REG_NUM_HEVC_DEC : REG_NUM_9190_DEC;
 		if (copy_to_user(dst, &reg->reg[0], SIZE_REG(reg_len)))
 			ret = -EFAULT;
 		break;
@@ -1224,6 +1279,18 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd, unsigned long
 		mutex_unlock(&pservice->lock);
 		break;
 	}
+	case VPU_IOC_PROBE_IOMMU_STATUS: {
+#if defined(CONFIG_VCODEC_MMU)
+		int iommu_enable = 1;
+#else
+		int iommu_enable = 0;
+#endif
+		if (copy_to_user((void __user *)arg, &iommu_enable, sizeof(int))) {
+			pr_err("error: VPU_IOC_PROBE_IOMMU_STATUS copy_to_user failed\n");
+			return -EFAULT;
+		}
+		break;
+	}
 	default : {
 		pr_err("error: unknow vpu service ioctl cmd %x\n", cmd);
 		break;
@@ -1240,16 +1307,16 @@ static int vpu_service_check_hw(vpu_service_info *p, unsigned long hw_addr)
 	u32 enc_id = *tmp;
 
 #if HEVC_SIM_ENABLE
-    /// temporary, hevc driver test.
-    if (strncmp(dev_name(p->dev), "hevc_service", strlen("hevc_service")) == 0) {
-        p->hw_info = &vpu_hw_set[2];
-        return 0;
-    }
+	/// temporary, hevc driver test.
+	if (strncmp(dev_name(p->dev), "hevc_service", strlen("hevc_service")) == 0) {
+		p->hw_info = &vpu_hw_set[2];
+		return 0;
+	}
 #endif
 
 	enc_id = (enc_id >> 16) & 0xFFFF;
 	pr_info("checking hw id %x\n", enc_id);
-    p->hw_info = NULL;
+	p->hw_info = NULL;
 	for (i = 0; i < ARRAY_SIZE(vpu_hw_set); i++) {
 		if (enc_id == vpu_hw_set[i].hw_id) {
 			p->hw_info = &vpu_hw_set[i];
@@ -1263,7 +1330,7 @@ static int vpu_service_check_hw(vpu_service_info *p, unsigned long hw_addr)
 
 static int vpu_service_open(struct inode *inode, struct file *filp)
 {
-    struct vpu_service_info *pservice = container_of(inode->i_cdev, struct vpu_service_info, cdev);
+	struct vpu_service_info *pservice = container_of(inode->i_cdev, struct vpu_service_info, cdev);
 	vpu_session *session = (vpu_session *)kmalloc(sizeof(vpu_session), GFP_KERNEL);
 	if (NULL == session) {
 		pr_err("error: unable to allocate memory for vpu_session.");
@@ -1289,7 +1356,7 @@ static int vpu_service_open(struct inode *inode, struct file *filp)
 
 static int vpu_service_release(struct inode *inode, struct file *filp)
 {
-    struct vpu_service_info *pservice = container_of(inode->i_cdev, struct vpu_service_info, cdev);
+	struct vpu_service_info *pservice = container_of(inode->i_cdev, struct vpu_service_info, cdev);
 	int task_running;
 	vpu_session *session = (vpu_session *)filp->private_data;
 	if (NULL == session)
@@ -1310,7 +1377,7 @@ static int vpu_service_release(struct inode *inode, struct file *filp)
 	filp->private_data = NULL;
 	mutex_unlock(&pservice->lock);
 
-    pr_debug("dev closed\n");
+	pr_debug("dev closed\n");
 	return 0;
 }
 
@@ -1358,7 +1425,7 @@ static void simulate_start(struct vpu_service_info *pservice)
 #if HEVC_TEST_ENABLE
 static int hevc_test_case0(vpu_service_info *pservice);
 #endif
-#if defined(CONFIG_VCODEC_MMU) & defined(CONFIG_ION_ROCKCHIP)
+#if defined(CONFIG_ION_ROCKCHIP)
 extern struct ion_client *rockchip_ion_client_create(const char * name);
 #endif
 static int vcodec_probe(struct platform_device *pdev)
@@ -1402,11 +1469,15 @@ static int vcodec_probe(struct platform_device *pdev)
 
     pservice->dev = dev;
 
-    vpu_get_clk(pservice);
+    if (0 > vpu_get_clk(pservice)) {
+        goto err;
+    }
 
     INIT_DELAYED_WORK(&pservice->power_off_work, vpu_power_off_work);
 
     vpu_service_power_on(pservice);
+    
+    mdelay(1);
 
     res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
@@ -1517,10 +1588,7 @@ static int vcodec_probe(struct platform_device *pdev)
                     &debug_vcodec_fops);
 #endif
 
-    vpu_service_power_off(pservice);
-    pr_info("init success\n");
-
-#if defined(CONFIG_VCODEC_MMU) & defined(CONFIG_ION_ROCKCHIP)
+#if defined(CONFIG_VCODEC_MMU)
     pservice->ion_client = rockchip_ion_client_create("vpu");
     if (IS_ERR(pservice->ion_client)) {
         dev_err(&pdev->dev, "failed to create ion client for vcodec");
@@ -1529,13 +1597,22 @@ static int vcodec_probe(struct platform_device *pdev)
         dev_info(&pdev->dev, "vcodec ion client create success!\n");
     }
     
-    sprintf(mmu_dev_dts_name, "iommu,%s", dev_name(dev));
+    if (pservice->hw_info->hw_id == HEVC_ID) {
+        sprintf(mmu_dev_dts_name, "iommu,hevc_mmu");
+    } else {
+        sprintf(mmu_dev_dts_name, "iommu,vpu_mmu");
+    }
     
     mmu_dev = rockchip_get_sysmmu_device_by_compatible(mmu_dev_dts_name);
-    platform_set_sysmmu(mmu_dev, pservice->dev);
     
-    iovmm_activate(pservice->dev);
+    if (mmu_dev) {
+        platform_set_sysmmu(mmu_dev, pservice->dev);
+        iovmm_activate(pservice->dev);
+    }
 #endif
+
+    vpu_service_power_off(pservice);
+    pr_info("init success\n");
 
 #if HEVC_SIM_ENABLE
     if (pservice->hw_info->hw_id == HEVC_ID) {
@@ -1556,9 +1633,6 @@ err:
     wake_lock_destroy(&pservice->wake_lock);
 
     if (res) {
-        if (regs) {
-            devm_ioremap_release(&pdev->dev, res);
-        }
         devm_release_mem_region(&pdev->dev, res->start, resource_size(res));
     }
 
@@ -1596,7 +1670,6 @@ static int vcodec_remove(struct platform_device *pdev)
     free_irq(pservice->irq_enc, (void *)&pservice->enc_dev);
     free_irq(pservice->irq_dec, (void *)&pservice->dec_dev);
     res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-    devm_ioremap_release(&pdev->dev, res);
     devm_release_mem_region(&pdev->dev, res->start, resource_size(res));
     vpu_put_clk(pservice);
     wake_lock_destroy(&pservice->wake_lock);

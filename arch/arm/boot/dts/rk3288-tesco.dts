@@ -161,6 +161,15 @@
 		};
 	};
 
+	usb_control {
+		compatible = "rockchip,rk3288-usb-control";
+
+		host_drv_gpio = <&gpio0 GPIO_B6 GPIO_ACTIVE_LOW>;
+		otg_drv_gpio = <&gpio0 GPIO_B4 GPIO_ACTIVE_LOW>;
+
+		rockchip,remote_wakeup;
+		rockchip,usb_irq_wakeup;
+	};
 };
 
 &gmac {
@@ -193,8 +202,8 @@
 };
 
 &emmc {
-		clock-frequency = <200000000>;
-	 	clock-freq-min-max = <400000 200000000>;
+		clock-frequency = <1500000000>;
+	 	clock-freq-min-max = <400000 150000000>;
         supports-highspeed;
 		supports-emmc;
 		bootpart-no-access;

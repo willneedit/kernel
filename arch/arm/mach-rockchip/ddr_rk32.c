@@ -19,10 +19,12 @@
 #include <linux/cpu.h>
 #include <dt-bindings/clock/ddr.h>
 #include <linux/rockchip/cru.h>
+#include <linux/rk_fb.h>
 #include "cpu_axi.h"
 
 typedef uint32_t uint32;
 
+#define DDR_CHANGE_FREQ_IN_LCDC_VSYNC
 /***********************************
  * Global Control Macro
  ***********************************/
@@ -30,7 +32,7 @@ typedef uint32_t uint32;
 
 #define DDR3_DDR2_ODT_DISABLE_FREQ    (333)
 #define DDR3_DDR2_DLL_DISABLE_FREQ    (333)
-#define SR_IDLE                       (0x1)   //unit:32*DDR clk cycle, and 0 for disable auto self-refresh
+#define SR_IDLE                       (0x3)   //unit:32*DDR clk cycle, and 0 for disable auto self-refresh
 #define PD_IDLE                       (0X40)  //unit:DDR clk cycle, and 0 for disable auto power-down
 
 //#if (DDR3_DDR2_ODT_DISABLE_FREQ > DDR3_DDR2_DLL_DISABLE_FREQ)
@@ -1474,7 +1476,7 @@ NR   NO     NF               Fout                       freq Step     finally us
 static uint32 __sramfunc ddr_set_pll_rk3188_plus(uint32 nMHz, uint32 set)
 {
     uint32 ret = 0;
-    int delay = 1000;
+    int delay;
 
     if(nMHz == 24)
     {
@@ -1482,7 +1484,7 @@ static uint32 __sramfunc ddr_set_pll_rk3188_plus(uint32 nMHz, uint32 set)
         goto out;
     }
 
-    if(!set)
+    if(set==0)
     {
         if(nMHz <= 150)
         {
@@ -1508,8 +1510,10 @@ static uint32 __sramfunc ddr_set_pll_rk3188_plus(uint32 nMHz, uint32 set)
         clkf=(nMHz*clkr*clkod)/24;
         ret = (24*clkf)/(clkr*clkod);
     }
-    else
+    else if(set == 1)
     {
+        SET_DDR_PLL_SRC(1, (DATA(ddr_select_gpll_div)-1));  //clk_ddr_src = GPLL
+        
         SET_PLL_MODE(DPLL,0);            //PLL slow-mode
         dsb();
 
@@ -1521,20 +1525,23 @@ static uint32 __sramfunc ddr_set_pll_rk3188_plus(uint32 nMHz, uint32 set)
         ddr_delayus(1);
         pCRU_Reg->CRU_PLL_CON[DPLL][3] = PLL_DE_RESET;
         dsb();
+    }
+    else
+    {
+        delay = 1000;
         while (delay > 0)
         {
-            ddr_delayus(1);
             if (GET_DPLL_LOCK_STATUS())
                 break;
+            ddr_delayus(1);
             delay--;
         }
 
-        if(set == 1)
-            SET_DDR_PLL_SRC(0, 0);  //clk_ddr_src = DDR PLL,clk_ddr_src:clk_ddrphy = 1:1
+        SET_DDR_PLL_SRC(0, 0);  //clk_ddr_src = DDR PLL,clk_ddr_src:clk_ddrphy = 1:1
         SET_PLL_MODE(DPLL,1);            //PLL normal
         dsb();
     }
-    dsb();
+    
 out:
     return ret;
 }
@@ -1548,123 +1555,109 @@ static uint32 (*p_ddr_set_pll)(uint32 nMHz, uint32 set);
 
 static void __sramfunc idle_port(void)
 {
-    int i;
-    uint32 clk_gate[14];
-
-    //save clock gate status
-    for(i=0;i<14;i++)
-        clk_gate[i]=pCRU_Reg->CRU_CLKGATE_CON[i];
-
-    //enable all clock gate for request idle
-    for(i=0;i<14;i++)
-        pCRU_Reg->CRU_CLKGATE_CON[i]=0xffff0000;
-
-    pPMU_Reg->PMU_IDLE_REQ |= idle_req_dma_cfg;
-    dsb();
-    while(((pPMU_Reg->PMU_IDLE_ST) & idle_dma) == 0);
-
-    if ( (pPMU_Reg->PMU_PWRDN_ST & pd_peri_pwr_st) == 0 )
-    {
-        pPMU_Reg->PMU_IDLE_REQ |= idle_req_peri_cfg;
-        dsb();
-        while( (pPMU_Reg->PMU_IDLE_ST & idle_peri) == 0 );
-    }
-
-    if ( (pPMU_Reg->PMU_PWRDN_ST & pd_vio_pwr_st) == 0 )
-    {
-        pPMU_Reg->PMU_IDLE_REQ |= idle_req_vio_cfg;
-        dsb();
-        while( (pPMU_Reg->PMU_IDLE_ST & idle_vio) == 0 );
-    }
-
-    if ( (pPMU_Reg->PMU_PWRDN_ST & pd_video_pwr_st) == 0 )
-    {
-        pPMU_Reg->PMU_IDLE_REQ |= idle_req_video_cfg;
-        dsb();
-        while( (pPMU_Reg->PMU_IDLE_ST & idle_video) == 0 );
-    }
-
-    if ( (pPMU_Reg->PMU_PWRDN_ST & pd_gpu_pwr_st) == 0 )
-    {
-        pPMU_Reg->PMU_IDLE_REQ |= idle_req_gpu_cfg;
-        dsb();
-        while( (pPMU_Reg->PMU_IDLE_ST & idle_gpu) == 0 );
-    }
-
-    if ( (pPMU_Reg->PMU_PWRDN_ST & pd_hevc_pwr_st) == 0 )
-    {
-        pPMU_Reg->PMU_IDLE_REQ |= idle_req_hevc_cfg;
-        dsb();
-        while( (pPMU_Reg->PMU_IDLE_ST & idle_hevc) == 0 );
-    }
+    register int i,j;
+    uint32 clk_gate[19];
 
     pPMU_Reg->PMU_IDLE_REQ |= idle_req_core_cfg;
     dsb();
     while( (pPMU_Reg->PMU_IDLE_ST & idle_core) == 0 );
 
+    //save clock gate status
+    for(i=0;i<19;i++)
+        clk_gate[i]=pCRU_Reg->CRU_CLKGATE_CON[i];
+
+    //enable all clock gate for request idle
+    for(i=0;i<19;i++)
+        pCRU_Reg->CRU_CLKGATE_CON[i]=0xffff0000;
+
+    i = pPMU_Reg->PMU_PWRDN_ST;
+    j = idle_req_dma_cfg;
+    
+    if ( (i & pd_peri_pwr_st) == 0 )
+    {
+        j |= idle_req_peri_cfg;
+    }
+
+    if ( (i & pd_video_pwr_st) == 0 )
+    {
+        j |= idle_req_video_cfg;
+    }
+
+    if ( (i & pd_gpu_pwr_st) == 0 )
+    {
+        j |= idle_req_gpu_cfg;
+    }
+
+    if ( (i & pd_hevc_pwr_st) == 0 )
+    {
+        j |= idle_req_hevc_cfg;
+    }
+
+    if ( (i & pd_vio_pwr_st) == 0 )
+    {
+        j |= idle_req_vio_cfg;
+    }
+
+    pPMU_Reg->PMU_IDLE_REQ |= j;
+    dsb();
+    while( (pPMU_Reg->PMU_IDLE_ST & j) != j );
+
     //resume clock gate status
-    for(i=0;i<14;i++)
+    for(i=0;i<19;i++)
         pCRU_Reg->CRU_CLKGATE_CON[i]=  (clk_gate[i] | 0xffff0000);
 }
 
 static void __sramfunc deidle_port(void)
 {
-    int i;
-    uint32 clk_gate[14];
+    register int i,j;
+    uint32 clk_gate[19];
 
     //save clock gate status
-    for(i=0;i<14;i++)
+    for(i=0;i<19;i++)
         clk_gate[i]=pCRU_Reg->CRU_CLKGATE_CON[i];
 
     //enable all clock gate for request idle
-    for(i=0;i<14;i++)
+    for(i=0;i<19;i++)
         pCRU_Reg->CRU_CLKGATE_CON[i]=0xffff0000;
+
+    i = pPMU_Reg->PMU_PWRDN_ST;
+    j = idle_req_dma_cfg;
     
-    pPMU_Reg->PMU_IDLE_REQ &= ~idle_req_dma_cfg;
+    if ( (i & pd_peri_pwr_st) == 0 )
+    {
+        j |= idle_req_peri_cfg;
+    }
+
+    if ( (i & pd_video_pwr_st) == 0 )
+    {
+        j |= idle_req_video_cfg;
+    }
+
+    if ( (i & pd_gpu_pwr_st) == 0 )
+    {
+        j |= idle_req_gpu_cfg;
+    }
+
+    if ( (i & pd_hevc_pwr_st) == 0 )
+    {
+        j |= idle_req_hevc_cfg;
+    }
+
+    if ( (i & pd_vio_pwr_st) == 0 )
+    {
+        j |= idle_req_vio_cfg;
+    }
+
+    pPMU_Reg->PMU_IDLE_REQ &= ~j;
     dsb();
-    while( (pPMU_Reg->PMU_IDLE_ST & idle_dma) != 0 );
-    
-    if ( (pPMU_Reg->PMU_PWRDN_ST & pd_peri_pwr_st) == 0 )
-    {
-        pPMU_Reg->PMU_IDLE_REQ &= ~idle_req_peri_cfg;
-        dsb();
-        while( (pPMU_Reg->PMU_IDLE_ST & idle_peri) != 0 );
-    }
-
-    if ( (pPMU_Reg->PMU_PWRDN_ST & pd_vio_pwr_st) == 0 )
-    {
-        pPMU_Reg->PMU_IDLE_REQ &= ~idle_req_vio_cfg;
-        dsb();
-        while( (pPMU_Reg->PMU_IDLE_ST & idle_vio) != 0 );
-    }
-
-    if ( (pPMU_Reg->PMU_PWRDN_ST & pd_video_pwr_st) == 0 )
-    {
-        pPMU_Reg->PMU_IDLE_REQ &= ~idle_req_video_cfg;
-        dsb();
-        while( (pPMU_Reg->PMU_IDLE_ST & idle_video) != 0 );
-    }
-
-    if ( (pPMU_Reg->PMU_PWRDN_ST & pd_gpu_pwr_st) == 0 )
-    {
-        pPMU_Reg->PMU_IDLE_REQ &= ~idle_req_gpu_cfg;
-        dsb();
-        while( (pPMU_Reg->PMU_IDLE_ST & idle_gpu) != 0 );
-    }
-
-    if ( (pPMU_Reg->PMU_PWRDN_ST & pd_hevc_pwr_st) == 0 )
-    {
-        pPMU_Reg->PMU_IDLE_REQ &= ~idle_req_hevc_cfg;
-        dsb();
-        while( (pPMU_Reg->PMU_IDLE_ST & idle_hevc) != 0 );
-    }
+    while( (pPMU_Reg->PMU_IDLE_ST & j) != 0 );
 
     pPMU_Reg->PMU_IDLE_REQ &= ~idle_req_core_cfg;
     dsb();
     while( (pPMU_Reg->PMU_IDLE_ST & idle_core) != 0 );
 
     //resume clock gate status
-    for(i=0;i<14;i++)
+    for(i=0;i<19;i++)
         pCRU_Reg->CRU_CLKGATE_CON[i]=  (clk_gate[i] | 0xffff0000);
 
 }
@@ -1694,11 +1687,11 @@ static void __sramfunc ddr_delayus(uint32 us)
     } while (0);
 }
 
-void PIE_FUNC(ddr_copy)(uint32 *pDest, uint32 *pSrc, uint32 words)
+void PIE_FUNC(ddr_copy)(uint64_t *pDest, uint64_t *pSrc, uint32 wword)
 {
     uint32 i;
 
-    for(i=0; i<words; i++)
+    for(i=0; i<wword; i++)
     {
         pDest[i] = pSrc[i];
     }
@@ -1855,8 +1848,8 @@ static __sramfunc void ddr_reset_dll(uint32 ch)
 
 static __sramfunc void ddr_move_to_Lowpower_state(uint32 ch)
 {
-    volatile uint32 value;
-    pDDR_REG_T    pDDR_Reg = DATA(ddr_ch[ch]).pDDR_Reg;
+    register uint32 value;
+    register pDDR_REG_T    pDDR_Reg = DATA(ddr_ch[ch]).pDDR_Reg;
 
     while(1)
     {
@@ -1888,9 +1881,9 @@ static __sramfunc void ddr_move_to_Lowpower_state(uint32 ch)
 
 static __sramfunc void ddr_move_to_Access_state(uint32 ch)
 {
-    volatile uint32 value;
-    pDDR_REG_T    pDDR_Reg = DATA(ddr_ch[ch]).pDDR_Reg;
-    pDDRPHY_REG_T pPHY_Reg = DATA(ddr_ch[ch]).pPHY_Reg;
+    register uint32 value;
+    register pDDR_REG_T    pDDR_Reg = DATA(ddr_ch[ch]).pDDR_Reg;
+    register pDDRPHY_REG_T pPHY_Reg = DATA(ddr_ch[ch]).pPHY_Reg;
 
     //set auto self-refresh idle
     pDDR_Reg->MCFG1=(pDDR_Reg->MCFG1&0xffffff00) | DATA(ddr_sr_idle) | (1<<31);
@@ -1932,9 +1925,9 @@ static __sramfunc void ddr_move_to_Access_state(uint32 ch)
 
 static __sramfunc void ddr_move_to_Config_state(uint32 ch)
 {
-    volatile uint32 value;
-    pDDR_REG_T    pDDR_Reg = DATA(ddr_ch[ch]).pDDR_Reg;
-    pDDRPHY_REG_T pPHY_Reg = DATA(ddr_ch[ch]).pPHY_Reg;
+    register uint32 value;
+    register pDDR_REG_T    pDDR_Reg = DATA(ddr_ch[ch]).pDDR_Reg;
+    register pDDRPHY_REG_T pPHY_Reg = DATA(ddr_ch[ch]).pPHY_Reg;
 
     /* hw_wakeup :disable auto sr */
     DDR_HW_WAKEUP(ch,1);
@@ -1979,14 +1972,13 @@ static void __sramfunc ddr_send_command(uint32 ch, uint32 rank, uint32 cmd, uint
 //对type类型的DDR的几个cs进行DTT
 //0  DTT成功
 //!0 DTT失败
-static uint32 __sramfunc ddr_data_training(uint32 ch)
+static uint32 __sramfunc ddr_data_training_trigger(uint32 ch)
 {
-    uint32        value,cs,i,byte=2;
+    uint32        cs;
     pDDR_REG_T    pDDR_Reg = DATA(ddr_ch[ch]).pDDR_Reg;
     pDDRPHY_REG_T pPHY_Reg = DATA(ddr_ch[ch]).pPHY_Reg;
 
     // disable auto refresh
-    value = pDDR_Reg->TREFI;
     pDDR_Reg->TREFI = 0;
     dsb();
     if((DATA(ddr_ch[ch]).mem_type != LPDDR2)
@@ -2001,7 +1993,17 @@ static uint32 __sramfunc ddr_data_training(uint32 ch)
     pPHY_Reg->PGCR = (pPHY_Reg->PGCR & (~(0xF<<18))) | (1<<18);  //use cs0 dtt
     // trigger DTT
     pPHY_Reg->PIR |= INIT | QSTRN | LOCKBYP | ZCALBYP | CLRSR | ICPC;
-    dsb();
+    return cs;
+}
+//对type类型的DDR的几个cs进行DTT
+//0  DTT成功
+//!0 DTT失败
+static uint32 __sramfunc ddr_data_training(uint32 ch, uint32 cs)
+{
+    uint32        i,byte;
+    pDDR_REG_T    pDDR_Reg = DATA(ddr_ch[ch]).pDDR_Reg;
+    pDDRPHY_REG_T pPHY_Reg = DATA(ddr_ch[ch]).pPHY_Reg;
+    
     // wait echo byte DTDONE
     while((pPHY_Reg->DATX8[0].DXGSR[0] & 1) != 1);
     while((pPHY_Reg->DATX8[1].DXGSR[0] & 1) != 1);
@@ -2038,7 +2040,7 @@ static uint32 __sramfunc ddr_data_training(uint32 ch)
         pPHY_Reg->PGCR &= ~(1<<1);
     }
     // resume auto refresh
-    pDDR_Reg->TREFI = value;
+    pDDR_Reg->TREFI = DATA(ddr_reg).pctl.pctl_timing.trefi;
 
     if(pPHY_Reg->PGSR & DTERR)
     {
@@ -2496,7 +2498,7 @@ static noinline uint32 ddr_get_parameter(uint32 nMHz)
     }
     else if(mem_type == LPDDR2)
     {
-        #define LPDDR2_tREFI_3_9_us    (38)  //unit 100ns
+        #define LPDDR2_tREFI_3_9_us    (39)  //unit 100ns
         #define LPDDR2_tREFI_7_8_us    (78)  //unit 100ns
         #define LPDDR2_tMRD            (5)   //tCK
         #define LPDDR2_tRFC_8Gb        (210)  //ns
@@ -2891,7 +2893,7 @@ static noinline uint32 ddr_get_parameter(uint32 nMHz)
     }
     else if(mem_type == LPDDR3)
     {
-        #define LPDDR3_tREFI_3_9_us    (38)  //unit 100ns
+        #define LPDDR3_tREFI_3_9_us    (39)  //unit 100ns
         #define LPDDR3_tMRD            (10)   //tCK
         #define LPDDR3_tRFC_8Gb        (210)  //ns
         #define LPDDR3_tRFC_4Gb        (130)  //ns
@@ -3282,8 +3284,10 @@ static uint32 __sramfunc ddr_update_timing(uint32 ch)
     pDDRPHY_REG_T pPHY_Reg = DATA(ddr_ch[ch]).pPHY_Reg;
     pMSCH_REG     pMSCH_Reg= DATA(ddr_ch[ch]).pMSCH_Reg;
 
-    FUNC(ddr_copy)((uint32 *)&(pDDR_Reg->TOGCNT1U), (uint32*)&(p_pctl_timing->togcnt1u), 34);
-    FUNC(ddr_copy)((uint32 *)&(pPHY_Reg->DTPR[0]), (uint32*)&(p_publ_timing->dtpr0), 3);    
+    FUNC(ddr_copy)((uint64_t *)&(pDDR_Reg->TOGCNT1U), (uint64_t*)&(p_pctl_timing->togcnt1u), 17);
+    pPHY_Reg->DTPR[0] = p_publ_timing->dtpr0.d32;
+    pPHY_Reg->DTPR[1] = p_publ_timing->dtpr1.d32;
+    pPHY_Reg->DTPR[2] = p_publ_timing->dtpr2.d32;
     pMSCH_Reg->ddrtiming.d32 = (pMSCH_Reg->ddrtiming.b.BwRatio) | p_noc_timing->d32;
     pMSCH_Reg->activate.d32 = p_noc_activate->d32;
     // Update PCTL BL
@@ -3340,16 +3344,17 @@ static uint32 __sramfunc ddr_update_mr(uint32 ch)
 
     cs = ((pPHY_Reg->PGCR>>18) & 0xF);
     dll_off = (pPHY_Reg->MR[1] & DDR3_DLL_DISABLE) ? 1:0;
-    FUNC(ddr_copy)((uint32 *)&(pPHY_Reg->MR[0]), (uint32*)&(p_publ_timing->mr[0]), 4);
+    FUNC(ddr_copy)((uint64_t *)&(pPHY_Reg->MR[0]), (uint64_t*)&(p_publ_timing->mr[0]), 2);
     if(DATA(ddr_ch[ch]).mem_type == DDR3)
     {
+        ddr_send_command(ch,cs, MRS_cmd, bank_addr(0x2) | cmd_addr((p_publ_timing->mr[2])));
         if(DATA(ddr_freq)>DDR3_DDR2_DLL_DISABLE_FREQ)
         {
             if(dll_off)  // off -> on
             {
                 ddr_send_command(ch,cs, MRS_cmd, bank_addr(0x1) | cmd_addr((p_publ_timing->mr[1])));  //DLL enable
                 ddr_send_command(ch,cs, MRS_cmd, bank_addr(0x0) | cmd_addr(((p_publ_timing->mr[0]))| DDR3_DLL_RESET));  //DLL reset
-                ddr_delayus(2);  //at least 200 DDR cycle
+                ddr_delayus(1);  //at least 200 DDR cycle
                 ddr_send_command(ch,cs, MRS_cmd, bank_addr(0x0) | cmd_addr((p_publ_timing->mr[0])));
             }
             else // on -> on
@@ -3364,7 +3369,6 @@ static uint32 __sramfunc ddr_update_mr(uint32 ch)
             ddr_send_command(ch,cs, MRS_cmd, bank_addr(0x1) | cmd_addr(((p_publ_timing->mr[1])) | DDR3_DLL_DISABLE));  //DLL disable
             ddr_send_command(ch,cs, MRS_cmd, bank_addr(0x0) | cmd_addr((p_publ_timing->mr[0])));
         }
-        ddr_send_command(ch,cs, MRS_cmd, bank_addr(0x2) | cmd_addr((p_publ_timing->mr[2])));
     }    
     else if((DATA(ddr_ch[ch]).mem_type == LPDDR2)||(DATA(ddr_ch[ch]).mem_type == LPDDR3))    
     {
@@ -3543,8 +3547,7 @@ static void ddr_adjust_config(void)
 
 static void __sramfunc ddr_selfrefresh_enter(uint32 nMHz)
 {
-    PHY_TIMING_T  *p_publ_timing=&(DATA(ddr_reg).publ.phy_timing);
-    uint32 cs,ch;
+    uint32 ch;
     pDDR_REG_T    pDDR_Reg;
     pDDRPHY_REG_T pPHY_Reg;
 
@@ -3555,52 +3558,8 @@ static void __sramfunc ddr_selfrefresh_enter(uint32 nMHz)
 
         if(DATA(ddr_ch[ch]).mem_type != DRAM_MAX)
         {
-            ddr_move_to_Config_state(ch);
-            pDDR_Reg->TZQCSI = 0;
-            if((nMHz<=DDR3_DDR2_DLL_DISABLE_FREQ) && (DATA(ddr_ch[ch]).mem_type == DDR3))  // DLL disable
-            {
-                cs = ((pPHY_Reg->PGCR>>18) & 0xF);
-                pPHY_Reg->MR[1] = (((p_publ_timing->mr[1])) | DDR3_DLL_DISABLE);
-                ddr_send_command(ch,cs, MRS_cmd, bank_addr(0x1) | cmd_addr(((p_publ_timing->mr[1])) | DDR3_DLL_DISABLE));
-            }
             ddr_move_to_Lowpower_state(ch);
-
-            ddr_set_dll_bypass(ch,0);  //dll bypass
-            SET_DDRPHY_CLKGATE(ch,1);  //disable DDR PHY clock
-        }
-    }
-    ddr_delayus(1);
-}
-
-static void __sramfunc ddr_selfrefresh_exit(void)
-{
-    uint32 n,ch;
-    pDDR_REG_T    pDDR_Reg;
-    pDDRPHY_REG_T pPHY_Reg;
-
-    for(ch=0;ch<CH_MAX;ch++)
-    {
-        pDDR_Reg = DATA(ddr_ch[ch]).pDDR_Reg;
-        pPHY_Reg = DATA(ddr_ch[ch]).pPHY_Reg;
-
-        if(DATA(ddr_ch[ch]).mem_type != DRAM_MAX)
-        {
-            SET_DDRPHY_CLKGATE(ch,0);  //enable DDR PHY clock
-            dsb();
-            ddr_set_dll_bypass(ch,DATA(ddr_freq));
-            ddr_reset_dll(ch);
-            //ddr_delayus(10);   //wait DLL lock
-
-            ddr_move_to_Config_state(ch);
-            ddr_update_timing(ch);
-            ddr_update_mr(ch);
-            ddr_update_odt(ch);
-            n = ddr_data_training(ch);
-            ddr_move_to_Access_state(ch);
-            if(n!=0)
-            {
-                sram_printascii("DTT failed!\n");
-            }
+            pDDR_Reg->TZQCSI = 0;
         }
     }
 }
@@ -3692,9 +3651,19 @@ void __sramlocalfunc ddr_set_pll_exit_3168(uint32 freq_slew,uint32 dqstr_value)
 }
 #endif
 
+static void __sramfunc ddr_chb_update_timing_odt(void)
+{
+    ddr_set_dll_bypass(1,0); //always use dll bypass
+    ddr_update_timing(1);
+    ddr_update_odt(1);
+}
+
 /* Make sure ddr_SRE_2_SRX paramter less than 4 */
 static void __sramfunc ddr_SRE_2_SRX(uint32 freq, uint32 freq_slew,uint32 dqstr_value)
 {
+    uint32 n,ch;
+    uint32 cs[CH_MAX];
+    
     /** 2. ddr enter self-refresh mode or precharge power-down mode */
     idle_port();
 #if defined(CONFIG_ARCH_RK3066B)
@@ -3711,7 +3680,40 @@ static void __sramfunc ddr_SRE_2_SRX(uint32 freq, uint32 freq_slew,uint32 dqstr_
 #if defined(CONFIG_ARCH_RK3066B)
     ddr_set_pll_exit_3168(freq_slew,dqstr_value);
 #else
-    ddr_selfrefresh_exit();
+    //ddr_selfrefresh_exit();
+    if(DATA(ddr_ch[1]).mem_type != DRAM_MAX)
+    {
+        ddr_chb_update_timing_odt();
+    }
+    ddr_set_dll_bypass(0,0); //always use dll bypass
+    ddr_update_timing(0);
+    ddr_update_odt(0);
+    FUNC(ddr_set_pll)(freq,2);
+    for(ch=0;ch<CH_MAX;ch++)
+    {
+        if(DATA(ddr_ch[ch]).mem_type != DRAM_MAX)
+        {
+            ddr_set_dll_bypass(ch,DATA(ddr_freq));
+            ddr_reset_dll(ch);
+            //ddr_delayus(10);   //wait DLL lock
+
+            ddr_move_to_Config_state(ch);
+            ddr_update_mr(ch);
+            cs[ch] = ddr_data_training_trigger(ch);
+        }
+    }
+    for(ch=0;ch<CH_MAX;ch++)
+    {
+        if(DATA(ddr_ch[ch]).mem_type != DRAM_MAX)
+        {
+            n = ddr_data_training(ch,cs[ch]);
+            ddr_move_to_Access_state(ch);
+            if(n!=0)
+            {
+                sram_printascii("DTT failed!\n");
+            }
+        }
+    }
 #endif
     deidle_port();
     dsb();
@@ -3733,6 +3735,8 @@ void PIE_FUNC(ddr_change_freq_sram)(void *arg)
 }
 EXPORT_PIE_SYMBOL(FUNC(ddr_change_freq_sram));
 
+//modify by yzq, do not change dclk when ddr freq change 
+//static int dclk_div;
 static noinline uint32 ddr_change_freq_sram(uint32 nMHz , struct ddr_freq_t ddr_freq_t)
 {
     uint32 freq;
@@ -3743,6 +3747,7 @@ static noinline uint32 ddr_change_freq_sram(uint32 nMHz , struct ddr_freq_t ddr_
     volatile uint32 n;
     volatile unsigned int * temp=(volatile unsigned int *)SRAM_CODE_OFFSET;
     uint32 i;
+    uint32 gpllvaluel;
 
 #if defined(CONFIG_ARCH_RK3066B)
     if(dqstr_flag==true)
@@ -3752,7 +3757,30 @@ static noinline uint32 ddr_change_freq_sram(uint32 nMHz , struct ddr_freq_t ddr_
     }
 #endif
 
+//modify by yzq, do not change dclk when ddr freq change 
+   // dclk_div = (cru_readl(RK3288_CRU_CLKSELS_CON(29)) >> 8) & 0xff;
+
     param.arm_freq = ddr_get_pll_freq(APLL);
+    gpllvaluel = ddr_get_pll_freq(GPLL);
+    if((200 < gpllvaluel) ||( gpllvaluel <1600))      //GPLL:200MHz~1600MHz
+    {
+        if( gpllvaluel > 800)     //800-1600MHz  /4:200MHz-400MHz
+        {
+            *kern_to_pie(rockchip_pie_chunk, &DATA(ddr_select_gpll_div)) = 4;
+        }
+        else if( gpllvaluel > 400)    //400-800MHz  /2:200MHz-400MHz
+        {
+            *kern_to_pie(rockchip_pie_chunk, &DATA(ddr_select_gpll_div)) = 2;
+        }
+        else        //200-400MHz  /1:200MHz-400MHz
+        {
+            *kern_to_pie(rockchip_pie_chunk, &DATA(ddr_select_gpll_div)) = 1;
+        }
+    }
+    else
+    {
+        ddr_print("GPLL frequency = %dMHz,Not suitable for ddr_clock \n",gpllvaluel);
+    }
     freq=p_ddr_set_pll(nMHz,0);
 
     ddr_get_parameter(freq);
@@ -3760,8 +3788,6 @@ static noinline uint32 ddr_change_freq_sram(uint32 nMHz , struct ddr_freq_t ddr_
     /** 1. Make sure there is no host access */
     local_irq_save(flags);
     local_fiq_disable();
-    flush_cache_all();
-    outer_flush_all();
     flush_tlb_all();
     isb();
 
@@ -3806,10 +3832,13 @@ static noinline uint32 ddr_change_freq_sram(uint32 nMHz , struct ddr_freq_t ddr_
     param.freq = freq;
     param.freq_slew = freq_slew;
     param.dqstr_value = dqstr_value;
+//modify by yzq, do not change dclk when ddr freq change 
+//    cru_writel(0 |CRU_W_MSK_SETBITS(0xff,8,0xff), RK3288_CRU_CLKSELS_CON(29));
     call_with_stack(fn_to_pie(rockchip_pie_chunk, &FUNC(ddr_change_freq_sram)),
                     &param,
                     rockchip_sram_stack-(NR_CPUS-1)*PAUSE_CPU_STACK_SZIE);
-
+//modify by yzq, do not change dclk when ddr freq change 
+//    cru_writel(0 |CRU_W_MSK_SETBITS(dclk_div,8,0xff), RK3288_CRU_CLKSELS_CON(29));
 #if defined (DDR_CHANGE_FREQ_IN_LCDC_VSYNC)
 end:
 #endif
@@ -3866,10 +3895,75 @@ static uint32 ddr_change_freq_gpll_dpll(uint32 nMHz)
 }
 #endif
 
+bool DEFINE_PIE_DATA(cpu_pause[NR_CPUS]);
+volatile bool *DATA(p_cpu_pause);
+static inline bool is_cpu0_paused(unsigned int cpu) { smp_rmb(); return DATA(cpu_pause)[0]; }
+static inline void set_cpuX_paused(unsigned int cpu, bool pause) { DATA(cpu_pause)[cpu] = pause; smp_wmb(); }
+static inline bool is_cpuX_paused(unsigned int cpu) { smp_rmb(); return DATA(p_cpu_pause)[cpu]; }
+static inline void set_cpu0_paused(bool pause) { DATA(p_cpu_pause)[0] = pause; smp_wmb();}
+
+#define MAX_TIMEOUT (16000000UL << 6) //>0.64s
+
+/* Do not use stack, safe on SMP */
+void PIE_FUNC(_pause_cpu)(void *arg)
+{       
+    unsigned int cpu = (unsigned int)arg;
+    
+    set_cpuX_paused(cpu, true);
+    while (is_cpu0_paused(cpu));
+    set_cpuX_paused(cpu, false);
+}
+
+static void pause_cpu(void *info)
+{
+    unsigned int cpu = raw_smp_processor_id();
+
+    call_with_stack(fn_to_pie(rockchip_pie_chunk, &FUNC(_pause_cpu)),
+            (void *)cpu,
+            rockchip_sram_stack-(cpu-1)*PAUSE_CPU_STACK_SZIE);
+}
+
+static void wait_cpu(void *info)
+{
+}
+
+static int __ddr_change_freq(uint32_t nMHz, struct ddr_freq_t ddr_freq_t)
+{
+    u32 timeout = MAX_TIMEOUT;
+    unsigned int cpu;
+    unsigned int this_cpu = smp_processor_id();
+    int ret = 0;
+
+    cpu_maps_update_begin();
+    local_bh_disable();
+    set_cpu0_paused(true);
+    smp_call_function((smp_call_func_t)pause_cpu, NULL, 0);
+
+    for_each_online_cpu(cpu) {
+        if (cpu == this_cpu)
+            continue;
+        while (!is_cpuX_paused(cpu) && --timeout);
+        if (timeout == 0) {
+            pr_err("pause cpu %d timeout\n", cpu);
+            goto out;
+        }
+    }
+
+    ret = ddr_change_freq_sram(nMHz, ddr_freq_t);
+
+out:
+    set_cpu0_paused(false);
+    local_bh_enable();
+    smp_call_function(wait_cpu, NULL, true);
+    cpu_maps_update_done();
+
+    return ret;
+}
+
 static int _ddr_change_freq(uint32 nMHz)
 {
 	struct ddr_freq_t ddr_freq_t;
-	//int test_count=0;
+	int test_count=0;
 
 	ddr_freq_t.screen_ft_us = 0;
 	ddr_freq_t.t0 = 0;
@@ -3886,18 +3980,14 @@ static int _ddr_change_freq(uint32 nMHz)
                         if(test_count > 10) //test 10 times
                         {
 				ddr_freq_t.screen_ft_us = 0xfefefefe;
-				dprintk(DEBUG_DDR,"%s:test_count exceed maximum!\n",__func__);
                         }
-			dprintk(DEBUG_VERBOSE,"%s:test_count=%d\n",__func__,test_count);
 			usleep_range(ddr_freq_t.screen_ft_us-test_count*1000,ddr_freq_t.screen_ft_us-test_count*1000);
 
-			flush_cache_all();
-			outer_flush_all();
 			flush_tlb_all();
 		}
-	}while(ddr_change_freq_sram(nMHz, ddr_freq_t)==0);
+	}while(__ddr_change_freq(nMHz, ddr_freq_t)==0);
 #else
-	return ddr_change_freq_sram(nMHz, ddr_freq_t);
+	return __ddr_change_freq(nMHz, ddr_freq_t);
 #endif
 }
 
@@ -3986,9 +4076,9 @@ static void __sramfunc ddr_resume(void)
     dsb();
     while (delay > 0)
     {
-	    ddr_delayus(1);
         if (GET_DPLL_LOCK_STATUS())
             break;
+        ddr_delayus(1);
         delay--;
     }
 
@@ -4041,7 +4131,7 @@ void ddr_reg_save(uint32 *pArg)
     }
     
     //PCTLR    
-    (fn_to_pie(rockchip_pie_chunk, &FUNC(ddr_copy)))((uint32*)&(p_ddr_reg->pctl.pctl_timing.togcnt1u), (uint32 *)&(pDDR_Reg->TOGCNT1U), 34);
+    (fn_to_pie(rockchip_pie_chunk, &FUNC(ddr_copy)))((uint64_t*)&(p_ddr_reg->pctl.pctl_timing.togcnt1u), (uint64_t *)&(pDDR_Reg->TOGCNT1U), 17);
     p_ddr_reg->pctl.SCFG = pDDR_Reg->SCFG.d32;
     p_ddr_reg->pctl.CMDTSTATEN = pDDR_Reg->CMDTSTATEN;
     p_ddr_reg->pctl.MCFG1 = pDDR_Reg->MCFG1;
@@ -4074,7 +4164,8 @@ void ddr_reg_save(uint32 *pArg)
     p_ddr_reg->pctl.DFILPCFG0 = pDDR_Reg->DFILPCFG0;
 
     //PUBL  
-    (fn_to_pie(rockchip_pie_chunk, &FUNC(ddr_copy)))((uint32*)&(p_ddr_reg->publ.phy_timing.dtpr0), (uint32 *)&(pPHY_Reg->DTPR[0]), 7);
+    p_ddr_reg->publ.phy_timing.dtpr0.d32 = pPHY_Reg->DTPR[0];
+    (fn_to_pie(rockchip_pie_chunk, &FUNC(ddr_copy)))((uint64_t*)&(p_ddr_reg->publ.phy_timing.dtpr1), (uint64_t *)&(pPHY_Reg->DTPR[1]), 3);
     p_ddr_reg->publ.PIR = pPHY_Reg->PIR;
     p_ddr_reg->publ.PGCR = pPHY_Reg->PGCR;
     p_ddr_reg->publ.DLLGCR = pPHY_Reg->DLLGCR;
@@ -4208,7 +4299,7 @@ static int ddr_init(uint32 dram_speed_bin, uint32 freq)
 
     p_ddr_reg = kern_to_pie(rockchip_pie_chunk, &DATA(ddr_reg));
     p_ddr_set_pll = fn_to_pie(rockchip_pie_chunk, &FUNC(ddr_set_pll));
-    //p_cpu_pause = kern_to_pie(rockchip_pie_chunk, &DATA(cpu_pause[0]));
+    DATA(p_cpu_pause) = kern_to_pie(rockchip_pie_chunk, &DATA(cpu_pause[0]));
 
     tmp = clk_get_rate(clk_get(NULL, "clk_ddr"))/1000000;
     *kern_to_pie(rockchip_pie_chunk, &DATA(ddr_freq)) = tmp;
