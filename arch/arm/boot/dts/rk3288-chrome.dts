@@ -290,13 +290,12 @@
 		reg = <0x1b>;
 		status = "okay";
 	};
-	
-	bq3060: bq3060@0b {
-		compatible = "ti,bq3060";
-		reg = <0x0b>;
-		status = "okay";
+	smart-battery@b {
+		compatible = "ti,bq20z75", "sbs,sbs-battery";
+		reg = <0xb>;
+		ti,i2c-retry-count = <2>;
+		ti,poll-retry-count = <10>;
 	};
-
 };
 
 &i2c1 {

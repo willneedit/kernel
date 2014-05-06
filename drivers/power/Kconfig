@@ -176,12 +176,6 @@ config BATTERY_BQ24296
 	help
 	  Say Y here to enable support for batteries with BQ24296 (I2C/HDQ) chips.
 
-config BATTERY_BQ3060
-	tristate "BQ3060 battery driver"
-	depends on I2C
-	help
-	  Say Y here to enable support for batteries with BQ3060(I2C) chip.  
-
 config BATTERY_BQ27320
 	tristate "BQ27320 battery driver"
 	depends on I2C 
