@@ -108,6 +108,30 @@ enum e_drm_rockchip_gem_mem_type {
 	ROCKCHIP_BO_MASK		= ROCKCHIP_BO_NONCONTIG | ROCKCHIP_BO_CACHABLE |
 					ROCKCHIP_BO_WC
 };
+/* acquire type definitions. */
+enum drm_rockchip_gem_cpu_acquire_type {
+	DRM_ROCKCHIP_GEM_CPU_ACQUIRE_SHARED = 0x0,
+	DRM_ROCKCHIP_GEM_CPU_ACQUIRE_EXCLUSIVE = 0x1,
+};
+
+/**
+ * A structure for acquiring buffer for CPU access.
+ *
+ * @handle: a handle to gem object created.
+ */
+struct drm_rockchip_gem_cpu_acquire {
+	unsigned int handle;
+	unsigned int flags;
+};
+
+/*
+ * A structure for releasing buffer for GPU access.
+ *
+ * @handle: a handle to gem object created.
+ */
+struct drm_rockchip_gem_cpu_release {
+	unsigned int handle;
+};
 
 struct drm_rockchip_g2d_get_ver {
 	__u32	major;
@@ -332,6 +356,8 @@ struct drm_rockchip_ipp_cmd_ctrl {
 #define DRM_ROCKCHIP_IPP_SET_PROPERTY	0x31
 #define DRM_ROCKCHIP_IPP_QUEUE_BUF	0x32
 #define DRM_ROCKCHIP_IPP_CMD_CTRL	0x33
+#define DRM_ROCKCHIP_GEM_CPU_ACQUIRE	0x08
+#define DRM_ROCKCHIP_GEM_CPU_RELEASE	0x09
 
 #define DRM_IOCTL_ROCKCHIP_GEM_CREATE		DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_ROCKCHIP_GEM_CREATE, struct drm_rockchip_gem_create)
@@ -363,6 +389,11 @@ struct drm_rockchip_ipp_cmd_ctrl {
 		DRM_ROCKCHIP_IPP_QUEUE_BUF, struct drm_rockchip_ipp_queue_buf)
 #define DRM_IOCTL_ROCKCHIP_IPP_CMD_CTRL		DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_ROCKCHIP_IPP_CMD_CTRL, struct drm_rockchip_ipp_cmd_ctrl)
+#define DRM_IOCTL_ROCKCHIP_GEM_CPU_ACQUIRE	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_ROCKCHIP_GEM_CPU_ACQUIRE, struct drm_rockchip_gem_cpu_acquire)
+
+#define DRM_IOCTL_ROCKCHIP_GEM_CPU_RELEASE	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_ROCKCHIP_GEM_CPU_RELEASE, struct drm_rockchip_gem_cpu_release)
 
 /* ROCKCHIP specific events */
 #define DRM_ROCKCHIP_G2D_EVENT		0x80000000

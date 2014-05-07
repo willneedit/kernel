@@ -225,6 +225,12 @@ static struct drm_ioctl_desc rockchip_ioctls[] = {
 			rockchip_drm_gem_mmap_ioctl, DRM_UNLOCKED | DRM_AUTH),
 	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_GET,
 			rockchip_drm_gem_get_ioctl, DRM_UNLOCKED),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_CPU_ACQUIRE,
+			rockchip_drm_gem_cpu_acquire_ioctl,
+			DRM_UNLOCKED | DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_CPU_RELEASE,
+			rockchip_drm_gem_cpu_release_ioctl,
+			DRM_UNLOCKED | DRM_AUTH),
 };
 
 static const struct file_operations rockchip_drm_driver_fops = {

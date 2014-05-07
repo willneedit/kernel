@@ -634,6 +634,18 @@ int rockchip_gem_map_sgt_with_dma(struct drm_device *drm_dev,
 	mutex_unlock(&drm_dev->struct_mutex);
 	return 0;
 }
+int rockchip_drm_gem_cpu_acquire_ioctl(struct drm_device *dev, void *data,
+				struct drm_file *file)
+{
+	return 0;
+}
+
+int rockchip_drm_gem_cpu_release_ioctl(struct drm_device *dev, void* data,
+				struct drm_file *file)
+{
+	return 0;
+}
+
 
 void rockchip_gem_unmap_sgt_from_dma(struct drm_device *drm_dev,
 				struct sg_table *sgt,
