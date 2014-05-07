@@ -55,7 +55,7 @@ $(obj)/pie_stage1.o: $(obj)/../vmlinux.o $(obj)/pie_rename.syms $(obj)/pie_weake
 # Drop in the PIE versions instead
 LDFLAGS_pie_stage2.o += -r
 # Allow the _GLOBAL_OFFSET_TABLE to redefine
-LDFLAGS_pie_stage2.o += --defsym=_GLOBAL_OFFSET_TABLE_=_GLOBAL_OFFSET_TABLE_
+#LDFLAGS_pie_stage2.o += --defsym=_GLOBAL_OFFSET_TABLE_=_GLOBAL_OFFSET_TABLE_
 
 $(obj)/pie_stage2.o: $(obj)/pie_stage1.o $(obj)/libpie_stage2.o
 	$(call if_changed,ld)

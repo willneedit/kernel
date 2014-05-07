@@ -308,7 +308,7 @@ int32_t dwc_otg_hcd_handle_perio_tx_fifo_empty_intr(dwc_otg_hcd_t * dwc_otg_hcd)
 	return 1;
 }
 
-extern inline struct usb_hcd *dwc_otg_hcd_to_hcd(dwc_otg_hcd_t * dwc_otg_hcd);
+extern struct usb_hcd *dwc_otg_hcd_to_hcd(dwc_otg_hcd_t * dwc_otg_hcd);
 /** There are multiple conditions that can cause a port interrupt. This function
  * determines which interrupt conditions have occurred and handles them
  * appropriately. */

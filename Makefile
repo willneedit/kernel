@@ -10,8 +10,6 @@ NAME = TOSSUG Baby Fish
 # Comments in this file are targeted only to the developer, do not
 # expect to learn how to build the kernel reading this file.
 
-SUBLEVEL = 0
-
 # Do not:
 # o  use make's built-in rules and variables
 #    (this increases performance and avoids hard-to-debug behaviour);
@@ -196,9 +194,6 @@ SUBARCH := $(shell uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
 # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
 ARCH		?= arm
 ARCH		?= $(SUBARCH)
-ifneq ($(wildcard ../prebuilts/gcc/linux-x86/arm/arm-eabi-4.6),)
-CROSS_COMPILE	?= ../prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin/arm-eabi-
-endif
 CROSS_COMPILE	?= $(CONFIG_CROSS_COMPILE:"%"=%)
 
 # Architecture as present in compile.h

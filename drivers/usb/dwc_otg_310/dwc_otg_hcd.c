@@ -427,7 +427,7 @@ static int dwc_otg_hcd_sleep_cb(void *p)
  *
  * @param p void pointer to the <code>struct usb_hcd</code>
  */
-extern inline struct usb_hcd *dwc_otg_hcd_to_hcd(dwc_otg_hcd_t * dwc_otg_hcd);
+extern struct usb_hcd *dwc_otg_hcd_to_hcd(dwc_otg_hcd_t * dwc_otg_hcd);
 static int dwc_otg_hcd_rem_wakeup_cb(void *p)
 {
 	dwc_otg_hcd_t *dwc_otg_hcd = p;
