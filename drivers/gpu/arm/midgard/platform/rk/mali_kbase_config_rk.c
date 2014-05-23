@@ -16,7 +16,6 @@
 
 
 
-
 #include <linux/ioport.h>
 #include <mali_kbase.h>
 #include <mali_kbase_defs.h>

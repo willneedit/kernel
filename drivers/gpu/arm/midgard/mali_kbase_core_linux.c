@@ -877,7 +877,6 @@ static int kbase_open(struct inode *inode, struct file *filp)
 	struct kbase_device *kbdev = NULL;
 	kbase_context *kctx;
 	int ret = 0;
-
 	kbdev = kbase_find_device(iminor(inode));
 
 	if (!kbdev)
@@ -2934,7 +2933,7 @@ static const struct dev_pm_ops kbase_pm_ops = {
 
 #ifdef CONFIG_OF
 static const struct of_device_id kbase_dt_ids[] = {
-	{ .compatible = "arm,malit6xx" },
+	{ .compatible = "arm,malit7xx" },
 	{ .compatible = "arm,mali-midgard" },
 	{ /* sentinel */ }
 };
@@ -2957,11 +2956,17 @@ static struct platform_driver kbase_platform_driver = {
  * anymore when using Device Tree.
  */
 #ifdef CONFIG_OF
+#if 0
 module_platform_driver(kbase_platform_driver);
-#else /* CONFIG_MALI_PLATFORM_FAKE */
+#else 
+static int __init rockchip_gpu_init_driver(void)
+{
+	return platform_driver_register(&kbase_platform_driver);
+}
 
-extern int kbase_platform_early_init(void);
-
+late_initcall(rockchip_gpu_init_driver);
+#endif
+#else
 #ifdef CONFIG_MALI_PLATFORM_FAKE
 extern int kbase_platform_fake_register(void);
 extern void kbase_platform_fake_unregister(void);
