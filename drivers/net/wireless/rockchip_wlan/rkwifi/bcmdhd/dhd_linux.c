@@ -5039,10 +5039,10 @@ void rockchip_wifi_exit_module(void)
     dhd_module_cleanup();
 }
 
-EXPORT_SYMBOL(rockchip_wifi_init_module);
-EXPORT_SYMBOL(rockchip_wifi_exit_module);
-//late_initcall(rockchip_wifi_init_module);
-//module_exit(rockchip_wifi_exit_module);
+//EXPORT_SYMBOL(rockchip_wifi_init_module);
+//EXPORT_SYMBOL(rockchip_wifi_exit_module);
+late_initcall(rockchip_wifi_init_module);
+module_exit(rockchip_wifi_exit_module);
 /*
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
 #ifdef USE_LATE_INITCALL_SYNC
