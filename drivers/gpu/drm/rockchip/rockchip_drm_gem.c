@@ -56,7 +56,7 @@ static int check_gem_flags(unsigned int flags)
 }
 
 static void update_vm_cache_attr(struct rockchip_drm_gem_obj *obj,
-					struct vm_area_struct *vma)
+				 struct vm_area_struct *vma)
 {
 	DRM_DEBUG_KMS("flags = 0x%x\n", obj->flags);
 
@@ -65,10 +65,10 @@ static void update_vm_cache_attr(struct rockchip_drm_gem_obj *obj,
 		vma->vm_page_prot = vm_get_page_prot(vma->vm_flags);
 	else if (obj->flags & ROCKCHIP_BO_WC)
 		vma->vm_page_prot =
-			pgprot_writecombine(vm_get_page_prot(vma->vm_flags));
+		    pgprot_writecombine(vm_get_page_prot(vma->vm_flags));
 	else
 		vma->vm_page_prot =
-			pgprot_noncached(vm_get_page_prot(vma->vm_flags));
+		    pgprot_noncached(vm_get_page_prot(vma->vm_flags));
 }
 
 static unsigned long roundup_gem_size(unsigned long size, unsigned int flags)
@@ -79,11 +79,11 @@ static unsigned long roundup_gem_size(unsigned long size, unsigned int flags)
 }
 
 static int rockchip_drm_gem_map_buf(struct drm_gem_object *obj,
-					struct vm_area_struct *vma,
-					unsigned long f_vaddr,
-					pgoff_t page_offset)
+				    struct vm_area_struct *vma,
+				    unsigned long f_vaddr, pgoff_t page_offset)
 {
-	struct rockchip_drm_gem_obj *rockchip_gem_obj = to_rockchip_gem_obj(obj);
+	struct rockchip_drm_gem_obj *rockchip_gem_obj =
+	    				to_rockchip_gem_obj(obj);
 	struct rockchip_drm_gem_buf *buf = rockchip_gem_obj->buffer;
 	struct scatterlist *sgl;
 	unsigned long pfn;
@@ -101,7 +101,7 @@ static int rockchip_drm_gem_map_buf(struct drm_gem_object *obj,
 	for_each_sg(buf->sgt->sgl, sgl, buf->sgt->nents, i) {
 		if (page_offset < (sgl->length >> PAGE_SHIFT))
 			break;
-		page_offset -=	(sgl->length >> PAGE_SHIFT);
+		page_offset -= (sgl->length >> PAGE_SHIFT);
 	}
 
 	pfn = __phys_to_pfn(sg_phys(sgl)) + page_offset;
@@ -110,8 +110,8 @@ static int rockchip_drm_gem_map_buf(struct drm_gem_object *obj,
 }
 
 static int rockchip_drm_gem_handle_create(struct drm_gem_object *obj,
-					struct drm_file *file_priv,
-					unsigned int *handle)
+					  struct drm_file *file_priv,
+					  unsigned int *handle)
 {
 	int ret;
 
@@ -169,8 +169,8 @@ out:
 }
 
 unsigned long rockchip_drm_gem_get_size(struct drm_device *dev,
-						unsigned int gem_handle,
-						struct drm_file *file_priv)
+					unsigned int gem_handle,
+					struct drm_file *file_priv)
 {
 	struct rockchip_drm_gem_obj *rockchip_gem_obj;
 	struct drm_gem_object *obj;
@@ -188,9 +188,8 @@ unsigned long rockchip_drm_gem_get_size(struct drm_device *dev,
 	return rockchip_gem_obj->buffer->size;
 }
 
-
 struct rockchip_drm_gem_obj *rockchip_drm_gem_init(struct drm_device *dev,
-						      unsigned long size)
+						   unsigned long size)
 {
 	struct rockchip_drm_gem_obj *rockchip_gem_obj;
 	struct drm_gem_object *obj;
@@ -218,8 +217,8 @@ struct rockchip_drm_gem_obj *rockchip_drm_gem_init(struct drm_device *dev,
 }
 
 struct rockchip_drm_gem_obj *rockchip_drm_gem_create(struct drm_device *dev,
-						unsigned int flags,
-						unsigned long size)
+						     unsigned int flags,
+						     unsigned long size)
 {
 	struct rockchip_drm_gem_obj *rockchip_gem_obj;
 	struct rockchip_drm_gem_buf *buf;
@@ -252,7 +251,6 @@ struct rockchip_drm_gem_obj *rockchip_drm_gem_create(struct drm_device *dev,
 	/* set memory type and cache attribute from user side. */
 	rockchip_gem_obj->flags = flags;
 
-
 	ret = rockchip_drm_alloc_buf(dev, buf, flags);
 	if (ret < 0) {
 		drm_gem_object_release(&rockchip_gem_obj->base);
@@ -267,7 +265,7 @@ err_fini_buf:
 }
 
 int rockchip_drm_gem_create_ioctl(struct drm_device *dev, void *data,
-				struct drm_file *file_priv)
+				  struct drm_file *file_priv)
 {
 	struct drm_rockchip_gem_create *args = data;
 	struct rockchip_drm_gem_obj *rockchip_gem_obj;
@@ -275,12 +273,13 @@ int rockchip_drm_gem_create_ioctl(struct drm_device *dev, void *data,
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
-	rockchip_gem_obj = rockchip_drm_gem_create(dev, args->flags, args->size);
+	rockchip_gem_obj =
+	    rockchip_drm_gem_create(dev, args->flags, args->size);
 	if (IS_ERR(rockchip_gem_obj))
 		return PTR_ERR(rockchip_gem_obj);
 
 	ret = rockchip_drm_gem_handle_create(&rockchip_gem_obj->base, file_priv,
-			&args->handle);
+					     &args->handle);
 	if (ret) {
 		rockchip_drm_gem_destroy(rockchip_gem_obj);
 		return ret;
@@ -289,9 +288,9 @@ int rockchip_drm_gem_create_ioctl(struct drm_device *dev, void *data,
 	return 0;
 }
 
-dma_addr_t *rockchip_drm_gem_get_dma_addr(struct drm_device *dev,
-					unsigned int gem_handle,
-					struct drm_file *filp)
+dma_addr_t *rockchip_drm_gem_get_dma_addr(struct drm_device * dev,
+					  unsigned int gem_handle,
+					  struct drm_file * filp)
 {
 	struct rockchip_drm_gem_obj *rockchip_gem_obj;
 	struct drm_gem_object *obj;
@@ -308,8 +307,8 @@ dma_addr_t *rockchip_drm_gem_get_dma_addr(struct drm_device *dev,
 }
 
 void rockchip_drm_gem_put_dma_addr(struct drm_device *dev,
-					unsigned int gem_handle,
-					struct drm_file *filp)
+				   unsigned int gem_handle,
+				   struct drm_file *filp)
 {
 	struct rockchip_drm_gem_obj *rockchip_gem_obj;
 	struct drm_gem_object *obj;
@@ -332,14 +331,14 @@ void rockchip_drm_gem_put_dma_addr(struct drm_device *dev,
 }
 
 int rockchip_drm_gem_map_offset_ioctl(struct drm_device *dev, void *data,
-				    struct drm_file *file_priv)
+				      struct drm_file *file_priv)
 {
 	struct drm_rockchip_gem_map_off *args = data;
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	DRM_DEBUG_KMS("handle = 0x%x, offset = 0x%lx\n",
-			args->handle, (unsigned long)args->offset);
+		      args->handle, (unsigned long)args->offset);
 
 	if (!(dev->driver->driver_features & DRIVER_GEM)) {
 		DRM_ERROR("does not support GEM.\n");
@@ -347,18 +346,18 @@ int rockchip_drm_gem_map_offset_ioctl(struct drm_device *dev, void *data,
 	}
 
 	return rockchip_drm_gem_dumb_map_offset(file_priv, dev, args->handle,
-			&args->offset);
+						&args->offset);
 }
 
 static struct drm_file *rockchip_drm_find_drm_file(struct drm_device *drm_dev,
-							struct file *filp)
+						   struct file *filp)
 {
 	struct drm_file *file_priv;
 
 	/* find current process's drm_file from filelist. */
 	list_for_each_entry(file_priv, &drm_dev->filelist, lhead)
-		if (file_priv->filp == filp)
-			return file_priv;
+	    if (file_priv->filp == filp)
+		return file_priv;
 
 	WARN_ON(1);
 
@@ -366,10 +365,11 @@ static struct drm_file *rockchip_drm_find_drm_file(struct drm_device *drm_dev,
 }
 
 static int rockchip_drm_gem_mmap_buffer(struct file *filp,
-				      struct vm_area_struct *vma)
+					struct vm_area_struct *vma)
 {
 	struct drm_gem_object *obj = filp->private_data;
-	struct rockchip_drm_gem_obj *rockchip_gem_obj = to_rockchip_gem_obj(obj);
+	struct rockchip_drm_gem_obj *rockchip_gem_obj =
+	    				to_rockchip_gem_obj(obj);
 	struct drm_device *drm_dev = obj->dev;
 	struct rockchip_drm_gem_buf *buffer;
 	struct drm_file *file_priv;
@@ -407,8 +407,8 @@ static int rockchip_drm_gem_mmap_buffer(struct file *filp,
 		return -EINVAL;
 
 	ret = dma_mmap_attrs(drm_dev->dev, vma, buffer->pages,
-				buffer->dma_addr, buffer->size,
-				&buffer->dma_attrs);
+			     buffer->dma_addr, buffer->size,
+			     &buffer->dma_attrs);
 	if (ret < 0) {
 		DRM_ERROR("failed to mmap.\n");
 		return ret;
@@ -430,7 +430,7 @@ static const struct file_operations rockchip_drm_gem_fops = {
 };
 
 int rockchip_drm_gem_mmap_ioctl(struct drm_device *dev, void *data,
-			      struct drm_file *file_priv)
+				struct drm_file *file_priv)
 {
 	struct drm_rockchip_gem_mmap *args = data;
 	struct drm_gem_object *obj;
@@ -474,7 +474,7 @@ int rockchip_drm_gem_mmap_ioctl(struct drm_device *dev, void *data,
 	file_priv->filp->private_data = obj;
 
 	addr = vm_mmap(file_priv->filp, 0, args->size,
-			PROT_READ | PROT_WRITE, MAP_SHARED, 0);
+		       PROT_READ | PROT_WRITE, MAP_SHARED, 0);
 
 	drm_gem_object_unreference(obj);
 
@@ -498,8 +498,9 @@ int rockchip_drm_gem_mmap_ioctl(struct drm_device *dev, void *data,
 }
 
 int rockchip_drm_gem_get_ioctl(struct drm_device *dev, void *data,
-				      struct drm_file *file_priv)
-{	struct rockchip_drm_gem_obj *rockchip_gem_obj;
+			       struct drm_file *file_priv)
+{
+	struct rockchip_drm_gem_obj *rockchip_gem_obj;
 	struct drm_rockchip_gem_info *args = data;
 	struct drm_gem_object *obj;
 
@@ -561,9 +562,9 @@ void rockchip_gem_put_vma(struct vm_area_struct *vma)
 }
 
 int rockchip_gem_get_pages_from_userptr(unsigned long start,
-						unsigned int npages,
-						struct page **pages,
-						struct vm_area_struct *vma)
+					unsigned int npages,
+					struct page **pages,
+					struct vm_area_struct *vma)
 {
 	int get_npages;
 
@@ -589,7 +590,7 @@ int rockchip_gem_get_pages_from_userptr(unsigned long start,
 	}
 
 	get_npages = get_user_pages(current, current->mm, start,
-					npages, 1, 1, pages, NULL);
+				    npages, 1, 1, pages, NULL);
 	get_npages = max(get_npages, 0);
 	if (get_npages != npages) {
 		DRM_ERROR("failed to get user_pages.\n");
@@ -602,8 +603,8 @@ int rockchip_gem_get_pages_from_userptr(unsigned long start,
 }
 
 void rockchip_gem_put_pages_to_userptr(struct page **pages,
-					unsigned int npages,
-					struct vm_area_struct *vma)
+				       unsigned int npages,
+				       struct vm_area_struct *vma)
 {
 	if (!vma_is_io(vma)) {
 		unsigned int i;
@@ -621,8 +622,8 @@ void rockchip_gem_put_pages_to_userptr(struct page **pages,
 }
 
 int rockchip_gem_map_sgt_with_dma(struct drm_device *drm_dev,
-				struct sg_table *sgt,
-				enum dma_data_direction dir)
+				  struct sg_table *sgt,
+				  enum dma_data_direction dir)
 {
 	int nents;
 
@@ -638,22 +639,22 @@ int rockchip_gem_map_sgt_with_dma(struct drm_device *drm_dev,
 	mutex_unlock(&drm_dev->struct_mutex);
 	return 0;
 }
+
 int rockchip_drm_gem_cpu_acquire_ioctl(struct drm_device *dev, void *data,
-				struct drm_file *file)
+				       struct drm_file *file)
 {
 	return 0;
 }
 
-int rockchip_drm_gem_cpu_release_ioctl(struct drm_device *dev, void* data,
-				struct drm_file *file)
+int rockchip_drm_gem_cpu_release_ioctl(struct drm_device *dev, void *data,
+				       struct drm_file *file)
 {
 	return 0;
 }
-
 
 void rockchip_gem_unmap_sgt_from_dma(struct drm_device *drm_dev,
-				struct sg_table *sgt,
-				enum dma_data_direction dir)
+				     struct sg_table *sgt,
+				     enum dma_data_direction dir)
 {
 	dma_unmap_sg(drm_dev->dev, sgt->sgl, sgt->nents, dir);
 }
@@ -682,8 +683,8 @@ void rockchip_drm_gem_free_object(struct drm_gem_object *obj)
 }
 
 int rockchip_drm_gem_dumb_create(struct drm_file *file_priv,
-			       struct drm_device *dev,
-			       struct drm_mode_create_dumb *args)
+				 struct drm_device *dev,
+				 struct drm_mode_create_dumb *args)
 {
 	struct rockchip_drm_gem_obj *rockchip_gem_obj;
 	int ret;
@@ -693,19 +694,19 @@ int rockchip_drm_gem_dumb_create(struct drm_file *file_priv,
 	/*
 	 * alocate memory to be used for framebuffer.
 	 * - this callback would be called by user application
-	 *	with DRM_IOCTL_MODE_CREATE_DUMB command.
+	 *      with DRM_IOCTL_MODE_CREATE_DUMB command.
 	 */
 
 	args->pitch = args->width * ((args->bpp + 7) / 8);
 	args->size = args->pitch * args->height;
 
 	rockchip_gem_obj = rockchip_drm_gem_create(dev, ROCKCHIP_BO_CONTIG |
-						ROCKCHIP_BO_WC, args->size);
+						   ROCKCHIP_BO_WC, args->size);
 	if (IS_ERR(rockchip_gem_obj))
 		return PTR_ERR(rockchip_gem_obj);
 
 	ret = rockchip_drm_gem_handle_create(&rockchip_gem_obj->base, file_priv,
-			&args->handle);
+					     &args->handle);
 	if (ret) {
 		rockchip_drm_gem_destroy(rockchip_gem_obj);
 		return ret;
@@ -715,8 +716,8 @@ int rockchip_drm_gem_dumb_create(struct drm_file *file_priv,
 }
 
 int rockchip_drm_gem_dumb_map_offset(struct drm_file *file_priv,
-				   struct drm_device *dev, uint32_t handle,
-				   uint64_t *offset)
+				     struct drm_device *dev, uint32_t handle,
+				     uint64_t * offset)
 {
 	struct drm_gem_object *obj;
 	int ret = 0;
@@ -728,7 +729,7 @@ int rockchip_drm_gem_dumb_map_offset(struct drm_file *file_priv,
 	/*
 	 * get offset of memory allocated for drm framebuffer.
 	 * - this callback would be called by user application
-	 *	with DRM_IOCTL_MODE_MAP_DUMB command.
+	 *      with DRM_IOCTL_MODE_MAP_DUMB command.
 	 */
 
 	obj = drm_gem_object_lookup(dev, file_priv, handle);
@@ -744,7 +745,7 @@ int rockchip_drm_gem_dumb_map_offset(struct drm_file *file_priv,
 			goto out;
 	}
 
-	*offset = (u64)obj->map_list.hash.key << PAGE_SHIFT;
+	*offset = (u64) obj->map_list.hash.key << PAGE_SHIFT;
 	DRM_DEBUG_KMS("offset = 0x%lx\n", (unsigned long)*offset);
 
 out:
@@ -755,8 +756,7 @@ unlock:
 }
 
 int rockchip_drm_gem_dumb_destroy(struct drm_file *file_priv,
-				struct drm_device *dev,
-				unsigned int handle)
+				  struct drm_device *dev, unsigned int handle)
 {
 	int ret;
 
@@ -785,7 +785,7 @@ int rockchip_drm_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	int ret;
 
 	page_offset = ((unsigned long)vmf->virtual_address -
-			vma->vm_start) >> PAGE_SHIFT;
+		       vma->vm_start) >> PAGE_SHIFT;
 	f_vaddr = (unsigned long)vmf->virtual_address;
 
 	mutex_lock(&dev->struct_mutex);

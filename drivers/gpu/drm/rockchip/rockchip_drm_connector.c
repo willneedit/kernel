@@ -25,10 +25,10 @@
 				drm_connector)
 
 struct rockchip_drm_connector {
-	struct drm_connector	drm_connector;
-	uint32_t		encoder_id;
+	struct drm_connector 	drm_connector;
+	uint32_t 		encoder_id;
 	struct rockchip_drm_manager *manager;
-	uint32_t		dpms;
+	uint32_t 		dpms;
 };
 
 /* convert rockchip_video_timings to drm_display_mode */
@@ -60,9 +60,10 @@ convert_to_display_mode(struct drm_display_mode *mode,
 	if (timing->vmode & FB_VMODE_DOUBLE)
 		mode->flags |= DRM_MODE_FLAG_DBLSCAN;
 }
+
 static inline void
 convert_fbmode_to_display_mode(struct drm_display_mode *mode,
-			struct fb_videomode *timing)
+			       struct fb_videomode *timing)
 {
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
@@ -85,6 +86,7 @@ convert_fbmode_to_display_mode(struct drm_display_mode *mode,
 	if (timing->vmode & FB_VMODE_DOUBLE)
 		mode->flags |= DRM_MODE_FLAG_DBLSCAN;
 }
+
 /* convert drm_display_mode to rockchip_video_timings */
 static inline void
 convert_to_video_timing(struct fb_videomode *timing,
@@ -119,7 +121,7 @@ convert_to_video_timing(struct fb_videomode *timing,
 static int rockchip_drm_connector_get_modes(struct drm_connector *connector)
 {
 	struct rockchip_drm_connector *rockchip_connector =
-					to_rockchip_connector(connector);
+	    				to_rockchip_connector(connector);
 	struct rockchip_drm_manager *manager = rockchip_connector->manager;
 	struct rockchip_drm_display_ops *display_ops = manager->display_ops;
 	struct edid *edid = NULL;
@@ -157,31 +159,33 @@ static int rockchip_drm_connector_get_modes(struct drm_connector *connector)
 		}
 
 		drm_mode_connector_update_edid_property(connector, edid);
-	} else if(display_ops->get_modelist){
-		struct list_head *pos,*head;
+	} else if (display_ops->get_modelist) {
+		struct list_head *pos, *head;
 		struct fb_modelist *modelist;
 		struct fb_videomode *mode;
 		struct drm_display_mode *disp_mode = NULL;
-		count=0;
+		count = 0;
 		head = display_ops->get_modelist(manager->dev);
-		
-		list_for_each(pos,head){
+
+		list_for_each(pos, head) {
 			modelist = list_entry(pos, struct fb_modelist, list);
 			mode = &modelist->mode;
 			disp_mode = drm_mode_create(connector->dev);
 			if (!mode) {
-				DRM_ERROR("failed to create a new display mode.\n");
+				DRM_ERROR
+				    ("failed to create a new display mode.\n");
 				return count;
 			}
 			convert_fbmode_to_display_mode(disp_mode, mode);
 
-			if(mode->xres == 1280 && mode->yres == 720 && mode->refresh == 60)
-				disp_mode->type |=  DRM_MODE_TYPE_PREFERRED;
+			if (mode->xres == 1280 && mode->yres == 720
+			    && mode->refresh == 60)
+				disp_mode->type |= DRM_MODE_TYPE_PREFERRED;
 
 			drm_mode_set_name(disp_mode);
-//			snprintf(disp_mode->name, DRM_DISPLAY_MODE_LEN, "%dx%d%s-%d",
-//					disp_mode->hdisplay, disp_mode->vdisplay,
-//					!!(disp_mode->flags & DRM_MODE_FLAG_INTERLACE)? "i" : "p",disp_mode->vrefresh);
+//                      snprintf(disp_mode->name, DRM_DISPLAY_MODE_LEN, "%dx%d%s-%d",
+//                                      disp_mode->hdisplay, disp_mode->vdisplay,
+//                                      !!(disp_mode->flags & DRM_MODE_FLAG_INTERLACE)? "i" : "p",disp_mode->vrefresh);
 			drm_mode_probed_add(connector, disp_mode);
 			count++;
 		}
@@ -217,10 +221,10 @@ out:
 }
 
 static int rockchip_drm_connector_mode_valid(struct drm_connector *connector,
-					    struct drm_display_mode *mode)
+					     struct drm_display_mode *mode)
 {
 	struct rockchip_drm_connector *rockchip_connector =
-					to_rockchip_connector(connector);
+	    				to_rockchip_connector(connector);
 	struct rockchip_drm_manager *manager = rockchip_connector->manager;
 	struct rockchip_drm_display_ops *display_ops = manager->display_ops;
 	struct fb_videomode timing;
@@ -241,7 +245,7 @@ struct drm_encoder *rockchip_drm_best_encoder(struct drm_connector *connector)
 {
 	struct drm_device *dev = connector->dev;
 	struct rockchip_drm_connector *rockchip_connector =
-					to_rockchip_connector(connector);
+	    				to_rockchip_connector(connector);
 	struct drm_mode_object *obj;
 	struct drm_encoder *encoder;
 
@@ -251,7 +255,7 @@ struct drm_encoder *rockchip_drm_best_encoder(struct drm_connector *connector)
 				   DRM_MODE_OBJECT_ENCODER);
 	if (!obj) {
 		DRM_DEBUG_KMS("Unknown ENCODER ID %d\n",
-				rockchip_connector->encoder_id);
+			      rockchip_connector->encoder_id);
 		return NULL;
 	}
 
@@ -261,16 +265,17 @@ struct drm_encoder *rockchip_drm_best_encoder(struct drm_connector *connector)
 }
 
 static struct drm_connector_helper_funcs rockchip_connector_helper_funcs = {
-	.get_modes	= rockchip_drm_connector_get_modes,
-	.mode_valid	= rockchip_drm_connector_mode_valid,
-	.best_encoder	= rockchip_drm_best_encoder,
+	.get_modes = rockchip_drm_connector_get_modes,
+	.mode_valid = rockchip_drm_connector_mode_valid,
+	.best_encoder = rockchip_drm_best_encoder,
 };
 
 void rockchip_drm_display_power(struct drm_connector *connector, int mode)
 {
 	struct drm_encoder *encoder = rockchip_drm_best_encoder(connector);
 	struct rockchip_drm_connector *rockchip_connector;
-	struct rockchip_drm_manager *manager = rockchip_drm_get_manager(encoder);
+	struct rockchip_drm_manager *manager =
+	    				rockchip_drm_get_manager(encoder);
 	struct rockchip_drm_display_ops *display_ops = manager->display_ops;
 
 	rockchip_connector = to_rockchip_connector(connector);
@@ -304,10 +309,11 @@ static void rockchip_drm_connector_dpms(struct drm_connector *connector,
 }
 
 static int rockchip_drm_connector_fill_modes(struct drm_connector *connector,
-				unsigned int max_width, unsigned int max_height)
+					     unsigned int max_width,
+					     unsigned int max_height)
 {
 	struct rockchip_drm_connector *rockchip_connector =
-					to_rockchip_connector(connector);
+	    				to_rockchip_connector(connector);
 	struct rockchip_drm_manager *manager = rockchip_connector->manager;
 	struct rockchip_drm_manager_ops *ops = manager->ops;
 	unsigned int width, height;
@@ -323,7 +329,7 @@ static int rockchip_drm_connector_fill_modes(struct drm_connector *connector,
 		ops->get_max_resol(manager->dev, &width, &height);
 
 	return drm_helper_probe_single_connector_modes(connector, width,
-							height);
+						       height);
 }
 
 /* get detection status of display device. */
@@ -331,10 +337,9 @@ static enum drm_connector_status
 rockchip_drm_connector_detect(struct drm_connector *connector, bool force)
 {
 	struct rockchip_drm_connector *rockchip_connector =
-					to_rockchip_connector(connector);
+	    				to_rockchip_connector(connector);
 	struct rockchip_drm_manager *manager = rockchip_connector->manager;
-	struct rockchip_drm_display_ops *display_ops =
-					manager->display_ops;
+	struct rockchip_drm_display_ops *display_ops = manager->display_ops;
 	enum drm_connector_status status = connector_status_disconnected;
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
@@ -352,7 +357,7 @@ rockchip_drm_connector_detect(struct drm_connector *connector, bool force)
 static void rockchip_drm_connector_destroy(struct drm_connector *connector)
 {
 	struct rockchip_drm_connector *rockchip_connector =
-		to_rockchip_connector(connector);
+	    				to_rockchip_connector(connector);
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
@@ -362,17 +367,18 @@ static void rockchip_drm_connector_destroy(struct drm_connector *connector)
 }
 
 static struct drm_connector_funcs rockchip_connector_funcs = {
-	.dpms		= rockchip_drm_connector_dpms,
-	.fill_modes	= rockchip_drm_connector_fill_modes,
-	.detect		= rockchip_drm_connector_detect,
-	.destroy	= rockchip_drm_connector_destroy,
+	.dpms 		= rockchip_drm_connector_dpms,
+	.fill_modes 	= rockchip_drm_connector_fill_modes,
+	.detect 	= rockchip_drm_connector_detect,
+	.destroy 	= rockchip_drm_connector_destroy,
 };
 
 struct drm_connector *rockchip_drm_connector_create(struct drm_device *dev,
-						   struct drm_encoder *encoder)
+						    struct drm_encoder *encoder)
 {
 	struct rockchip_drm_connector *rockchip_connector;
-	struct rockchip_drm_manager *manager = rockchip_drm_get_manager(encoder);
+	struct rockchip_drm_manager *manager =
+	    				rockchip_drm_get_manager(encoder);
 	struct drm_connector *connector;
 	int type;
 	int err;
@@ -391,10 +397,6 @@ struct drm_connector *rockchip_drm_connector_create(struct drm_device *dev,
 	case ROCKCHIP_DISPLAY_TYPE_HDMI:
 		type = DRM_MODE_CONNECTOR_HDMIA;
 		connector->interlace_allowed = true;
-		connector->polled = DRM_CONNECTOR_POLL_HPD;
-		break;
-	case ROCKCHIP_DISPLAY_TYPE_VIDI:
-		type = DRM_MODE_CONNECTOR_VIRTUAL;
 		connector->polled = DRM_CONNECTOR_POLL_HPD;
 		break;
 	case ROCKCHIP_DISPLAY_TYPE_LCD:

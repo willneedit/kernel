@@ -12,6 +12,5 @@ rockchipdrm-$(CONFIG_DRM_ROCKCHIP_IOMMU) += rockchip_drm_iommu.o
 rockchipdrm-$(CONFIG_DRM_ROCKCHIP_DMABUF) += rockchip_drm_dmabuf.o
 rockchipdrm-$(CONFIG_DRM_ROCKCHIP_PRIMARY)	+= rockchip_drm_primary.o
 rockchipdrm-$(CONFIG_DRM_ROCKCHIP_HDMI)	+= rockchip_drm_extend.o
-rockchipdrm-$(CONFIG_DRM_ROCKCHIP_VIDI)	+= rockchip_drm_vidi.o
 
 obj-$(CONFIG_DRM_ROCKCHIP)		+= rockchipdrm.o

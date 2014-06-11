@@ -31,7 +31,7 @@
 
 #define DRIVER_NAME	"rockchip"
 #define DRIVER_DESC	"rockchip Soc DRM"
-#define DRIVER_DATE	"20140318"
+#define DRIVER_DATE	"20140611"
 #define DRIVER_MAJOR	1
 #define DRIVER_MINOR	0
 
@@ -158,21 +158,13 @@ static int rockchip_drm_unload(struct drm_device *dev)
 
 static int rockchip_drm_open(struct drm_device *dev, struct drm_file *file)
 {
-	struct drm_rockchip_file_private *file_priv;
 
 	DRM_DEBUG_DRIVER("%s\n", __FILE__);
-
-	file_priv = kzalloc(sizeof(*file_priv), GFP_KERNEL);
-	if (!file_priv)
-		return -ENOMEM;
-
-	file->driver_priv = file_priv;
 
 	return rockchip_drm_subdrv_open(dev, file);
 }
 
-static void rockchip_drm_preclose(struct drm_device *dev,
-					struct drm_file *file)
+static void rockchip_drm_preclose(struct drm_device *dev, struct drm_file *file)
 {
 	struct rockchip_drm_private *private = dev->dev_private;
 	struct drm_pending_vblank_event *e, *t;
@@ -182,8 +174,7 @@ static void rockchip_drm_preclose(struct drm_device *dev,
 
 	/* release events of current file */
 	spin_lock_irqsave(&dev->event_lock, flags);
-	list_for_each_entry_safe(e, t, &private->pageflip_event_list,
-			base.link) {
+	list_for_each_entry_safe(e, t, &private->pageflip_event_list, base.link) {
 		if (e->base.file_priv == file) {
 			list_del(&e->base.link);
 			e->base.destroy(&e->base);
@@ -194,15 +185,10 @@ static void rockchip_drm_preclose(struct drm_device *dev,
 	rockchip_drm_subdrv_close(dev, file);
 }
 
-static void rockchip_drm_postclose(struct drm_device *dev, struct drm_file *file)
+static void rockchip_drm_postclose(struct drm_device *dev,
+				   struct drm_file *file)
 {
 	DRM_DEBUG_DRIVER("%s\n", __FILE__);
-
-	if (!file->driver_priv)
-		return;
-
-	kfree(file->driver_priv);
-	file->driver_priv = NULL;
 }
 
 static void rockchip_drm_lastclose(struct drm_device *dev)
@@ -220,65 +206,65 @@ static const struct vm_operations_struct rockchip_drm_gem_vm_ops = {
 
 static struct drm_ioctl_desc rockchip_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_CREATE, rockchip_drm_gem_create_ioctl,
-			DRM_UNLOCKED | DRM_AUTH),
+			  DRM_UNLOCKED | DRM_AUTH),
 	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_MAP_OFFSET,
-			rockchip_drm_gem_map_offset_ioctl, DRM_UNLOCKED |
-			DRM_AUTH),
+			  rockchip_drm_gem_map_offset_ioctl, DRM_UNLOCKED |
+			  DRM_AUTH),
 	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_MMAP,
-			rockchip_drm_gem_mmap_ioctl, DRM_UNLOCKED | DRM_AUTH),
+			  rockchip_drm_gem_mmap_ioctl, DRM_UNLOCKED | DRM_AUTH),
 	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_GET,
-			rockchip_drm_gem_get_ioctl, DRM_UNLOCKED),
+			  rockchip_drm_gem_get_ioctl, DRM_UNLOCKED),
 	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_CPU_ACQUIRE,
-			rockchip_drm_gem_cpu_acquire_ioctl,
-			DRM_UNLOCKED | DRM_AUTH),
+			  rockchip_drm_gem_cpu_acquire_ioctl,
+			  DRM_UNLOCKED | DRM_AUTH),
 	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_CPU_RELEASE,
-			rockchip_drm_gem_cpu_release_ioctl,
-			DRM_UNLOCKED | DRM_AUTH),
+			  rockchip_drm_gem_cpu_release_ioctl,
+			  DRM_UNLOCKED | DRM_AUTH),
 };
 
 static const struct file_operations rockchip_drm_driver_fops = {
-	.owner		= THIS_MODULE,
-	.open		= drm_open,
-	.mmap		= rockchip_drm_gem_mmap,
-	.poll		= drm_poll,
-	.read		= drm_read,
-	.unlocked_ioctl	= drm_ioctl,
+	.owner = THIS_MODULE,
+	.open = drm_open,
+	.mmap = rockchip_drm_gem_mmap,
+	.poll = drm_poll,
+	.read = drm_read,
+	.unlocked_ioctl = drm_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = drm_compat_ioctl,
 #endif
-	.release	= drm_release,
+	.release = drm_release,
 };
 
 static struct drm_driver rockchip_drm_driver = {
-	.driver_features	= DRIVER_HAVE_IRQ | DRIVER_MODESET |
-					DRIVER_GEM | DRIVER_PRIME,
-	.load			= rockchip_drm_load,
-	.unload			= rockchip_drm_unload,
-	.open			= rockchip_drm_open,
-	.preclose		= rockchip_drm_preclose,
-	.lastclose		= rockchip_drm_lastclose,
-	.postclose		= rockchip_drm_postclose,
-	.get_vblank_counter	= drm_vblank_count,
-	.enable_vblank		= rockchip_drm_crtc_enable_vblank,
-	.disable_vblank		= rockchip_drm_crtc_disable_vblank,
-//	.get_vblank_timestamp   = rockchip_get_crtc_vblank_timestamp,
-	.gem_init_object	= rockchip_drm_gem_init_object,
-	.gem_free_object	= rockchip_drm_gem_free_object,
-	.gem_vm_ops		= &rockchip_drm_gem_vm_ops,
-	.dumb_create		= rockchip_drm_gem_dumb_create,
-	.dumb_map_offset	= rockchip_drm_gem_dumb_map_offset,
-	.dumb_destroy		= rockchip_drm_gem_dumb_destroy,
-	.prime_handle_to_fd	= drm_gem_prime_handle_to_fd,
-	.prime_fd_to_handle	= drm_gem_prime_fd_to_handle,
-	.gem_prime_export	= rockchip_dmabuf_prime_export,
-	.gem_prime_import	= rockchip_dmabuf_prime_import,
-	.ioctls			= rockchip_ioctls,
-	.fops			= &rockchip_drm_driver_fops,
-	.name	= DRIVER_NAME,
-	.desc	= DRIVER_DESC,
-	.date	= DRIVER_DATE,
-	.major	= DRIVER_MAJOR,
-	.minor	= DRIVER_MINOR,
+	.driver_features = DRIVER_HAVE_IRQ | DRIVER_MODESET |
+	    DRIVER_GEM | DRIVER_PRIME,
+	.load = rockchip_drm_load,
+	.unload = rockchip_drm_unload,
+	.open = rockchip_drm_open,
+	.preclose = rockchip_drm_preclose,
+	.lastclose = rockchip_drm_lastclose,
+	.postclose = rockchip_drm_postclose,
+	.get_vblank_counter = drm_vblank_count,
+	.enable_vblank = rockchip_drm_crtc_enable_vblank,
+	.disable_vblank = rockchip_drm_crtc_disable_vblank,
+//      .get_vblank_timestamp   = rockchip_get_crtc_vblank_timestamp,
+	.gem_init_object = rockchip_drm_gem_init_object,
+	.gem_free_object = rockchip_drm_gem_free_object,
+	.gem_vm_ops = &rockchip_drm_gem_vm_ops,
+	.dumb_create = rockchip_drm_gem_dumb_create,
+	.dumb_map_offset = rockchip_drm_gem_dumb_map_offset,
+	.dumb_destroy = rockchip_drm_gem_dumb_destroy,
+	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
+	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
+	.gem_prime_export = rockchip_dmabuf_prime_export,
+	.gem_prime_import = rockchip_dmabuf_prime_import,
+	.ioctls = rockchip_ioctls,
+	.fops = &rockchip_drm_driver_fops,
+	.name = DRIVER_NAME,
+	.desc = DRIVER_DESC,
+	.date = DRIVER_DATE,
+	.major = DRIVER_MAJOR,
+	.minor = DRIVER_MINOR,
 };
 
 static int rockchip_drm_platform_probe(struct platform_device *pdev)
@@ -301,12 +287,12 @@ static int rockchip_drm_platform_remove(struct platform_device *pdev)
 }
 
 static struct platform_driver rockchip_drm_platform_driver = {
-	.probe		= rockchip_drm_platform_probe,
-	.remove		= rockchip_drm_platform_remove,
-	.driver		= {
-		.owner	= THIS_MODULE,
-		.name	= "rockchip-drm",
-	},
+	.probe = rockchip_drm_platform_probe,
+	.remove = rockchip_drm_platform_remove,
+	.driver = {
+		   .owner = THIS_MODULE,
+		   .name = "rockchip-drm",
+		   },
 };
 
 static int __init rockchip_drm_init(void)
@@ -315,29 +301,25 @@ static int __init rockchip_drm_init(void)
 
 	DRM_DEBUG_DRIVER("%s\n", __FILE__);
 
-
 #ifdef CONFIG_DRM_ROCKCHIP_PRIMARY
 	ret = platform_driver_register(&primary_platform_driver);
 	if (ret < 0)
 		goto out_primary;
-	platform_device_register_simple("primary-display", -1,
-			NULL, 0);
+	platform_device_register_simple("primary-display", -1, NULL, 0);
 #endif
 #ifdef CONFIG_DRM_ROCKCHIP_HDMI
 	ret = platform_driver_register(&extend_platform_driver);
 	if (ret < 0)
 		goto out_extend;
-	platform_device_register_simple("extend-display", -1,
-			NULL, 0);
+	platform_device_register_simple("extend-display", -1, NULL, 0);
 #endif
 
 	ret = platform_driver_register(&rockchip_drm_platform_driver);
 	if (ret < 0)
 		goto out_drm;
 
-
 	rockchip_drm_pdev = platform_device_register_simple("rockchip-drm", -1,
-				NULL, 0);
+							    NULL, 0);
 	if (IS_ERR(rockchip_drm_pdev)) {
 		ret = PTR_ERR(rockchip_drm_pdev);
 		goto out;

@@ -50,8 +50,6 @@ enum rockchip_drm_output_type {
 	ROCKCHIP_DISPLAY_TYPE_LCD,
 	/* HDMI Interface. */
 	ROCKCHIP_DISPLAY_TYPE_HDMI,
-	/* Virtual Display Interface. */
-	ROCKCHIP_DISPLAY_TYPE_VIDI,
 };
 
 /*
@@ -63,11 +61,11 @@ enum rockchip_drm_output_type {
  * @disable: disable hardware specific overlay.
  */
 struct rockchip_drm_overlay_ops {
-	void (*mode_set)(struct device *subdrv_dev,
-			 struct rockchip_drm_overlay *overlay);
-	void (*commit)(struct device *subdrv_dev, int zpos);
-	void (*enable)(struct device *subdrv_dev, int zpos);
-	void (*disable)(struct device *subdrv_dev, int zpos);
+	void (*mode_set) (struct device * subdrv_dev,
+			  struct rockchip_drm_overlay * overlay);
+	void (*commit) (struct device * subdrv_dev, int zpos);
+	void (*enable) (struct device * subdrv_dev, int zpos);
+	void (*disable) (struct device * subdrv_dev, int zpos);
 };
 
 /*
@@ -149,13 +147,13 @@ struct rockchip_drm_overlay {
  */
 struct rockchip_drm_display_ops {
 	enum rockchip_drm_output_type type;
-	bool (*is_connected)(struct device *dev);
-	struct edid *(*get_edid)(struct device *dev,
-			struct drm_connector *connector);
-	void *(*get_panel)(struct device *dev);
-	void *(*get_modelist)(struct device *dev);
-	int (*check_timing)(struct device *dev, void *timing);
-	int (*power_on)(struct device *dev, int mode);
+	 bool(*is_connected) (struct device * dev);
+	struct edid *(*get_edid) (struct device * dev,
+				  struct drm_connector * connector);
+	void *(*get_panel) (struct device * dev);
+	void *(*get_modelist) (struct device * dev);
+	int (*check_timing) (struct device * dev, void *timing);
+	int (*power_on) (struct device * dev, int mode);
 };
 
 /*
@@ -174,19 +172,19 @@ struct rockchip_drm_display_ops {
  *	hardware overlay is updated.
  */
 struct rockchip_drm_manager_ops {
-	void (*dpms)(struct device *subdrv_dev, int mode);
-	void (*apply)(struct device *subdrv_dev);
-	void (*mode_fixup)(struct device *subdrv_dev,
-				struct drm_connector *connector,
-				const struct drm_display_mode *mode,
-				struct drm_display_mode *adjusted_mode);
-	void (*mode_set)(struct device *subdrv_dev, void *mode);
-	void (*get_max_resol)(struct device *subdrv_dev, unsigned int *width,
-				unsigned int *height);
-	void (*commit)(struct device *subdrv_dev);
-	int (*enable_vblank)(struct device *subdrv_dev);
-	void (*disable_vblank)(struct device *subdrv_dev);
-	void (*wait_for_vblank)(struct device *subdrv_dev);
+	void (*dpms) (struct device * subdrv_dev, int mode);
+	void (*apply) (struct device * subdrv_dev);
+	void (*mode_fixup) (struct device * subdrv_dev,
+			    struct drm_connector * connector,
+			    const struct drm_display_mode * mode,
+			    struct drm_display_mode * adjusted_mode);
+	void (*mode_set) (struct device * subdrv_dev, void *mode);
+	void (*get_max_resol) (struct device * subdrv_dev, unsigned int *width,
+			       unsigned int *height);
+	void (*commit) (struct device * subdrv_dev);
+	int (*enable_vblank) (struct device * subdrv_dev);
+	void (*disable_vblank) (struct device * subdrv_dev);
+	void (*wait_for_vblank) (struct device * subdrv_dev);
 };
 
 /*
@@ -212,23 +210,6 @@ struct rockchip_drm_manager {
 	struct rockchip_drm_manager_ops *ops;
 	struct rockchip_drm_overlay_ops *overlay_ops;
 	struct rockchip_drm_display_ops *display_ops;
-};
-
-struct rockchip_drm_g2d_private {
-	struct device		*dev;
-	struct list_head	inuse_cmdlist;
-	struct list_head	event_list;
-	struct list_head	userptr_list;
-};
-
-struct rockchip_drm_ipp_private {
-	struct device	*dev;
-	struct list_head	event_list;
-};
-
-struct drm_rockchip_file_private {
-	struct rockchip_drm_g2d_private	*g2d_priv;
-	struct rockchip_drm_ipp_private	*ipp_priv;
 };
 
 /*
@@ -284,12 +265,12 @@ struct rockchip_drm_subdrv {
 	struct drm_device *drm_dev;
 	struct rockchip_drm_manager *manager;
 
-	int (*probe)(struct drm_device *drm_dev, struct device *dev);
-	void (*remove)(struct drm_device *drm_dev, struct device *dev);
-	int (*open)(struct drm_device *drm_dev, struct device *dev,
-			struct drm_file *file);
-	void (*close)(struct drm_device *drm_dev, struct device *dev,
-			struct drm_file *file);
+	int (*probe) (struct drm_device * drm_dev, struct device * dev);
+	void (*remove) (struct drm_device * drm_dev, struct device * dev);
+	int (*open) (struct drm_device * drm_dev, struct device * dev,
+		     struct drm_file * file);
+	void (*close) (struct drm_device * drm_dev, struct device * dev,
+		       struct drm_file * file);
 
 	struct drm_encoder *encoder;
 	struct drm_connector *connector;
@@ -321,36 +302,6 @@ int rockchip_drm_subdrv_unregister(struct rockchip_drm_subdrv *drm_subdrv);
 int rockchip_drm_subdrv_open(struct drm_device *dev, struct drm_file *file);
 void rockchip_drm_subdrv_close(struct drm_device *dev, struct drm_file *file);
 
-/*
- * this function registers rockchip drm hdmi platform device. It ensures only one
- * instance of the device is created.
- */
-int rockchip_platform_device_hdmi_register(void);
-
-/*
- * this function unregisters rockchip drm hdmi platform device if it exists.
- */
-void rockchip_platform_device_hdmi_unregister(void);
-
-/*
- * this function registers rockchip drm ipp platform device.
- */
-int rockchip_platform_device_ipp_register(void);
-
-/*
- * this function unregisters rockchip drm ipp platform device if it exists.
- */
-void rockchip_platform_device_ipp_unregister(void);
-
 extern struct platform_driver primary_platform_driver;
 extern struct platform_driver extend_platform_driver;
-extern struct platform_driver hdmi_driver;
-extern struct platform_driver mixer_driver;
-extern struct platform_driver rockchip_drm_common_hdmi_driver;
-extern struct platform_driver vidi_driver;
-extern struct platform_driver g2d_driver;
-extern struct platform_driver fimc_driver;
-extern struct platform_driver rotator_driver;
-extern struct platform_driver gsc_driver;
-extern struct platform_driver ipp_driver;
 #endif

@@ -30,16 +30,17 @@
 				drm_fb_helper)
 
 struct rockchip_drm_fbdev {
-	struct drm_fb_helper		drm_fb_helper;
-	struct rockchip_drm_gem_obj	*rockchip_gem_obj;
+	struct drm_fb_helper drm_fb_helper;
+	struct rockchip_drm_gem_obj *rockchip_gem_obj;
 };
 
 static int rockchip_drm_fb_mmap(struct fb_info *info,
-			struct vm_area_struct *vma)
+				struct vm_area_struct *vma)
 {
 	struct drm_fb_helper *helper = info->par;
 	struct rockchip_drm_fbdev *rockchip_fbd = to_rockchip_fbdev(helper);
-	struct rockchip_drm_gem_obj *rockchip_gem_obj = rockchip_fbd->rockchip_gem_obj;
+	struct rockchip_drm_gem_obj *rockchip_gem_obj =
+	    rockchip_fbd->rockchip_gem_obj;
 	struct rockchip_drm_gem_buf *buffer = rockchip_gem_obj->buffer;
 	unsigned long vm_size;
 	int ret;
@@ -54,7 +55,8 @@ static int rockchip_drm_fb_mmap(struct fb_info *info,
 		return -EINVAL;
 
 	ret = dma_mmap_attrs(helper->dev->dev, vma, buffer->pages,
-		buffer->dma_addr, buffer->size, &buffer->dma_attrs);
+			     buffer->dma_addr, buffer->size,
+			     &buffer->dma_attrs);
 	if (ret < 0) {
 		DRM_ERROR("failed to mmap.\n");
 		return ret;
@@ -62,63 +64,18 @@ static int rockchip_drm_fb_mmap(struct fb_info *info,
 
 	return 0;
 }
-#define RK_FBIOSET_OVERLAY_MSG     	0x5001
-#define RK_FBIOGET_OVERLAY_MSG   	0X5002
-#define RK_FBIOOVERLAY_DISABLE  	0X5003
-struct rk_overlay_api {
-	unsigned int y_addr;
-	unsigned int uv_addr;
-	int format;
-	
-	int xpos;
-	int ypos;
-	int xact;
-	int yact;
-	int xsize;
-	int ysize;
-
-	int xvir;
-};
-extern void primary_overlay_commit(struct rk_overlay_api *ovl);
-extern void primary_overlay_disable(void);
-extern void primary_set_overlay_status(int enable);
-static int drm_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
-{
-	struct rk_overlay_api ovl;
-	int enable;
-	void __user *argp = (void __user *)arg;
-	switch(cmd){
-		case RK_FBIOSET_OVERLAY_MSG:
-			if (copy_from_user(&ovl, argp, sizeof(struct rk_overlay_api)))
-				return -EFAULT;
-			primary_overlay_commit(&ovl);
-			break;
-		case RK_FBIOOVERLAY_DISABLE:
-			if (copy_from_user(&enable, argp, sizeof(int)))
-				return -EFAULT;
-			primary_set_overlay_status(enable);
-			break;
-
-		default:
-			printk("------>%s unknow ioctl cmd=%x\n",__func__,__LINE__);
-			break;
-	}
-	return 0;
-}
-
 
 static struct fb_ops rockchip_drm_fb_ops = {
-	.owner		= THIS_MODULE,
-	.fb_mmap        = rockchip_drm_fb_mmap,
-	.fb_fillrect	= cfb_fillrect,
-	.fb_copyarea	= cfb_copyarea,
-	.fb_imageblit	= cfb_imageblit,
-	.fb_check_var	= drm_fb_helper_check_var,
-	.fb_set_par	= drm_fb_helper_set_par,
-	.fb_blank	= drm_fb_helper_blank,
-	.fb_pan_display	= drm_fb_helper_pan_display,
-	.fb_setcmap	= drm_fb_helper_setcmap,
-	.fb_ioctl       = drm_fb_ioctl,
+	.owner = THIS_MODULE,
+	.fb_mmap = rockchip_drm_fb_mmap,
+	.fb_fillrect = cfb_fillrect,
+	.fb_copyarea = cfb_copyarea,
+	.fb_imageblit = cfb_imageblit,
+	.fb_check_var = drm_fb_helper_check_var,
+	.fb_set_par = drm_fb_helper_set_par,
+	.fb_blank = drm_fb_helper_blank,
+	.fb_pan_display = drm_fb_helper_pan_display,
+	.fb_setcmap = drm_fb_helper_setcmap,
 };
 
 static int rockchip_drm_fbdev_update(struct drm_fb_helper *helper,
@@ -148,7 +105,7 @@ static int rockchip_drm_fbdev_update(struct drm_fb_helper *helper,
 			unsigned int nr_pages = buffer->size >> PAGE_SHIFT;
 
 			buffer->kvaddr = vmap(buffer->pages, nr_pages, VM_MAP,
-					pgprot_writecombine(PAGE_KERNEL));
+					      pgprot_writecombine(PAGE_KERNEL));
 		} else {
 			phys_addr_t dma_addr = buffer->dma_addr;
 			if (dma_addr)
@@ -168,11 +125,11 @@ static int rockchip_drm_fbdev_update(struct drm_fb_helper *helper,
 	offset = fbi->var.xoffset * (fb->bits_per_pixel >> 3);
 	offset += fbi->var.yoffset * fb->pitches[0];
 
-	dev->mode_config.fb_base = (resource_size_t)buffer->dma_addr;
+	dev->mode_config.fb_base = (resource_size_t) buffer->dma_addr;
 	fbi->screen_base = buffer->kvaddr + offset;
 	if (is_drm_iommu_supported(dev))
 		fbi->fix.smem_start = (unsigned long)
-			(page_to_phys(sg_page(buffer->sgt->sgl)) + offset);
+		    (page_to_phys(sg_page(buffer->sgt->sgl)) + offset);
 	else
 		fbi->fix.smem_start = (unsigned long)buffer->dma_addr;
 
@@ -183,7 +140,7 @@ static int rockchip_drm_fbdev_update(struct drm_fb_helper *helper,
 }
 
 static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
-				    struct drm_fb_helper_surface_size *sizes)
+				     struct drm_fb_helper_surface_size *sizes)
 {
 	struct rockchip_drm_fbdev *rockchip_fbdev = to_rockchip_fbdev(helper);
 	struct rockchip_drm_gem_obj *rockchip_gem_obj;
@@ -197,8 +154,8 @@ static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	DRM_DEBUG_KMS("surface width(%d), height(%d) and bpp(%d\n",
-			sizes->surface_width, sizes->surface_height,
-			sizes->surface_bpp);
+		      sizes->surface_width, sizes->surface_height,
+		      sizes->surface_bpp);
 
 	mode_cmd.width = sizes->surface_width;
 	mode_cmd.height = sizes->surface_height;
@@ -227,7 +184,7 @@ static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 	rockchip_fbdev->rockchip_gem_obj = rockchip_gem_obj;
 
 	helper->fb = rockchip_drm_framebuffer_init(dev, &mode_cmd,
-			&rockchip_gem_obj->base);
+						   &rockchip_gem_obj->base);
 	if (IS_ERR(helper->fb)) {
 		DRM_ERROR("failed to create drm framebuffer.\n");
 		ret = PTR_ERR(helper->fb);
@@ -273,7 +230,7 @@ out:
 }
 
 static struct drm_fb_helper_funcs rockchip_drm_fb_helper_funcs = {
-	.fb_probe =	rockchip_drm_fbdev_create,
+	.fb_probe = rockchip_drm_fbdev_create,
 };
 
 int rockchip_drm_fbdev_init(struct drm_device *dev)
@@ -335,10 +292,11 @@ err_init:
 }
 
 static void rockchip_drm_fbdev_destroy(struct drm_device *dev,
-				      struct drm_fb_helper *fb_helper)
+				       struct drm_fb_helper *fb_helper)
 {
 	struct rockchip_drm_fbdev *rockchip_fbd = to_rockchip_fbdev(fb_helper);
-	struct rockchip_drm_gem_obj *rockchip_gem_obj = rockchip_fbd->rockchip_gem_obj;
+	struct rockchip_drm_gem_obj *rockchip_gem_obj =
+	    					rockchip_fbd->rockchip_gem_obj;
 	struct drm_framebuffer *fb;
 
 	if (is_drm_iommu_supported(dev) && rockchip_gem_obj->buffer->kvaddr)

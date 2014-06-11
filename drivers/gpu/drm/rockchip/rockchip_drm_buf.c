@@ -22,11 +22,9 @@
 #include "rockchip_drm_buf.h"
 #include "rockchip_drm_iommu.h"
 
-#if defined(CONFIG_ION_ROCKCHIP)
-extern struct ion_client *rockchip_ion_client_create(const char * name);
-#endif
 static int lowlevel_buffer_allocate(struct drm_device *dev,
-		unsigned int flags, struct rockchip_drm_gem_buf *buf)
+				    unsigned int flags,
+				    struct rockchip_drm_gem_buf *buf)
 {
 	int ret = 0;
 	enum dma_attr attr;
@@ -38,7 +36,6 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 		DRM_DEBUG_KMS("already allocated.\n");
 		return 0;
 	}
-
 
 	init_dma_attrs(&buf->dma_attrs);
 
@@ -64,29 +61,31 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 
 	nr_pages = buf->size >> PAGE_SHIFT;
 
-#if defined(CONFIG_ION_ROCKCHIP)
-	if(1){
+#ifndef CONFIG_ION_ROCKCHIP
+	if (!is_drm_iommu_supported(dev)) {
 #else
-	if(!is_drm_iommu_supported(dev)) {
+	{
 #endif
 		dma_addr_t start_addr;
 		unsigned int i = 0;
 
 		buf->pages = kzalloc(sizeof(struct page) * nr_pages,
-					GFP_KERNEL);
+				     GFP_KERNEL);
 		if (!buf->pages) {
 			DRM_ERROR("failed to allocate pages.\n");
 			return -ENOMEM;
 		}
 #ifdef CONFIG_ION_ROCKCHIP
-		buf->handle = ion_alloc(buf->ion_client, buf->size, 0, ION_HEAP(ION_CMA_HEAP_ID), 0);
-		if (IS_ERR(buf->handle)){
-			printk("----->%s %d alloc ion_handle fail\n",__func__,__LINE__);
+		buf->handle = ion_alloc(buf->ion_client, buf->size,
+					0, ION_HEAP(ION_CMA_HEAP_ID), 0);
+		if (IS_ERR(buf->handle)) {
+			DRM_ERROR("alloc ion_handle fail\n");
 			return PTR_ERR(buf->handle);
 		}
 
-		ret = ion_phys(buf->ion_client, buf->handle, &buf->dma_addr, &buf->size);
-		if (ret<0){
+		ret = ion_phys(buf->ion_client, buf->handle, 
+				&buf->dma_addr, &buf->size);
+		if (ret < 0) {
 			ion_free(buf->ion_client, buf->handle);
 			return ret;
 		}
@@ -94,8 +93,8 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 		buf->kvaddr = ion_map_kernel(buf->ion_client, buf->handle);
 #else
 		buf->kvaddr = dma_alloc_attrs(dev->dev, buf->size,
-					&buf->dma_addr, GFP_KERNEL,
-					&buf->dma_attrs);
+					      &buf->dma_addr, GFP_KERNEL,
+					      &buf->dma_attrs);
 #endif
 		if (!buf->kvaddr) {
 			DRM_ERROR("failed to allocate buffer.\n");
@@ -109,15 +108,17 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 			start_addr += PAGE_SIZE;
 			i++;
 		}
+#ifndef CONFIG_ION_ROCKCHIP
 	} else {
 
 		buf->pages = dma_alloc_attrs(dev->dev, buf->size,
-					&buf->dma_addr, GFP_KERNEL,
-					&buf->dma_attrs);
+					     &buf->dma_addr, GFP_KERNEL,
+					     &buf->dma_attrs);
 		if (!buf->pages) {
 			DRM_ERROR("failed to allocate buffer.\n");
 			return -ENOMEM;
 		}
+#endif
 	}
 
 	buf->sgt = drm_prime_pages_to_sg(buf->pages, nr_pages);
@@ -128,15 +129,14 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 	}
 
 	DRM_DEBUG_KMS("dma_addr(0x%lx), size(0x%lx)\n",
-			(unsigned long)buf->dma_addr,
-			buf->size);
+		      (unsigned long)buf->dma_addr, buf->size);
 
 	return ret;
 
 err_free_attrs:
 	dma_free_attrs(dev->dev, buf->size, buf->pages,
-			(dma_addr_t)buf->dma_addr, &buf->dma_attrs);
-	buf->dma_addr = (dma_addr_t)NULL;
+		       (dma_addr_t) buf->dma_addr, &buf->dma_attrs);
+	buf->dma_addr = (dma_addr_t) NULL;
 
 #ifdef CONFIG_ION_ROCKCHIP
 	ion_free(buf->ion_client, buf->handle);
@@ -146,7 +146,8 @@ err_free_attrs:
 }
 
 static void lowlevel_buffer_deallocate(struct drm_device *dev,
-		unsigned int flags, struct rockchip_drm_gem_buf *buf)
+				       unsigned int flags,
+				       struct rockchip_drm_gem_buf *buf)
 {
 	DRM_DEBUG_KMS("%s.\n", __FILE__);
 
@@ -155,32 +156,34 @@ static void lowlevel_buffer_deallocate(struct drm_device *dev,
 		return;
 	}
 
-
-#if 1
 	DRM_DEBUG_KMS("dma_addr(0x%lx), size(0x%lx)\n",
-			(unsigned long)buf->dma_addr,
-			buf->size);
+		      (unsigned long)buf->dma_addr, buf->size);
 
 	sg_free_table(buf->sgt);
 
 	kfree(buf->sgt);
 	buf->sgt = NULL;
 
-	if (1){//!is_drm_iommu_supported(dev)) {
-		ion_free(buf->ion_client, buf->handle);
-		//dma_free_attrs(dev->dev, buf->size, buf->kvaddr,
-		//		(dma_addr_t)buf->dma_addr, &buf->dma_attrs);
-		kfree(buf->pages);
-	} else
-		dma_free_attrs(dev->dev, buf->size, buf->pages,
+#ifndef CONFIG_ION_ROCKCHIP
+	if (!is_drm_iommu_supported(dev)) {
+	{
+		dma_free_attrs(dev->dev, buf->size, buf->kvaddr,
 				(dma_addr_t)buf->dma_addr, &buf->dma_attrs);
-
-	buf->dma_addr = (dma_addr_t)NULL;
+		kfree(buf->pages);
+	} else {
+		dma_free_attrs(dev->dev, buf->size, buf->pages,
+				(dma_addr_t) buf->dma_addr, &buf->dma_attrs);
+	}
+#else
+	ion_free(buf->ion_client, buf->handle);
+	kfree(buf->pages);
 #endif
+
+	buf->dma_addr = (dma_addr_t) NULL;
 }
 
 struct rockchip_drm_gem_buf *rockchip_drm_init_buf(struct drm_device *dev,
-						unsigned int size)
+						   unsigned int size)
 {
 	struct rockchip_drm_gem_buf *buffer;
 
@@ -198,8 +201,8 @@ struct rockchip_drm_gem_buf *rockchip_drm_init_buf(struct drm_device *dev,
 #ifdef CONFIG_ION_ROCKCHIP
 	buffer->ion_client = rockchip_ion_client_create("drm_ion");
 
-	if (IS_ERR(buffer->ion_client)){ 
-		printk("----->%s %d init ion_client fail\n",__func__,__LINE__);
+	if (IS_ERR(buffer->ion_client)) {
+		DRM_ERROR("init ion_client fail\n");
 		return PTR_ERR(buffer->ion_client);
 	}
 #endif
@@ -208,7 +211,7 @@ struct rockchip_drm_gem_buf *rockchip_drm_init_buf(struct drm_device *dev,
 }
 
 void rockchip_drm_fini_buf(struct drm_device *dev,
-				struct rockchip_drm_gem_buf *buffer)
+			   struct rockchip_drm_gem_buf *buffer)
 {
 	DRM_DEBUG_KMS("%s.\n", __FILE__);
 
@@ -216,7 +219,6 @@ void rockchip_drm_fini_buf(struct drm_device *dev,
 		DRM_DEBUG_KMS("buffer is null.\n");
 		return;
 	}
-
 
 #ifdef CONFIG_ION_ROCKCHIP
 	ion_client_destroy(buffer->ion_client);
@@ -226,7 +228,7 @@ void rockchip_drm_fini_buf(struct drm_device *dev,
 }
 
 int rockchip_drm_alloc_buf(struct drm_device *dev,
-		struct rockchip_drm_gem_buf *buf, unsigned int flags)
+			   struct rockchip_drm_gem_buf *buf, unsigned int flags)
 {
 
 	/*
@@ -240,7 +242,8 @@ int rockchip_drm_alloc_buf(struct drm_device *dev,
 }
 
 void rockchip_drm_free_buf(struct drm_device *dev,
-		unsigned int flags, struct rockchip_drm_gem_buf *buffer)
+			   unsigned int flags,
+			   struct rockchip_drm_gem_buf *buffer)
 {
 
 	lowlevel_buffer_deallocate(dev, flags, buffer);

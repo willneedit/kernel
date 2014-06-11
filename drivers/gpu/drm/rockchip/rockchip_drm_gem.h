@@ -45,18 +45,18 @@
  *	VM_PFNMAP or not.
  */
 struct rockchip_drm_gem_buf {
-	void __iomem		*kvaddr;
-	unsigned long		userptr;
-	dma_addr_t		dma_addr;
-	struct dma_attrs	dma_attrs;
-	unsigned int		write;
-	struct page		**pages;
-	struct sg_table		*sgt;
-	unsigned long		size;
-	bool			pfnmap;
+	void __iomem 		*kvaddr;
+	unsigned long 		userptr;
+	dma_addr_t 		dma_addr;
+	struct dma_attrs 	dma_attrs;
+	unsigned int 		write;
+	struct page 		**pages;
+	struct sg_table 	*sgt;
+	unsigned long 		size;
+	bool 			pfnmap;
 #ifdef CONFIG_ION_ROCKCHIP
 	struct ion_client 	*ion_client;
-	struct ion_handle       *handle;
+	struct ion_handle 	*handle;
 #endif
 };
 
@@ -80,11 +80,11 @@ struct rockchip_drm_gem_buf {
  *	user can access the buffer through kms_bo.handle.
  */
 struct rockchip_drm_gem_obj {
-	struct drm_gem_object		base;
-	struct rockchip_drm_gem_buf	*buffer;
-	unsigned long			size;
-	struct vm_area_struct		*vma;
-	unsigned int			flags;
+	struct drm_gem_object 		base;
+	struct rockchip_drm_gem_buf 	*buffer;
+	unsigned long 			size;
+	struct vm_area_struct 		*vma;
+	unsigned int 			flags;
 };
 
 struct page **rockchip_gem_get_pages(struct drm_gem_object *obj, gfp_t gfpmask);
@@ -94,12 +94,12 @@ void rockchip_drm_gem_destroy(struct rockchip_drm_gem_obj *rockchip_gem_obj);
 
 /* create a private gem object and initialize it. */
 struct rockchip_drm_gem_obj *rockchip_drm_gem_init(struct drm_device *dev,
-						      unsigned long size);
+						   unsigned long size);
 
 /* create a new buffer with gem object */
 struct rockchip_drm_gem_obj *rockchip_drm_gem_create(struct drm_device *dev,
-						unsigned int flags,
-						unsigned long size);
+						     unsigned int flags,
+						     unsigned long size);
 
 /*
  * request gem object creation and buffer allocation as the size
@@ -107,7 +107,7 @@ struct rockchip_drm_gem_obj *rockchip_drm_gem_create(struct drm_device *dev,
  * height and bpp.
  */
 int rockchip_drm_gem_create_ioctl(struct drm_device *dev, void *data,
-				struct drm_file *file_priv);
+				  struct drm_file *file_priv);
 
 /*
  * get dma address from gem handle and this function could be used for
@@ -115,8 +115,8 @@ int rockchip_drm_gem_create_ioctl(struct drm_device *dev, void *data,
  * with this function call, gem object reference count would be increased.
  */
 dma_addr_t *rockchip_drm_gem_get_dma_addr(struct drm_device *dev,
-					unsigned int gem_handle,
-					struct drm_file *filp);
+					  unsigned int gem_handle,
+					  struct drm_file *filp);
 
 /*
  * put dma address from gem handle and this function could be used for
@@ -124,42 +124,42 @@ dma_addr_t *rockchip_drm_gem_get_dma_addr(struct drm_device *dev,
  * with this function call, gem object reference count would be decreased.
  */
 void rockchip_drm_gem_put_dma_addr(struct drm_device *dev,
-					unsigned int gem_handle,
-					struct drm_file *filp);
+				   unsigned int gem_handle,
+				   struct drm_file *filp);
 
 /* get buffer offset to map to user space. */
 int rockchip_drm_gem_map_offset_ioctl(struct drm_device *dev, void *data,
-				    struct drm_file *file_priv);
+				      struct drm_file *file_priv);
 
 /*
  * mmap the physically continuous memory that a gem object contains
  * to user space.
  */
 int rockchip_drm_gem_mmap_ioctl(struct drm_device *dev, void *data,
-			      struct drm_file *file_priv);
+				struct drm_file *file_priv);
 
 /* map user space allocated by malloc to pages. */
 int rockchip_drm_gem_userptr_ioctl(struct drm_device *dev, void *data,
-				      struct drm_file *file_priv);
+				   struct drm_file *file_priv);
 
 /* get buffer information to memory region allocated by gem. */
 int rockchip_drm_gem_get_ioctl(struct drm_device *dev, void *data,
-				      struct drm_file *file_priv);
+			       struct drm_file *file_priv);
 
 /* get buffer size to gem handle. */
 unsigned long rockchip_drm_gem_get_size(struct drm_device *dev,
-						unsigned int gem_handle,
-						struct drm_file *file_priv);
+					unsigned int gem_handle,
+					struct drm_file *file_priv);
 /*
  * acquire gem object for CPU access.
  */
-int rockchip_drm_gem_cpu_acquire_ioctl(struct drm_device *dev, void* data,
-			       struct drm_file *file_priv);
+int rockchip_drm_gem_cpu_acquire_ioctl(struct drm_device *dev, void *data,
+				       struct drm_file *file_priv);
 /*
  * release gem object after CPU access.
  */
-int rockchip_drm_gem_cpu_release_ioctl(struct drm_device *dev, void* data,
-			       struct drm_file *file_priv);
+int rockchip_drm_gem_cpu_release_ioctl(struct drm_device *dev, void *data,
+				       struct drm_file *file_priv);
 
 /* initialize gem object. */
 int rockchip_drm_gem_init_object(struct drm_gem_object *obj);
@@ -169,13 +169,13 @@ void rockchip_drm_gem_free_object(struct drm_gem_object *gem_obj);
 
 /* create memory region for drm framebuffer. */
 int rockchip_drm_gem_dumb_create(struct drm_file *file_priv,
-			       struct drm_device *dev,
-			       struct drm_mode_create_dumb *args);
+				 struct drm_device *dev,
+				 struct drm_mode_create_dumb *args);
 
 /* map memory region for drm framebuffer to user space. */
 int rockchip_drm_gem_dumb_map_offset(struct drm_file *file_priv,
-				   struct drm_device *dev, uint32_t handle,
-				   uint64_t *offset);
+				     struct drm_device *dev, uint32_t handle,
+				     uint64_t * offset);
 
 /*
  * destroy memory region allocated.
@@ -183,8 +183,7 @@ int rockchip_drm_gem_dumb_map_offset(struct drm_file *file_priv,
  *	would be released by drm_gem_handle_delete().
  */
 int rockchip_drm_gem_dumb_destroy(struct drm_file *file_priv,
-				struct drm_device *dev,
-				unsigned int handle);
+				  struct drm_device *dev, unsigned int handle);
 
 /* page fault handler and mmap fault address(virtual) to physical memory. */
 int rockchip_drm_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf);
@@ -194,7 +193,7 @@ int rockchip_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma);
 
 static inline int vma_is_io(struct vm_area_struct *vma)
 {
-	return !!(vma->vm_flags & (VM_IO | VM_PFNMAP));
+	return ! !(vma->vm_flags & (VM_IO | VM_PFNMAP));
 }
 
 /* get a copy of a virtual memory region. */
@@ -205,23 +204,23 @@ void rockchip_gem_put_vma(struct vm_area_struct *vma);
 
 /* get pages from user space. */
 int rockchip_gem_get_pages_from_userptr(unsigned long start,
-						unsigned int npages,
-						struct page **pages,
-						struct vm_area_struct *vma);
+					unsigned int npages,
+					struct page **pages,
+					struct vm_area_struct *vma);
 
 /* drop the reference to pages. */
 void rockchip_gem_put_pages_to_userptr(struct page **pages,
-					unsigned int npages,
-					struct vm_area_struct *vma);
+				       unsigned int npages,
+				       struct vm_area_struct *vma);
 
 /* map sgt with dma region. */
 int rockchip_gem_map_sgt_with_dma(struct drm_device *drm_dev,
-				struct sg_table *sgt,
-				enum dma_data_direction dir);
+				  struct sg_table *sgt,
+				  enum dma_data_direction dir);
 
 /* unmap sgt from dma region. */
 void rockchip_gem_unmap_sgt_from_dma(struct drm_device *drm_dev,
-				struct sg_table *sgt,
-				enum dma_data_direction dir);
+				     struct sg_table *sgt,
+				     enum dma_data_direction dir);
 
 #endif

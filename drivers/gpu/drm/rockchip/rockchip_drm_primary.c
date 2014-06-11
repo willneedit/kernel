@@ -142,14 +142,15 @@ static void primary_commit(struct device *dev)
 {
 	struct primary_context *ctx = get_primary_context(dev);
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
-	struct rockchip_drm_panel_info *panel = (struct rockchip_drm_panel_info *)primary_get_panel(dev);
+	struct rockchip_drm_panel_info *panel =
+	    (struct rockchip_drm_panel_info *)primary_get_panel(dev);
 	struct fb_videomode *mode;
 
 	if (ctx->suspended)
 		return;
 	drm_disp->mode = &panel->timing;
 	drm_disp->enable = true;
-	rk_drm_disp_handle(drm_disp,RK_DRM_SCREEN_SET,0);
+	rk_drm_disp_handle(drm_disp, RK_DRM_SCREEN_SET, 0);
 }
 
 static int primary_enable_vblank(struct device *dev)
@@ -185,46 +186,48 @@ static void primary_wait_for_vblank(struct device *dev)
 
 	if (!wait_event_timeout(ctx->wait_vsync_queue,
 				!atomic_read(&ctx->wait_vsync_event),
-				DRM_HZ/20))
+				DRM_HZ / 20))
 		DRM_DEBUG_KMS("vblank wait timed out.\n");
 }
 
-static void primary_event_call_back_handle(struct rk_drm_display *drm_disp,int win_id,int event)
+static void primary_event_call_back_handle(struct rk_drm_display *drm_disp,
+					   int win_id, int event)
 {
 	struct primary_context *ctx = get_primary_context(g_dev);
 	struct rockchip_drm_subdrv *subdrv = &ctx->subdrv;
 	struct rockchip_drm_manager *manager = subdrv->manager;
 	struct drm_device *drm_dev = subdrv->drm_dev;
-	switch(event){
-		case RK_DRM_CALLBACK_VSYNC:
-			/* check the crtc is detached already from encoder */
-			if (manager->pipe < 0)
-				return;
+	switch (event) {
+	case RK_DRM_CALLBACK_VSYNC:
+		/* check the crtc is detached already from encoder */
+		if (manager->pipe < 0)
+			return;
 
-			drm_handle_vblank(drm_dev, manager->pipe);
-			rockchip_drm_crtc_finish_pageflip(drm_dev, manager->pipe);
-			/* set wait vsync event to zero and wake up queue. */
-			if (atomic_read(&ctx->wait_vsync_event)) {
-				atomic_set(&ctx->wait_vsync_event, 0);
-				DRM_WAKEUP(&ctx->wait_vsync_queue);
-			}
-			break;
-		default:
-			DRM_ERROR("-->%s unhandle event %d\n",__func__,event);
-			break;
+		drm_handle_vblank(drm_dev, manager->pipe);
+		rockchip_drm_crtc_finish_pageflip(drm_dev, manager->pipe);
+		/* set wait vsync event to zero and wake up queue. */
+		if (atomic_read(&ctx->wait_vsync_event)) {
+			atomic_set(&ctx->wait_vsync_event, 0);
+			DRM_WAKEUP(&ctx->wait_vsync_queue);
+		}
+		break;
+	default:
+		DRM_ERROR("unhandle event %d\n", event);
+		break;
 	}
 }
+
 static struct rockchip_drm_manager_ops primary_manager_ops = {
-	.dpms = primary_dpms,
-	.apply = primary_apply,
-	.commit = primary_commit,
-	.enable_vblank = primary_enable_vblank,
+	.dpms 		= primary_dpms,
+	.apply 		= primary_apply,
+	.commit 	= primary_commit,
+	.enable_vblank 	= primary_enable_vblank,
 	.disable_vblank = primary_disable_vblank,
 	.wait_for_vblank = primary_wait_for_vblank,
 };
 
 static void primary_win_mode_set(struct device *dev,
-			      struct rockchip_drm_overlay *overlay)
+				 struct rockchip_drm_overlay *overlay)
 {
 	struct primary_context *ctx = get_primary_context(dev);
 	struct primary_win_data *win_data;
@@ -259,7 +262,7 @@ static void primary_win_mode_set(struct device *dev,
 	win_data->dma_addr = overlay->dma_addr[0] + offset;
 	win_data->bpp = overlay->bpp;
 	win_data->buf_offsize = (overlay->fb_width - overlay->crtc_width) *
-				(overlay->bpp >> 3);
+	    (overlay->bpp >> 3);
 	win_data->line_size = overlay->crtc_width * (overlay->bpp >> 3);
 
 }
@@ -279,22 +282,25 @@ void primary_set_overlay_status(int enable)
 {
 	struct primary_context *ctx = get_primary_context(g_dev);
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
-	struct rk_win_data *rk_win = NULL; 
-	bool enabled = enable?true:false;
+	struct rk_win_data *rk_win = NULL;
+	bool enabled = enable ? true : false;
 	rk_win = &drm_disp->win[1];
-	if(rk_win->enabled != enabled){
+	if (rk_win->enabled != enabled) {
 		rk_win->enabled = enabled;
 
-		if(!rk_win->enabled){
-			rk_drm_disp_handle(drm_disp,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT,1<<1);
+		if (!rk_win->enabled) {
+			rk_drm_disp_handle(drm_disp,
+					   RK_DRM_WIN_COMMIT |
+					   RK_DRM_DISPLAY_COMMIT, 1 << 1);
 		}
 	}
 }
+
 void primary_overlay_commit(struct rk_overlay_api *ovl)
 {
 	struct primary_context *ctx = get_primary_context(g_dev);
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
-	struct rk_win_data *rk_win = NULL; 
+	struct rk_win_data *rk_win = NULL;
 	struct primary_win_data *win_data;
 	int win;
 
@@ -305,40 +311,41 @@ void primary_overlay_commit(struct rk_overlay_api *ovl)
 	rk_win = &drm_disp->win[win];
 	win_data = &ctx->win_data[win];
 
-	if(ovl->xact || ovl->yact){
+	if (ovl->xact || ovl->yact) {
 		rk_win->format = YUV420;
 		rk_win->xact = ovl->xact;
 		rk_win->yact = ovl->yact;
 		rk_win->xvir = ovl->xvir;
-	}else{
+	} else {
 		rk_win->xpos = ovl->xpos;
 		rk_win->ypos = ovl->ypos;
 		rk_win->xsize = ovl->xsize;
 		rk_win->ysize = ovl->ysize;
 	}
 
-	if(ovl->y_addr){
+	if (ovl->y_addr) {
 		rk_win->yrgb_addr = ovl->y_addr;
 		rk_win->uv_addr = ovl->uv_addr;
 
 	}
-	if(rk_win->yrgb_addr && rk_win->xact && rk_win->xsize){
-		rk_drm_disp_handle(drm_disp,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT, 1<<win);
+	if (rk_win->yrgb_addr && rk_win->xact && rk_win->xsize) {
+		rk_drm_disp_handle(drm_disp,
+				   RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT,
+				   1 << win);
 
 		win_data->enabled = true;
 	}
 
-
-
 }
+
 static void primary_win_commit(struct device *dev, int zpos)
 {
 	struct primary_context *ctx = get_primary_context(dev);
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
-	struct rk_win_data *rk_win = NULL; 
+	struct rk_win_data *rk_win = NULL;
 	struct primary_win_data *win_data;
 	int win = zpos;
-	unsigned long val,  size;
+	unsigned long val, size;
 	u32 xpos, ypos;
 	int rk_win_id;
 
@@ -352,32 +359,32 @@ static void primary_win_commit(struct device *dev, int zpos)
 		return;
 
 	win_data = &ctx->win_data[win];
-	switch(win){
-		case 0:
-			rk_win_id = LAYER_NORMAL_WIN;
-			break;
-		case 1: 
-			rk_win_id = LAYER_CURSOR_WIN;
-			break;
-		default:
-			DRM_ERROR("------>un support win id %d\n",win);
+	switch (win) {
+	case 0:
+		rk_win_id = LAYER_NORMAL_WIN;
+		break;
+	case 1:
+		rk_win_id = LAYER_CURSOR_WIN;
+		break;
+	default:
+		DRM_ERROR("un support win id %d\n", win);
 	}
 	rk_win = &drm_disp->win[rk_win_id];
 
-	switch(win_data->bpp){
-		case 32:
-			rk_win->format = ARGB888;
-			rk_win->alpha_en = true;
-			break;
-		case 24:
-			rk_win->format = RGB888;
-			break;
-		case 16:
-			rk_win->format = RGB565;
-			break;
-		default:
-			DRM_ERROR("not support format %d\n",win_data->bpp);
-			break;
+	switch (win_data->bpp) {
+	case 32:
+		rk_win->format = ARGB888;
+		rk_win->alpha_en = true;
+		break;
+	case 24:
+		rk_win->format = RGB888;
+		break;
+	case 16:
+		rk_win->format = RGB565;
+		break;
+	default:
+		DRM_ERROR("not support format %d\n", win_data->bpp);
+		break;
 	}
 
 	rk_win->xpos = win_data->offset_x;
@@ -390,8 +397,9 @@ static void primary_win_commit(struct device *dev, int zpos)
 	rk_win->yrgb_addr = win_data->dma_addr;
 	rk_win->enabled = true;
 
-	rk_drm_disp_handle(drm_disp,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT,1<<rk_win_id);
-		
+	rk_drm_disp_handle(drm_disp, RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT,
+			   1 << rk_win_id);
+
 	win_data->enabled = true;
 }
 
@@ -401,7 +409,7 @@ static void primary_win_disable(struct device *dev, int zpos)
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
 	struct primary_win_data *win_data;
 	int win = zpos;
-	int rk_win_id=win;
+	int rk_win_id = win;
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
@@ -414,22 +422,23 @@ static void primary_win_disable(struct device *dev, int zpos)
 	win_data = &ctx->win_data[win];
 
 	if (ctx->suspended) {
-		/* do not resume this window*/
+		/* do not resume this window */
 		win_data->resume = false;
 		return;
 	}
-       switch(win){
-               case 0:
-                       rk_win_id = LAYER_NORMAL_WIN;
-                       break;
-               case 1: 
-                       rk_win_id = LAYER_CURSOR_WIN;
-		       break;
-               default:
-                       DRM_ERROR("------>un support win id\n");
-       }
+	switch (win) {
+	case 0:
+		rk_win_id = LAYER_NORMAL_WIN;
+		break;
+	case 1:
+		rk_win_id = LAYER_CURSOR_WIN;
+		break;
+	default:
+		DRM_ERROR("un support win id\n");
+	}
 	drm_disp->win[rk_win_id].enabled = false;
-	rk_drm_disp_handle(drm_disp,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT,1<<rk_win_id);
+	rk_drm_disp_handle(drm_disp, RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT,
+			   1 << rk_win_id);
 
 	win_data->enabled = false;
 }
@@ -441,11 +450,12 @@ static struct rockchip_drm_overlay_ops primary_overlay_ops = {
 };
 
 static struct rockchip_drm_manager primary_manager = {
-	.pipe		= -1,
-	.ops		= &primary_manager_ops,
-	.overlay_ops	= &primary_overlay_ops,
-	.display_ops	= &primary_display_ops,
+	.pipe = -1,
+	.ops = &primary_manager_ops,
+	.overlay_ops = &primary_overlay_ops,
+	.display_ops = &primary_display_ops,
 };
+
 #if 0
 static irqreturn_t primary_irq_handler(int irq, void *dev_id)
 {
@@ -454,8 +464,6 @@ static irqreturn_t primary_irq_handler(int irq, void *dev_id)
 	struct drm_device *drm_dev = subdrv->drm_dev;
 	struct rockchip_drm_manager *manager = subdrv->manager;
 	u32 intr0_reg;
-
-
 
 	/* check the crtc is detached already from encoder */
 	if (manager->pipe < 0)
@@ -482,8 +490,8 @@ static int primary_subdrv_probe(struct drm_device *drm_dev, struct device *dev)
 	 * - with irq_enabled = 1, we can use the vblank feature.
 	 *
 	 * P.S. note that we wouldn't use drm irq handler but
-	 *	just specific driver own one instead because
-	 *	drm framework supports only one irq handler.
+	 *      just specific driver own one instead because
+	 *      drm framework supports only one irq handler.
 	 */
 	drm_dev->irq_enabled = 1;
 
@@ -501,7 +509,8 @@ static int primary_subdrv_probe(struct drm_device *drm_dev, struct device *dev)
 	return 0;
 }
 
-static void primary_subdrv_remove(struct drm_device *drm_dev, struct device *dev)
+static void primary_subdrv_remove(struct drm_device *drm_dev,
+				  struct device *dev)
 {
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
@@ -510,7 +519,6 @@ static void primary_subdrv_remove(struct drm_device *drm_dev, struct device *dev
 		drm_iommu_detach_device(drm_dev, dev);
 }
 
-
 static void primary_clear_win(struct primary_context *ctx, int win)
 {
 	u32 val;
@@ -518,7 +526,6 @@ static void primary_clear_win(struct primary_context *ctx, int win)
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 }
-
 
 static void primary_window_suspend(struct device *dev)
 {
@@ -558,7 +565,7 @@ static int primary_activate(struct primary_context *ctx, bool enable)
 
 		drm_disp->enable = true;
 
-		rk_drm_disp_handle(drm_disp,RK_DRM_SCREEN_BLANK,0);
+		rk_drm_disp_handle(drm_disp, RK_DRM_SCREEN_BLANK, 0);
 
 		/* if vblank was enabled status, enable it again. */
 		if (ctx->vblank_en)
@@ -570,7 +577,7 @@ static int primary_activate(struct primary_context *ctx, bool enable)
 
 		drm_disp->enable = false;
 
-		rk_drm_disp_handle(drm_disp,RK_DRM_SCREEN_BLANK,0);
+		rk_drm_disp_handle(drm_disp, RK_DRM_SCREEN_BLANK, 0);
 
 		ctx->suspended = true;
 	}
@@ -595,15 +602,18 @@ static int primary_probe(struct platform_device *pdev)
 	if (!ctx)
 		return -ENOMEM;
 
-	panel = devm_kzalloc(dev, sizeof(struct rockchip_drm_panel_info), GFP_KERNEL);
+	panel =
+	    devm_kzalloc(dev, sizeof(struct rockchip_drm_panel_info),
+			 GFP_KERNEL);
 	ctx->panel = panel;
 
 	drm_display = rk_drm_get_diplay(RK_DRM_PRIMARY_SCREEN);
 	ctx->drm_disp = drm_display;
 	ctx->default_win = 0;
-	modelist = list_first_entry(drm_display->modelist, struct fb_modelist, list);
+	modelist =
+	    list_first_entry(drm_display->modelist, struct fb_modelist, list);
 	mode = &modelist->mode;
-	memcpy(&panel->timing,mode,sizeof(struct fb_videomode));
+	memcpy(&panel->timing, mode, sizeof(struct fb_videomode));
 
 	drm_display->event_call_back = primary_event_call_back_handle;
 
@@ -623,7 +633,7 @@ static int primary_probe(struct platform_device *pdev)
 
 	pm_runtime_enable(dev);
 	pm_runtime_get_sync(dev);
-	
+
 	//primary_commit(dev);
 	primary_activate(ctx, true);
 
@@ -720,15 +730,16 @@ static int primary_runtime_resume(struct device *dev)
 
 static const struct dev_pm_ops primary_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(primary_suspend, primary_resume)
-	SET_RUNTIME_PM_OPS(primary_runtime_suspend, primary_runtime_resume, NULL)
+	    SET_RUNTIME_PM_OPS(primary_runtime_suspend, primary_runtime_resume,
+			       NULL)
 };
 
 struct platform_driver primary_platform_driver = {
-	.probe		= primary_probe,
-	.remove		= primary_remove,
-	.driver		= {
-		.owner	= THIS_MODULE,
-		.name	= "primary-display",
-		.pm	= &primary_pm_ops,
-	},
+	.probe = primary_probe,
+	.remove = primary_remove,
+	.driver = {
+		   .owner = THIS_MODULE,
+		   .name = "primary-display",
+		   .pm = &primary_pm_ops,
+		   },
 };

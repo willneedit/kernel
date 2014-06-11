@@ -35,13 +35,14 @@
  * @rockchip_gem_obj: array of rockchip specific gem object containing a gem object.
  */
 struct rockchip_drm_fb {
-	struct drm_framebuffer		fb;
-	unsigned int			buf_cnt;
-	struct rockchip_drm_gem_obj	*rockchip_gem_obj[MAX_FB_BUFFER];
+	struct drm_framebuffer fb;
+	unsigned int buf_cnt;
+	struct rockchip_drm_gem_obj *rockchip_gem_obj[MAX_FB_BUFFER];
 };
 
 static int check_fb_gem_memory_type(struct drm_device *drm_dev,
-				struct rockchip_drm_gem_obj *rockchip_gem_obj)
+				    struct rockchip_drm_gem_obj
+				    *rockchip_gem_obj)
 {
 	unsigned int flags;
 
@@ -93,8 +94,8 @@ static void rockchip_drm_fb_destroy(struct drm_framebuffer *fb)
 }
 
 static int rockchip_drm_fb_create_handle(struct drm_framebuffer *fb,
-					struct drm_file *file_priv,
-					unsigned int *handle)
+					 struct drm_file *file_priv,
+					 unsigned int *handle)
 {
 	struct rockchip_drm_fb *rockchip_fb = to_rockchip_fb(fb);
 
@@ -105,13 +106,14 @@ static int rockchip_drm_fb_create_handle(struct drm_framebuffer *fb,
 		return -EINVAL;
 
 	return drm_gem_handle_create(file_priv,
-			&rockchip_fb->rockchip_gem_obj[0]->base, handle);
+				     &rockchip_fb->rockchip_gem_obj[0]->base,
+				     handle);
 }
 
 static int rockchip_drm_fb_dirty(struct drm_framebuffer *fb,
-				struct drm_file *file_priv, unsigned flags,
-				unsigned color, struct drm_clip_rect *clips,
-				unsigned num_clips)
+				 struct drm_file *file_priv, unsigned flags,
+				 unsigned color, struct drm_clip_rect *clips,
+				 unsigned num_clips)
 {
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
@@ -121,13 +123,12 @@ static int rockchip_drm_fb_dirty(struct drm_framebuffer *fb,
 }
 
 static struct drm_framebuffer_funcs rockchip_drm_fb_funcs = {
-	.destroy	= rockchip_drm_fb_destroy,
-	.create_handle	= rockchip_drm_fb_create_handle,
-	.dirty		= rockchip_drm_fb_dirty,
+	.destroy = rockchip_drm_fb_destroy,
+	.create_handle = rockchip_drm_fb_create_handle,
+	.dirty = rockchip_drm_fb_dirty,
 };
 
-void rockchip_drm_fb_set_buf_cnt(struct drm_framebuffer *fb,
-						unsigned int cnt)
+void rockchip_drm_fb_set_buf_cnt(struct drm_framebuffer *fb, unsigned int cnt)
 {
 	struct rockchip_drm_fb *rockchip_fb;
 
@@ -145,10 +146,11 @@ unsigned int rockchip_drm_fb_get_buf_cnt(struct drm_framebuffer *fb)
 	return rockchip_fb->buf_cnt;
 }
 
-struct drm_framebuffer *
-rockchip_drm_framebuffer_init(struct drm_device *dev,
-			    struct drm_mode_fb_cmd2 *mode_cmd,
-			    struct drm_gem_object *obj)
+struct drm_framebuffer *rockchip_drm_framebuffer_init(struct drm_device *dev,
+						      struct drm_mode_fb_cmd2
+						      *mode_cmd,
+						      struct drm_gem_object
+						      *obj)
 {
 	struct rockchip_drm_fb *rockchip_fb;
 	struct rockchip_drm_gem_obj *rockchip_gem_obj;
@@ -171,7 +173,8 @@ rockchip_drm_framebuffer_init(struct drm_device *dev,
 	drm_helper_mode_fill_fb_struct(&rockchip_fb->fb, mode_cmd);
 	rockchip_fb->rockchip_gem_obj[0] = rockchip_gem_obj;
 
-	ret = drm_framebuffer_init(dev, &rockchip_fb->fb, &rockchip_drm_fb_funcs);
+	ret =
+	    drm_framebuffer_init(dev, &rockchip_fb->fb, &rockchip_drm_fb_funcs);
 	if (ret) {
 		DRM_ERROR("failed to initialize framebuffer\n");
 		return ERR_PTR(ret);
@@ -210,16 +213,18 @@ static u32 rockchip_drm_format_num_buffers(struct drm_mode_fb_cmd2 *mode_cmd)
 		 * handles[0] is same as handles[1].
 		 */
 		if (mode_cmd->offsets[1] &&
-			mode_cmd->handles[0] == mode_cmd->handles[1])
+		    mode_cmd->handles[0] == mode_cmd->handles[1])
 			cnt = 1;
 	}
 
 	return cnt;
 }
 
-static struct drm_framebuffer *
-rockchip_user_fb_create(struct drm_device *dev, struct drm_file *file_priv,
-		      struct drm_mode_fb_cmd2 *mode_cmd)
+static struct drm_framebuffer *rockchip_user_fb_create(struct drm_device *dev,
+						       struct drm_file
+						       *file_priv,
+						       struct drm_mode_fb_cmd2
+						       *mode_cmd)
 {
 	struct drm_gem_object *obj;
 	struct rockchip_drm_gem_obj *rockchip_gem_obj;
@@ -249,7 +254,7 @@ rockchip_user_fb_create(struct drm_device *dev, struct drm_file *file_priv,
 
 	for (i = 1; i < rockchip_fb->buf_cnt; i++) {
 		obj = drm_gem_object_lookup(dev, file_priv,
-				mode_cmd->handles[i]);
+					    mode_cmd->handles[i]);
 		if (!obj) {
 			DRM_ERROR("failed to lookup gem object\n");
 			ret = -ENOENT;
@@ -267,7 +272,8 @@ rockchip_user_fb_create(struct drm_device *dev, struct drm_file *file_priv,
 		}
 	}
 
-	ret = drm_framebuffer_init(dev, &rockchip_fb->fb, &rockchip_drm_fb_funcs);
+	ret =
+	    drm_framebuffer_init(dev, &rockchip_fb->fb, &rockchip_drm_fb_funcs);
 	if (ret) {
 		DRM_ERROR("failed to init framebuffer.\n");
 		goto err_unreference;
@@ -289,7 +295,7 @@ err_free:
 }
 
 struct rockchip_drm_gem_buf *rockchip_drm_fb_buffer(struct drm_framebuffer *fb,
-						int index)
+						    int index)
 {
 	struct rockchip_drm_fb *rockchip_fb = to_rockchip_fb(fb);
 	struct rockchip_drm_gem_buf *buffer;

@@ -35,7 +35,7 @@ static int rockchip_drm_create_enc_conn(struct drm_device *dev,
 
 	/* create and initialize a encoder for this sub driver. */
 	encoder = rockchip_drm_encoder_create(dev, subdrv->manager,
-			(1 << MAX_CRTC) - 1);
+					      (1 << MAX_CRTC) - 1);
 	if (!encoder) {
 		DRM_ERROR("failed to create encoder\n");
 		return -EFAULT;
@@ -78,7 +78,7 @@ static void rockchip_drm_destroy_enc_conn(struct rockchip_drm_subdrv *subdrv)
 }
 
 static int rockchip_drm_subdrv_probe(struct drm_device *dev,
-					struct rockchip_drm_subdrv *subdrv)
+				     struct rockchip_drm_subdrv *subdrv)
 {
 	if (subdrv->probe) {
 		int ret;
@@ -102,7 +102,7 @@ static int rockchip_drm_subdrv_probe(struct drm_device *dev,
 }
 
 static void rockchip_drm_subdrv_remove(struct drm_device *dev,
-				      struct rockchip_drm_subdrv *subdrv)
+				       struct rockchip_drm_subdrv *subdrv)
 {
 	DRM_DEBUG_DRIVER("%s\n", __FILE__);
 
@@ -154,6 +154,7 @@ int rockchip_drm_device_register(struct drm_device *dev)
 
 	return 0;
 }
+
 EXPORT_SYMBOL_GPL(rockchip_drm_device_register);
 
 int rockchip_drm_device_unregister(struct drm_device *dev)
@@ -174,6 +175,7 @@ int rockchip_drm_device_unregister(struct drm_device *dev)
 
 	return 0;
 }
+
 EXPORT_SYMBOL_GPL(rockchip_drm_device_unregister);
 
 int rockchip_drm_subdrv_register(struct rockchip_drm_subdrv *subdrv)
@@ -187,6 +189,7 @@ int rockchip_drm_subdrv_register(struct rockchip_drm_subdrv *subdrv)
 
 	return 0;
 }
+
 EXPORT_SYMBOL_GPL(rockchip_drm_subdrv_register);
 
 int rockchip_drm_subdrv_unregister(struct rockchip_drm_subdrv *subdrv)
@@ -200,6 +203,7 @@ int rockchip_drm_subdrv_unregister(struct rockchip_drm_subdrv *subdrv)
 
 	return 0;
 }
+
 EXPORT_SYMBOL_GPL(rockchip_drm_subdrv_unregister);
 
 int rockchip_drm_subdrv_open(struct drm_device *dev, struct drm_file *file)
@@ -224,6 +228,7 @@ err:
 	}
 	return ret;
 }
+
 EXPORT_SYMBOL_GPL(rockchip_drm_subdrv_open);
 
 void rockchip_drm_subdrv_close(struct drm_device *dev, struct drm_file *file)
@@ -235,4 +240,5 @@ void rockchip_drm_subdrv_close(struct drm_device *dev, struct drm_file *file)
 			subdrv->close(dev, subdrv->dev, file);
 	}
 }
+
 EXPORT_SYMBOL_GPL(rockchip_drm_subdrv_close);
