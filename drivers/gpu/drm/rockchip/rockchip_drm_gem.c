@@ -1,6 +1,9 @@
 /*
  * Copyright (C) ROCKCHIP, Inc.
  * Author:yzq<yzq@rock-chips.com>
+ *
+ * based on exynos_drm_gem.c
+ *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
  * may be copied, distributed, and modified under those terms.
@@ -248,6 +251,7 @@ struct rockchip_drm_gem_obj *rockchip_drm_gem_create(struct drm_device *dev,
 
 	/* set memory type and cache attribute from user side. */
 	rockchip_gem_obj->flags = flags;
+
 
 	ret = rockchip_drm_alloc_buf(dev, buf, flags);
 	if (ret < 0) {

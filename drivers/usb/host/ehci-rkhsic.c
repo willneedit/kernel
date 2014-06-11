@@ -29,12 +29,7 @@
 # include <linux/of.h>
 # include <linux/of_platform.h>
 # include "ehci.h"
-#ifdef CONFIG_DWC_OTG_274
-# include "../dwc_otg/usbdev_rk.h"
-#endif
-#ifdef CONFIG_DWC_OTG_310
 # include "../dwc_otg_310/usbdev_rk.h"
-#endif
 
 static int rkhsic_status = 1;
 static struct ehci_hcd *g_hsic_ehci;
@@ -339,24 +334,13 @@ static int ehci_rkhsic_remove(struct platform_device *pdev)
 static int ehci_rkhsic_pm_suspend(struct device *dev)
 {
 	struct usb_hcd *hcd = dev_get_drvdata(dev);
-	bool wakeup = device_may_wakeup(dev);
+	bool do_wakeup  = device_may_wakeup(dev);
+	int ret;
 
 	dev_dbg(dev, "ehci-rkhsic PM suspend\n");
+	ret = ehci_suspend(hcd, do_wakeup);
 
-	/*
-	 * EHCI helper function has also the same check before manipulating
-	 * port wakeup flags.  We do check here the same condition before
-	 * calling the same helper function to avoid bringing hardware
-	 * from Low power mode when there is no need for adjusting port
-	 * wakeup flags.
-	 */
-	if (hcd->self.root_hub->do_remote_wakeup && !wakeup) {
-		pm_runtime_resume(dev);
-		ehci_prepare_ports_for_controller_suspend(hcd_to_ehci(hcd),
-				wakeup);
-	}
-
-	return 0;
+	return ret;
 }
 
 static int ehci_rkhsic_pm_resume(struct device *dev)
@@ -364,7 +348,7 @@ static int ehci_rkhsic_pm_resume(struct device *dev)
 	struct usb_hcd *hcd = dev_get_drvdata(dev);
 
 	dev_dbg(dev, "ehci-rkhsic PM resume\n");
-	ehci_prepare_ports_for_controller_resume(hcd_to_ehci(hcd));
+	ehci_resume(hcd, false);
 
 	return 0;
 }
@@ -374,8 +358,8 @@ static int ehci_rkhsic_pm_resume(struct device *dev)
 #endif
 
 static const struct dev_pm_ops ehci_rkhsic_dev_pm_ops = {
-	.suspend         = ehci_rkhsic_pm_suspend,
-	.resume          = ehci_rkhsic_pm_resume,
+	.suspend	= ehci_rkhsic_pm_suspend,
+	.resume		= ehci_rkhsic_pm_resume,
 };
 
 static struct platform_driver ehci_rkhsic_driver = {

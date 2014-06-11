@@ -19,10 +19,16 @@ enum{
 
 /* Color Space Convertion Mode */
 enum {
-	CSC_RGB_TO_ITU601 = 0,	//RGB input to YCbCr output according BT601
-	CSC_RGB_TO_ITU709,	//RGB input to YCbCr output accroding BT709
-	CSC_ITU601_TO_RGB,	//YCbCr input to RGB output according BT601
-	CSC_ITU709_TO_RGB,	//YCbCr input to RGB output according BT709
+	CSC_RGB_0_255_TO_RGB_16_235_8BIT,	//RGB 0-255 input to RGB 16-235 output that is 8bit clolor depth
+	CSC_RGB_0_255_TO_RGB_16_235_10BIT,	//RGB 0-255 input to RGB 16-235 output that is 8bit clolor depth
+	CSC_RGB_0_255_TO_ITU601_16_235_8BIT,	//RGB 0-255 input to YCbCr 16-235 output according BT601 that is 8bit clolor depth
+	CSC_RGB_0_255_TO_ITU601_16_235_10BIT,	//RGB 0-255 input to YCbCr 16-235 output according BT601 that is 10bit clolor depth
+	CSC_RGB_0_255_TO_ITU709_16_235_8BIT,	//RGB 0-255 input to YCbCr 16-235 output accroding BT709 that is 8bit clolor depth
+	CSC_RGB_0_255_TO_ITU709_16_235_10BIT,	//RGB 0-255 input to YCbCr 16-235 output accroding BT709 that is 10bit clolor depth
+	CSC_ITU601_16_235_TO_RGB_16_235_8BIT,	//YCbCr 16-235 input to RGB 16-235 output according BT601 that is 8bit clolor depth
+	CSC_ITU709_16_235_TO_RGB_16_235_8BIT,	//YCbCr 16-235 input to RGB 16-235 output according BT709 that is 8bit clolor depth
+	CSC_ITU601_16_235_TO_RGB_0_255_8BIT,	//YCbCr 16-235 input to RGB 0-255 output according BT601 that is 8bit clolor depth
+	CSC_ITU709_16_235_TO_RGB_0_255_8BIT	//YCbCr 16-235 input to RGB 0-255 output according BT709 that is 8bit clolor depth
 };
 
 /*VIC VIDEO FORMAT*/
@@ -480,7 +486,11 @@ enum {
 	ACTIVE_ASPECT_RATE_16_9,
 	ACTIVE_ASPECT_RATE_14_9
 };
-
+enum {
+	AVI_QUANTIZATION_RANGE_DEFAULT = 0,
+	AVI_QUANTIZATION_RANGE_LIMITED,
+	AVI_QUANTIZATION_RANGE_FULL
+};
 
 #define	FC_AVICONF0			0x1019
 #define m_FC_RGC_YCC_2		(1 << 7)	//use for HDMI2.0 TX
@@ -852,7 +862,7 @@ enum I2S_WIDTH {
 #define N_192K_MIDCLK 		0x5000
 #define N_192K_HIGHCLK 		0x6000
 
-#define CALC_CTS(N, TMDSCLK, FS)	((N) / 128) * (TMDSCLK) / (FS)
+#define CALC_CTS(N, TMDSCLK, FS)	((N) / 32) * (TMDSCLK) / ((FS) * 4)
 /****************************************/
 
 #define AUD_N1				0x3200
@@ -1029,9 +1039,9 @@ enum {
 
 #define	CSC_SCALE			0x4101
 #define m_CSC_COLOR_DEPTH	(0x0f << 4)
-#define v_CSC_COLOR_DEPTH(n)	(((n)&0x0f) >> 4)
+#define v_CSC_COLOR_DEPTH(n)	(((n)&0x0f) << 4)
 #define m_CSC_SCALE       	(0x03 << 0)
-#define v_CSC_SCALE(n)       	(((n)&0x03) >> 0)
+#define v_CSC_SCALE(n)       	(((n)&0x03) << 0)
 
 #define	CSC_COEF_A1_MSB			0x4102
 #define	CSC_COEF_A1_LSB			0x4103
@@ -1442,8 +1452,10 @@ struct rk3288_hdmi_device {
 	int 			lcdc_id;
 	int			i2cm_int;
 	int 			phy_i2cm_int;
+	unsigned char		clk_on;
 	struct mutex 		int_mutex;
 	struct device 		*dev;
+	struct clk		*pd;
 	struct clk		*pclk;				//HDMI AHP clk
 	struct clk		*hdcp_clk;
 	struct hdmi 		driver;
@@ -1478,7 +1490,7 @@ static inline int hdmi_msk_reg(struct rk3288_hdmi_device *hdmi_dev, u16 offset, 
 
 int rk3288_hdmi_initial(struct hdmi *hdmi_drv);
 void rk3288_hdmi_control_output(struct hdmi *hdmi_drv, int enable);
-int rk3288_hdmi_config_phy(struct hdmi * hdmi_drv);
+int rk3288_hdmi_config_phy(struct hdmi *hdmi_drv, unsigned char pixel_repet, unsigned char color_depth);
 
 
 #endif

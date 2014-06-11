@@ -1,8 +1,24 @@
 #include "../../../video/rockchip/rk_drm_fb.h"
 #define WINDOWS_NR	4
-
 #define get_primary_context(dev)	platform_get_drvdata(to_platform_device(dev))
 
+#define LAYER_NORMAL_WIN  	0
+#define LAYER_VIDEO_WIN   	1
+#define LAYER_CURSOR_WIN   	2
+struct rk_overlay_api {
+	unsigned int y_addr;
+	unsigned int uv_addr;
+	int format;
+	
+	int xpos;
+	int ypos;
+	int xact;
+	int yact;
+	int xsize;
+	int ysize;
+
+	int xvir;
+};
 struct primary_win_data {
 	unsigned int		offset_x;
 	unsigned int		offset_y;

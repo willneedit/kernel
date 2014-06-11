@@ -142,6 +142,7 @@ static enum power_supply_property sbs_properties[] = {
 struct sbs_info {
 	struct i2c_client		*client;
 	struct power_supply		power_supply;
+	struct power_supply		power_supply_ac;
 	struct sbs_platform_data	*pdata;
 	bool				is_present;
 	bool				gpio_detect;
@@ -675,6 +676,27 @@ static struct sbs_platform_data *sbs_of_populate_pdata(
 }
 #endif
 
+static enum power_supply_property emulator_ac_props[] = {
+	POWER_SUPPLY_PROP_ONLINE,
+};
+static int emulator_ac_get_property(struct power_supply *psy,
+			enum power_supply_property psp,
+			union power_supply_propval *val)
+{
+	int ret = 0;
+	switch (psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		if (psy->type == POWER_SUPPLY_TYPE_MAINS){
+				val->intval = 0;
+		}
+		break;	
+	default:
+		ret = -EINVAL;
+		break;
+	}
+	return ret;
+}
+
 static int sbs_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
@@ -704,6 +726,13 @@ static int sbs_probe(struct i2c_client *client,
 	chip->power_supply.properties = sbs_properties;
 	chip->power_supply.num_properties = ARRAY_SIZE(sbs_properties);
 	chip->power_supply.get_property = sbs_get_property;
+	
+	chip->power_supply_ac.name = "ac";
+	chip->power_supply_ac.type = POWER_SUPPLY_TYPE_MAINS;
+	chip->power_supply_ac.properties = emulator_ac_props;
+	chip->power_supply_ac.num_properties = ARRAY_SIZE(emulator_ac_props);
+	chip->power_supply_ac.get_property = emulator_ac_get_property;
+
 	/* ignore first notification of external change, it is generated
 	 * from the power_supply_register call back
 	 */
@@ -779,6 +808,16 @@ skip_gpio:
 
 	dev_info(&client->dev,
 		"%s: battery gas gauge device registered\n", client->name);
+	
+	rc = power_supply_register(&client->dev, &chip->power_supply_ac);
+	if (rc) {
+		dev_err(&client->dev,
+			"%s: Failed to register power supply ac\n", __func__);
+		goto exit_psupply;
+	}
+
+	dev_info(&client->dev,
+		"%s: battery gas gauge device registered ac\n", client->name);
 
 	INIT_DELAYED_WORK(&chip->work, sbs_delayed_work);
 

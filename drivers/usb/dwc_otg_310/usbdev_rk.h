@@ -18,7 +18,9 @@
 #include <linux/workqueue.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
-
+#include <linux/rockchip/cru.h>
+#include <linux/rockchip/grf.h>
+#include <linux/rockchip/cpu.h>
 
 #include "usbdev_grf_regs.h"
 #include "usbdev_bc.h"
@@ -57,6 +59,7 @@ struct dwc_otg_platform_data {
     struct clk* phyclk;
     struct clk* ahbclk;
     struct clk* busclk;
+    struct clk* phyclk_480m;
     int phy_status;
     void (*hw_init)(void);
     void (*phy_suspend)(void* pdata, int suspend);
@@ -79,8 +82,11 @@ struct rkehci_platform_data{
 	void (*hw_init)(void);
 	void (*clock_init)(void* pdata);
 	void (*clock_enable)(void *pdata, int enable);
+	void (*phy_suspend)(void* pdata, int suspend);
 	void (*soft_reset)(void);
+	int (*get_status)(int id);
 	int clk_status;
+	int phy_status;
 };
 
 struct dwc_otg_control_usb {

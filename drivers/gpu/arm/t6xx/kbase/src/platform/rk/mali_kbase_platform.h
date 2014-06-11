@@ -23,7 +23,7 @@ struct rk_context {
 	struct clk *clk_mali;
 	struct clk *mali_pd;
 #if 1
-	struct dvfs_node * mali_pd_node;
+	struct clk * mali_pd_node;
 	struct dvfs_node * mali_clk_node;
 #endif
 #ifdef CONFIG_MALI_T6XX_DVFS
@@ -47,5 +47,7 @@ void kbase_platform_term(kbase_device *kbdev);
 
 int kbase_platform_clock_on(struct kbase_device *kbdev);
 int kbase_platform_clock_off(struct kbase_device *kbdev);
+int kbase_platform_power_off(struct kbase_device *kbdev);
+int kbase_platform_power_on(struct kbase_device *kbdev);
 
 #endif				/* _KBASE_PLATFORM_H_ */

@@ -8,6 +8,13 @@
 		status = "okay";
 	};
 
+	5v_power_en {
+        compatible = "5v_en";
+		5ven,pin =<&gpio7 GPIO_B4 GPIO_ACTIVE_HIGH>;	// 5v power for otg and hdmi
+		status = "okay";	
+	};
+
+
     wireless-wlan {
         compatible = "wlan-platdata";
 
@@ -50,7 +57,15 @@
 	backlight {
 		compatible = "pwm-backlight";
 		pwms = <&pwm0 0 25000>;
-		brightness-levels = <255 254 253 252 251 250 249 248 247 246 245 244 243 242 241 240 239 238 237 236 235 234 233 232 231 230 229 228 227 226 225 224 223 222 221 220 219 218 217 216 215 214 213 212 211 210 209 208 207 206 205 204 203 202 201 200 199 198 197 196 195 194 193 192 191 190 189 188 187 186 185 184 183 182 181 180 179 178 177 176 175 174 173 172 171 170 169 168 167 166 165 164 163 162 161 160 159 158 157 156 155 154 153 152 151 150 149 148 147 146 145 144 143 142 141 140 139 138 137 136 135 134 133 132 131 130 129 128 127 126 125 124 123 122 121 120 119 118 117 116 115 114 113 112 111 110 109 108 107 106 105 104 103 102 101 100 99 98 97 96 95 94 93 92 91 90 89 88 87 86 85 84 83 82 81 80 79 78 77 76 75 74 73 72 71 70 69 68 67 66 65 64 63 62 61 60 59 58 57 56 55 54 53 52 51 50 49 48 47 46 45 44 43 42 41 40 39 38 37 36 35 34 33 32 31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0>;
+		brightness-levels = <255 255 254 254 253 253 252 252 251 251 250 250 249 249 248 248 247 247 246 246 245 245 244 244 243 243 242 242 241 241 240 240
+239 239 238 238 237 237 236 236 235 235 234 234 233 233 232 232 231 231 230 230 229 229 228 228 227 227 226 226 225 225
+224 224 223 223 222 222 221 221 220 220 219 219 218 218 217 217 216 216 215 215 214 214 213 213 212 212 211 211 210 210
+209 209 208 208 207 207 206 206 205 205 204 204 203 203 202 202 201 201 200 200 199 199 198 198 197 197 196 196 195 195
+194 194 193 193 192 192 191 191 190 190 189 189 188 188 187 187 186 186 185 185 184 184 183 183 182 182 181 181 180 180
+179 179 178 178 177 177 176 176 175 175 174 174 173 173 172 172 171 171 170 170 169 169 168 168 167 167 166 166 165 165 
+164 164 163 163 162 162 161 161 160 160 159 159 158 158 157 157 156 156 155 155 154 154 153 153 152 152 151 151 150 150
+150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150 150
+150 150 150 150 150 150 150 150 150 150 150 150 150 150>;
 		default-brightness-level = <20>;
 		enable-gpios = <&gpio7 GPIO_A2 GPIO_ACTIVE_HIGH>;
 	};
@@ -128,6 +143,15 @@
 			};
 		};
 	};
+
+	usb_control {
+		compatible = "rockchip,rk3288-usb-control";
+
+		otg_drv_gpio = <&gpio0 GPIO_B4 GPIO_ACTIVE_LOW>;
+
+		rockchip,remote_wakeup;
+		rockchip,usb_irq_wakeup;
+	};
 };
 &pinctrl {
 	gpio0_gpio {
@@ -152,8 +176,8 @@
 };
 
 &emmc {
-	clock-frequency = <200000000>;
-        clock-freq-min-max = <400000 200000000>;
+	clock-frequency = <150000000>;
+	clock-freq-min-max = <400000 150000000>;
 
         supports-highspeed;
 	supports-emmc;
@@ -223,7 +247,7 @@
 };
 
 &spi1 {
-	status = "okay";
+	status = "disabled";
 	max-freq = <48000000>;
 	/*
 	spi_test@10 {
@@ -288,10 +312,11 @@
 		dc_det_gpio = <&gpio0 GPIO_B0 GPIO_ACTIVE_LOW>;
 		bat_low_gpio = <&gpio0 GPIO_A7 GPIO_ACTIVE_LOW>;
 		chg_ok_gpio = <&gpio0 GPIO_B1 GPIO_ACTIVE_HIGH>;
-		bat_config_info = <0x15 0x42 0x60 0x59 0x52 0x58 0x4D 0x48 0x48 0x44 0x44 0x46 0x49 0x48 0x32
-			0x24 0x20 0x17 0x13 0x0F 0x19 0x3E 0x51 0x45 0x08 0x76 0x0B 0x85 0x0E 0x1C 0x2E 0x3E 0x4D 0x52 0x52
-			0x57 0x3D 0x1B 0x6A 0x2D 0x25 0x43 0x52 0x87 0x8F 0x91 0x94 0x52 0x82 0x8C 0x92 0x96 0xFF 0x7B 0xBB
-			0xCB 0x2F 0x7D 0x72 0xA5 0xB5 0xC1 0x46 0xAE>;
+		bat_config_info = <0x15 0x2A 0x58 0x57 0x51 0x5F 0x4C 0x45 0x47 0x45 0x48 0x4C 0x47 0x36
+                           0x2B 0x24 0x1E 0x16 0x16 0x17 0x1D 0x28 0x3B 0x4B 0x46 0x23 0x0D 0x71
+                           0x41 0x62 0x5F 0x6E 0x6F 0x6F 0x6E 0x72 0x41 0x1B 0x30 0x22 0x01 0x21
+                           0x52 0x87 0x8F 0x91 0x94 0x52 0x82 0x8C 0x92 0x96 0x12 0x70 0x8F 0xCB
+                           0x2F 0x7D 0x72 0xA5 0xB5 0xC1 0x1F 0x21>;
 		is_dc_charge = <1>;
 		is_usb_charge = <0>;
 	};
@@ -303,7 +328,7 @@
 		compatible = "nxp,pcf8563";
 		reg = <0x51>;
 	};
-/*
+	
 	sensor@1d {
 		compatible = "gs_mma8452";
 		reg = <0x1d>;
@@ -312,7 +337,6 @@
 		irq_enable = <1>;
 		poll_delay_ms = <30>;
 		layout = <8>;
-		status = "disabled";
 	};
 
 	sensor@0d {
@@ -323,9 +347,8 @@
 		irq_enable = <1>;
 		poll_delay_ms = <30>;
 		layout = <1>;
-		status = "disabled";
 	};
-*/
+
 	sensor@10 {
               compatible = "ls_cm3218";
               reg = <0x10>;
@@ -335,7 +358,7 @@
               poll_delay_ms = <30>;
               layout = <1>;
        };
-	      
+/*	      
  	mpu6050:mpu@68{
 	compatible = "mpu6050";
 	reg = <0x68>;
@@ -348,7 +371,7 @@
 	irq-gpio = <&gpio8 GPIO_A0 IRQ_TYPE_LEVEL_LOW>;			
 	mpu-debug = <0>;
 	};
-/*
+
 	ak8963:compass@0d{
 	compatible = "ak8963";
 	reg = <0x0d>;
@@ -361,7 +384,7 @@
 	compass-debug = <1>;
 	status = "disabled";
 	};
-*/
+
 	ak8975:compass@0d{
 	compatible = "ak8975";
 	reg = <0x0d>;
@@ -373,7 +396,7 @@
 	orientation-z= <0>;	
 	compass-debug = <0>;
 	};
-
+*/
 };
 
 &i2c2 {
@@ -393,16 +416,13 @@
 
 &i2c4 {
 	status = "okay";
-	
 	ts@01 {
-		compatible = "ct,ct36x";
+		compatible = "ct,vtl_ts";
 		reg = <0x01>;
-		ct-model = <363>;
-		touch-gpio = <&gpio7 GPIO_A6 IRQ_TYPE_LEVEL_LOW>;
-		reset-gpio = <&gpio7 GPIO_A5 GPIO_ACTIVE_HIGH>;
-		max-x = <2048>;
-		max-y = <1536>;
-		orientation=<1 0 0 1>;
+		screen_max_x = <2048>;
+		screen_max_y = <1536>;
+		irq_gpio_number = <&gpio7 GPIO_A6 IRQ_TYPE_LEVEL_LOW>;
+		rst_gpio_number = <&gpio7 GPIO_A5 GPIO_ACTIVE_HIGH>;
 	};
 };
 
@@ -529,6 +549,10 @@
 		1008000 1000000
 		1200000 1050000
 		1416000 1150000
+		1512000 1200000
+		1608000 1250000
+		1704000 1300000
+		1800000 1350000
 		>;
 	status="okay";
 };
@@ -549,9 +573,9 @@
 &clk_ddr_dvfs_table {
 	operating-points = <
 		/* KHz    uV */
-		200000 950000
-		300000 950000
-		400000 1000000
+		200000 1050000
+		300000 1050000
+		400000 1050000
 		533000 1050000
 		>;
 
@@ -562,12 +586,13 @@
 		SYS_STATUS_VIDEO	300000
 		SYS_STATUS_DUALVIEW	500000
 		>;
+	auto_freq=<1>;
 	status="okay";
 };
 
 /include/ "rk808.dtsi"
 &rk808 {
-	gpios =<&gpio0 GPIO_A4 GPIO_ACTIVE_HIGH>,<&gpio0 GPIO_B3 GPIO_ACTIVE_LOW>;
+	gpios =<&gpio0 GPIO_A4 GPIO_ACTIVE_HIGH>,<&gpio0 GPIO_A0 GPIO_ACTIVE_LOW>;
 	rk808,system-power-controller;
 
 	regulators {

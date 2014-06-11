@@ -16,6 +16,7 @@ LDFLAGS		:=
 LDFLAGS_vmlinux	:=-p --no-undefined -X
 ifeq ($(CONFIG_CPU_ENDIAN_BE8),y)
 LDFLAGS_vmlinux	+= --be8
+LDFLAGS_MODULE	+= --be8
 endif
 
 OBJCOPYFLAGS	:=-O binary -R .comment -S
@@ -338,6 +339,7 @@ kernel.img: zImage
 	rm -f $(objtree)/zImage-dtb
 	@echo '  Image:  kernel.img (with $*.dtb) is ready'
 
-%.img: %.dtb kernel.img
-	$(Q)$(srctree)/resource_tool $(objtree)/arch/arm/boot/dts/$*.dtb
-	@echo '  Image:  resource.img (with $*.dtb) is ready'
+LOGO := $(notdir $(wildcard $(srctree)/logo.bmp))
+%.img: %.dtb kernel.img $(LOGO)
+	$(Q)$(srctree)/resource_tool $(objtree)/arch/arm/boot/dts/$*.dtb $(LOGO)
+	@echo '  Image:  resource.img (with $*.dtb $(LOGO)) is ready'

@@ -1,6 +1,9 @@
 /*
  * Copyright (C) ROCKCHIP, Inc.
  * Author:yzq<yzq@rock-chips.com>
+ *
+ * based on exynos_drm_fbdev.c
+ *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
  * may be copied, distributed, and modified under those terms.
@@ -59,6 +62,50 @@ static int rockchip_drm_fb_mmap(struct fb_info *info,
 
 	return 0;
 }
+#define RK_FBIOSET_OVERLAY_MSG     	0x5001
+#define RK_FBIOGET_OVERLAY_MSG   	0X5002
+#define RK_FBIOOVERLAY_DISABLE  	0X5003
+struct rk_overlay_api {
+	unsigned int y_addr;
+	unsigned int uv_addr;
+	int format;
+	
+	int xpos;
+	int ypos;
+	int xact;
+	int yact;
+	int xsize;
+	int ysize;
+
+	int xvir;
+};
+extern void primary_overlay_commit(struct rk_overlay_api *ovl);
+extern void primary_overlay_disable(void);
+extern void primary_set_overlay_status(int enable);
+static int drm_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
+{
+	struct rk_overlay_api ovl;
+	int enable;
+	void __user *argp = (void __user *)arg;
+	switch(cmd){
+		case RK_FBIOSET_OVERLAY_MSG:
+			if (copy_from_user(&ovl, argp, sizeof(struct rk_overlay_api)))
+				return -EFAULT;
+			primary_overlay_commit(&ovl);
+			break;
+		case RK_FBIOOVERLAY_DISABLE:
+			if (copy_from_user(&enable, argp, sizeof(int)))
+				return -EFAULT;
+			primary_set_overlay_status(enable);
+			break;
+
+		default:
+			printk("------>%s unknow ioctl cmd=%x\n",__func__,__LINE__);
+			break;
+	}
+	return 0;
+}
+
 
 static struct fb_ops rockchip_drm_fb_ops = {
 	.owner		= THIS_MODULE,
@@ -71,6 +118,7 @@ static struct fb_ops rockchip_drm_fb_ops = {
 	.fb_blank	= drm_fb_helper_blank,
 	.fb_pan_display	= drm_fb_helper_pan_display,
 	.fb_setcmap	= drm_fb_helper_setcmap,
+	.fb_ioctl       = drm_fb_ioctl,
 };
 
 static int rockchip_drm_fbdev_update(struct drm_fb_helper *helper,

@@ -21,29 +21,23 @@
 #include <linux/i2c.h>
 #include <linux/slab.h>
 #include <asm/unaligned.h>
-#include <mach/gpio.h>
+#include <linux/of_irq.h>
+#include <linux/of_gpio.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
 
 #define DRIVER_VERSION			"1.1.0"
 
 #define BQ3060_REG_TEMP		0x08
 #define BQ3060_REG_VOLT		0x09
-#define BQ3060_REG_AI			0x0a   ///0x14
+#define BQ3060_REG_AI			0x0b
 #define BQ3060_REG_STATUS		0x16
-#define BQ3060_REG_TTE			0x06 ///0x16
-#define BQ3060_REG_TTF			0x05 //0x18
-#define BQ3060_REG_TTECP		0x12 //0x26
-#define BQ3060_REG_DESIGNCAPACITY	0x18 //0x26
-
-#define BQ3060_REG_RSOC		0x0B /* Relative State-of-Charge */
-#define BQ3060_FLAG_CHGS		BIT(7)
-
-#define BQ3060_REG_CAPACITY	0x0f  ///0x0E
-#define BQ3060_FLAG_DSC		BIT(0)
-#define BQ3060_FLAG_FC			BIT(9)
-
-#define bq3060_SPEED 			200 * 1000
-
-#define DC_CHECK_PIN			RK29_PIN4_PA1
+#define BQ3060_REG_TTE			0x12
+#define BQ3060_REG_TTF			0x13
+#define BQ3060_REG_TTECP		0x12
+#define BQ3060_REG_DESIGNCAPACITY	0x18
+#define BQ3060_REG_RSOC		0x0d
+#define BQ3060_REG_CAPACITY	0x0f
 
 /* manufacturer access defines */
 #define MANUFACTURER_ACCESS_STATUS 0x0006
@@ -54,6 +48,7 @@
 #define BATTERY_FULL_CHARGED		0x20
 #define BATTERY_FULL_DISCHARGED 	0x10
 
+#define BQ3060_SPEED 			100 * 1000
 
 #if 0
 #define DBG(x...) printk(KERN_INFO x)
@@ -75,7 +70,10 @@ struct bq3060_device_info {
 	unsigned int interval;
 	struct i2c_client	*client;
 };
-
+struct bq3060_board {
+	unsigned int irq_pin;
+	struct device_node *of_node;
+};
 static enum power_supply_property bq3060_battery_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_PRESENT,
@@ -92,11 +90,13 @@ static enum power_supply_property rk29_ac_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
 
-
 /*
  * Common code for bq3060 devices read
  */
-static int bq3060_read(struct i2c_client *client, u8 reg, u8 buf[], unsigned len)
+static inline int __bq3060_read(const struct i2c_client *client, const char reg, 
+								char *buf, 
+								int count, 
+								int scl_rate)
 {
 	struct i2c_adapter *adap=client->adapter;
 	struct i2c_msg msgs[2];
@@ -107,25 +107,66 @@ static int bq3060_read(struct i2c_client *client, u8 reg, u8 buf[], unsigned len
 	msgs[0].flags = client->flags;
 	msgs[0].len = 1;
 	msgs[0].buf = &reg_buf;
-	msgs[0].scl_rate = bq3060_SPEED;
+	msgs[0].scl_rate = scl_rate;
+//	msgs[0].udelay = client->udelay;
 
 	msgs[1].addr = client->addr;
 	msgs[1].flags = client->flags | I2C_M_RD;
-	msgs[1].len = len;
+	msgs[1].len = count;
 	msgs[1].buf = (char *)buf;
-	msgs[1].scl_rate = bq3060_SPEED;
+	msgs[1].scl_rate = scl_rate;
+//	msgs[1].udelay = client->udelay;
 
 	ret = i2c_transfer(adap, msgs, 2);
-
-	return (ret == 2)? len : ret;
+	return (ret == 2)? count : ret;
 }
-static int bq3060_write(struct i2c_client *client, u8 reg, u8 const buf[], unsigned len)
+
+static inline int __bq3060_write(const struct i2c_client *client, const char reg, 
+								const char *buf, 
+								int count, 
+								int scl_rate)
+{
+	struct i2c_adapter *adap=client->adapter;
+	struct i2c_msg msg;
+	int ret;
+	
+	char *tx_buf = (char *)kmalloc(count + 1, GFP_KERNEL);
+	if(!tx_buf)
+		return -ENOMEM;
+	
+	tx_buf[0] = reg;
+	memcpy(tx_buf+1, buf, count); 
+
+	msg.addr = client->addr;
+	msg.flags = client->flags;
+	msg.len = count + 1;
+	msg.buf = (char *)tx_buf;
+	msg.scl_rate = scl_rate;
+//	msg.udelay = client->udelay;
+
+	ret = i2c_transfer(adap, &msg, 1);
+	kfree(tx_buf);
+	return (ret == 1) ? count : ret;
+}
+
+static int bq3060_read(struct i2c_client *client, u8 reg, u8 const buf[])
+{
+	int ret;
+	ret = __bq3060_read(client, reg, buf, 2, BQ3060_SPEED);
+	if (ret < 0)
+		printk("%s: ret %d\n", __FUNCTION__,ret);
+	return ret; 
+}
+
+static int bq3060_write(struct i2c_client *client, u8 reg, u8 const buf[])
 {
 	int ret; 
-	///return 0;
-	ret = i2c_master_reg8_send(client, reg, buf, (int)len, bq3060_SPEED);
+	ret = __bq3060_write(client, reg, buf, 2, BQ3060_SPEED);
+	if (ret < 0)
+		printk("%s: ret %d\n", __FUNCTION__,ret);
 	return ret;
 }
+
 /*
  * Return the battery temperature in tenths of degree Celsius
  * Or < 0 if something fails.
@@ -135,16 +176,13 @@ static int bq3060_battery_temperature(struct bq3060_device_info *di)
 	int ret;
 	int temp = 0;
 	u8 buf[2];
-	ret = bq3060_read(di->client,BQ3060_REG_TEMP,buf,2);
+	ret = bq3060_read(di->client,BQ3060_REG_TEMP,buf);
 	if (ret<0) {
 		dev_err(di->dev, "error reading temperature\n");
 		return ret;
 	}
 	temp = get_unaligned_le16(buf);
 	temp = temp - 2731;
-	//#if CONFIG_NO_BATTERY_IC
-	temp = 258;
-	//#endif
 	DBG("Enter:%s %d--temp = %d\n",__FUNCTION__,__LINE__,temp);
 	return temp;
 }
@@ -159,7 +197,7 @@ static int bq3060_battery_voltage(struct bq3060_device_info *di)
 	u8 buf[2];
 	int volt = 0;
 
-	ret = bq3060_read(di->client,BQ3060_REG_VOLT,buf,2); 
+	ret = bq3060_read(di->client,BQ3060_REG_VOLT,buf); 
 	if (ret<0) {
 		dev_err(di->dev, "error reading voltage\n");
 		return ret;
@@ -181,7 +219,7 @@ static int bq3060_battery_current(struct bq3060_device_info *di)
 	int curr = 0;
 	u8 buf[2];
 
-	ret = bq3060_read(di->client,BQ3060_REG_AI,buf,2);
+	ret = bq3060_read(di->client,BQ3060_REG_AI,buf);
 	if (ret<0) {
 		dev_err(di->dev, "error reading current\n");
 		return 0;
@@ -204,27 +242,19 @@ static int bq3060_battery_capacity(struct bq3060_device_info *di)
 {
 	int ret;
 	int rsoc = 0;
-	#if 1
 	int designcapacity=0;
-	#endif
 	u8 buf[2];
 	
-	ret = bq3060_read(di->client,BQ3060_REG_CAPACITY,buf,2); 
+	ret = bq3060_read(di->client,BQ3060_REG_CAPACITY,buf); 
 	if (ret<0) {
 		dev_err(di->dev, "error reading relative State-of-Charge\n");
 		return ret;
 	}
 	rsoc = get_unaligned_le16(buf);
 	DBG("Enter:%s %d--capacity = %d\n",__FUNCTION__,__LINE__,rsoc);
-	#if CONFIG_NO_BATTERY_IC
-	rsoc = 100;
-	#endif
-	#if 1
-	ret = bq3060_read(di->client,BQ3060_REG_DESIGNCAPACITY,buf,2);
+	ret = bq3060_read(di->client,BQ3060_REG_DESIGNCAPACITY,buf);
 	designcapacity = get_unaligned_le16(buf);
-	DBG("Enter:%s %d--designcapacity = %d\n",__FUNCTION__,__LINE__,designcapacity);
-	#endif
-	
+	DBG("Enter:%s %d--designcapacity = %d\n",__FUNCTION__,__LINE__,designcapacity);	
 	if((rsoc<150)|(designcapacity<=200))
 		return 0;
 	rsoc = ((rsoc - 100)*100) / (designcapacity -200);
@@ -242,7 +272,7 @@ static int bq3060_battery_status(struct bq3060_device_info *di,
 	int status;
 	int ret;
 
-	ret = bq3060_read(di->client,BQ3060_REG_STATUS, buf, 2);
+	ret = bq3060_read(di->client,BQ3060_REG_STATUS, buf);
 	if (ret < 0) {
 		dev_err(di->dev, "error reading flags\n");
 		return ret;
@@ -271,7 +301,7 @@ static int bq3060_battery_time(struct bq3060_device_info *di, int reg,
 	int tval = 0;
 	int ret;
 
-	ret = bq3060_read(di->client,reg,buf,2);
+	ret = bq3060_read(di->client,reg,buf);
 	if (ret<0) {
 		dev_err(di->dev, "error reading register %02x\n", reg);
 		return ret;
@@ -310,8 +340,10 @@ static int bq3060_battery_get_property(struct power_supply *psy,
 		break;	
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 	case POWER_SUPPLY_PROP_PRESENT:
-		val->intval =1;// bq3060_battery_voltage(di);
-	
+		val->intval = bq3060_battery_voltage(di);
+		if (psp == POWER_SUPPLY_PROP_PRESENT){
+			val->intval = val->intval <= 0 ? 0 : 1;
+		}
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		val->intval = bq3060_battery_current(di);
@@ -349,10 +381,10 @@ static int rk29_ac_get_property(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		if (psy->type == POWER_SUPPLY_TYPE_MAINS){
-			if(gpio_get_value(DC_CHECK_PIN))
+			//if(gpio_get_value(DC_CHECK_PIN))
 				val->intval = 0;
-			else
-				val->intval = 1;	
+			//else
+			//	val->intval = 1;	
 		}
 		DBG("%s:%d val->intval = %d\n",__FUNCTION__,__LINE__,val->intval);
 		break;
@@ -399,12 +431,51 @@ static void bq3060_battery_work(struct work_struct *work)
 	schedule_delayed_work(&di->work, di->interval);
 }
 
+#ifdef CONFIG_OF
+static struct bq3060_board *bq3060_parse_dt(struct bq3060_device_info *di)
+{
+	struct bq3060_board *pdata;
+	struct device_node *bq3060_np;
+	
+	bq3060_np = of_node_get(di->dev->of_node);
+	if (!bq3060_np) {
+		printk("could not find bq3060-node\n");
+		return NULL;
+	}
+	pdata = devm_kzalloc(di->dev, sizeof(*pdata), GFP_KERNEL);
+	if (!pdata)
+		return NULL;
+	
+	pdata->irq_pin = of_get_named_gpio(bq3060_np, "gpios", 0);
+	if (!gpio_is_valid(pdata->irq_pin)) {
+		printk("invalid gpio: %d\n",  pdata->irq_pin);
+	}
+
+	return pdata;
+}
+
+#else
+static struct bq3060_board *bq3060_parse_dt(struct bq24296_device_info *di)
+{
+	return NULL;
+}
+#endif
+
+#ifdef CONFIG_OF
+static struct of_device_id bq3060_battery_of_match[] = {
+	{ .compatible = "ti,bq3060"},
+	{ },
+};
+MODULE_DEVICE_TABLE(of, bq3060_battery_of_match);
+#endif
+
 static int bq3060_battery_probe(struct i2c_client *client,
 				 const struct i2c_device_id *id)
 {
 	struct bq3060_device_info *di;
+	struct bq3060_board *pdev;
+	struct device_node *bq3060_node=NULL;
 	int retval = 0;
-	
 	u8 buf[2];
 	 
 	di = kzalloc(sizeof(*di), GFP_KERNEL);
@@ -413,37 +484,46 @@ static int bq3060_battery_probe(struct i2c_client *client,
 		retval = -ENOMEM;
 		goto batt_failed_2;
 	}
+		
+	bq3060_node = of_node_get(client->dev.of_node);
+	if (!bq3060_node) {
+		printk("could not find bq3060-node\n");
+	}
+	
 	i2c_set_clientdata(client, di);
 	di->dev = &client->dev;
 	di->bat.name = "bq3060-battery";
 	di->client = client;
 	/* 4 seconds between monotor runs interval */
 	di->interval = msecs_to_jiffies(1 * 1000);
+	if (bq3060_node)
+		pdev = bq3060_parse_dt(di);
 	
-	gpio_request(DC_CHECK_PIN,"dc_check");
-	gpio_direction_input(DC_CHECK_PIN);
+	retval = bq3060_read(di->client,0x00,buf);
+	if (retval < 0){
+		printk("The device is not bq3060 %d\n",retval);
+		goto batt_failed_4;
+	}
+	
 	bq3060_powersupply_init(di);
-	buf[0] = 0x41;
-	buf[1] = 0x00;
-	bq3060_write(di->client,0x00,buf,2);
-	buf[0] = 0x21;
-	buf[1] = 0x00;
-	bq3060_write(di->client,0x00,buf,2);
 	retval = power_supply_register(&client->dev, &di->bat);
 	if (retval) {
 		dev_err(&client->dev, "failed to register battery\n");
 		goto batt_failed_4;
 	}
+	
 	//retval = power_supply_register(&client->dev, &di->usb);
 	if (retval) {
 		dev_err(&client->dev, "failed to register usb battery\n");
 		goto batt_failed_4;
 	}
+	
 	retval = power_supply_register(&client->dev, &di->ac);
 	if (retval) {
 		dev_err(&client->dev, "failed to register ac adapter\n");
 		goto batt_failed_4;
 	}
+
 	INIT_DELAYED_WORK(&di->work, bq3060_battery_work);
 	schedule_delayed_work(&di->work, di->interval);
 	dev_info(&client->dev, "support ver. %s enabled\n", DRIVER_VERSION);
@@ -476,7 +556,8 @@ static const struct i2c_device_id bq3060_id[] = {
 
 static struct i2c_driver bq3060_battery_driver = {
 	.driver = {
-		.name = "bq3060-battery",
+		.name = "bq3060",
+		.of_match_table =of_match_ptr(bq3060_battery_of_match),
 	},
 	.probe = bq3060_battery_probe,
 	.remove = bq3060_battery_remove,

@@ -1,11 +1,22 @@
+/*
+ * Copyright (C) 2014 ROCKCHIP, Inc.
+ * drivers/video/rockchip/screen/lcd_mipi.c
+ * author: libing@rock-chips.com
+ * create date: 2014-04-10
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
 
-#if defined(CONFIG_MIPI_DSI)
 #include "../transmitter/mipi_dsi.h"
-#endif
 #include <linux/delay.h>
 
-
-#if 1
+#if 0
 #define	MIPI_SCREEN_DBG(x...)	printk(KERN_ERR x)
 #else
 #define	MIPI_SCREEN_DBG(x...)  
@@ -13,10 +24,10 @@
 
 struct mipi_screen *gmipi_screen;
 
-static void rk_mipi_screen_pwr_enable(struct mipi_screen *screen)
+static void rk_mipi_screen_pwr_disable(struct mipi_screen *screen)
 {   
     if(screen->lcd_en_gpio != INVALID_GPIO){
-        gpio_direction_output(screen->lcd_en_gpio, screen->lcd_en_atv_val);
+        gpio_direction_output(screen->lcd_en_gpio, !screen->lcd_en_atv_val);
         mdelay(screen->lcd_en_delay);
     }
     else{
@@ -25,7 +36,7 @@ static void rk_mipi_screen_pwr_enable(struct mipi_screen *screen)
     
     if(screen->lcd_rst_gpio != INVALID_GPIO){     
 
-        gpio_direction_output(screen->lcd_rst_gpio, screen->lcd_rst_atv_val);
+        gpio_direction_output(screen->lcd_rst_gpio, !screen->lcd_rst_atv_val);
         mdelay(screen->lcd_rst_delay);
     }
     else{
@@ -33,10 +44,32 @@ static void rk_mipi_screen_pwr_enable(struct mipi_screen *screen)
     }    
 }
 
+
+static void rk_mipi_screen_pwr_enable(struct mipi_screen *screen)
+{   
+    if(screen->lcd_en_gpio != INVALID_GPIO){
+        gpio_direction_output(screen->lcd_en_gpio, screen->lcd_en_atv_val);
+        mdelay(screen->lcd_en_delay);
+    }
+    else{
+        MIPI_SCREEN_DBG("lcd_en_gpio is null\n");
+    }
+    
+    if(screen->lcd_rst_gpio != INVALID_GPIO){     
+
+        mdelay (screen->lcd_rst_delay);
+        gpio_direction_output(screen->lcd_rst_gpio, screen->lcd_rst_atv_val);
+        mdelay(screen->lcd_rst_delay);
+    }
+    else{
+        MIPI_SCREEN_DBG("lcd_rst_gpio is null\n");
+    }    
+}
+
 static void rk_mipi_screen_cmd_init(struct mipi_screen *screen)
 {
     u8 len, i; 
-    u8 cmds[21] = {0};
+    u8 cmds[25] = {0}, tempcmds[25] = {0};
     struct list_head *screen_pos;
     struct mipi_dcs_cmd_ctr_list  *dcs_cmd;
     
@@ -45,23 +78,27 @@ static void rk_mipi_screen_cmd_init(struct mipi_screen *screen)
         dcs_cmd = list_entry(screen_pos, struct mipi_dcs_cmd_ctr_list, list);
         len = dcs_cmd->dcs_cmd.cmd_len + 1;
         
-        for( i = 1; i < len ; i++)
+        for( i = 1; i < len ; i++){
             cmds[i] = dcs_cmd->dcs_cmd.cmds[i-1];
-            
+            tempcmds[i] = cmds[i]; 
+            }
+            printk("dcs_cmd.name:%s\n",dcs_cmd->dcs_cmd.name);
         if(dcs_cmd->dcs_cmd.type == LPDT){
             cmds[0] = LPDT;
+            tempcmds[0] = LPDT;
             if(dcs_cmd->dcs_cmd.dsi_id == 0){
-                MIPI_SCREEN_DBG("dcs_cmd.dsi_id == 0 line=%d\n",__LINE__);
-                dsi_send_dcs_packet(0, cmds, len);
+                MIPI_SCREEN_DBG("dcs_cmd.dsi_id == 0 line=%d\n",__LINE__);                
+                dsi_send_packet(0, cmds, len);
             }
             else if (dcs_cmd->dcs_cmd.dsi_id == 1){
                 MIPI_SCREEN_DBG("dcs_cmd.dsi_id == 1 line=%d\n",__LINE__);
-                dsi_send_dcs_packet(1, cmds, len);
+                dsi_send_packet(1, cmds, len);
             }
             else if (dcs_cmd->dcs_cmd.dsi_id == 2){
                 MIPI_SCREEN_DBG("dcs_cmd.dsi_id == 2 line=%d\n",__LINE__);
-                dsi_send_dcs_packet(0, cmds, len);
-                dsi_send_dcs_packet(1, cmds, len);
+                dsi_send_packet(0, cmds, len);
+                dsi_send_packet(1, tempcmds, len);
+
             }
             else{
                 MIPI_SCREEN_DBG("dsi is err.\n");
@@ -71,18 +108,21 @@ static void rk_mipi_screen_cmd_init(struct mipi_screen *screen)
         }
         else if(dcs_cmd->dcs_cmd.type == HSDT){
             cmds[0] = HSDT;
+            tempcmds[0] = HSDT;
             if(dcs_cmd->dcs_cmd.dsi_id == 0){
-                MIPI_SCREEN_DBG("dcs_cmd.dsi_id == 0 line=%d\n",__LINE__);
-                dsi_send_dcs_packet(0, cmds, len);
+            
+                MIPI_SCREEN_DBG("dcs_cmd.dsi_id == 0 line=%d\n",__LINE__); 
+                dsi_send_packet(0, cmds, len);
             }
             else if (dcs_cmd->dcs_cmd.dsi_id == 1){
+            
                 MIPI_SCREEN_DBG("dcs_cmd.dsi_id == 1 line=%d\n",__LINE__);
-                dsi_send_dcs_packet(1, cmds, len);
+                dsi_send_packet(1, cmds, len);
             }
             else if (dcs_cmd->dcs_cmd.dsi_id == 2){
-                MIPI_SCREEN_DBG("dcs_cmd.dsi_id == 2 line=%d\n",__LINE__);
-                dsi_send_dcs_packet(0, cmds, len);
-                dsi_send_dcs_packet(1, cmds, len);
+                MIPI_SCREEN_DBG("dcs_cmd.dsi_id == 2 line=%d\n",__LINE__); 
+                dsi_send_packet(0, cmds, len);
+                dsi_send_packet(1, tempcmds, len);
             }
             else{
                 MIPI_SCREEN_DBG("dsi is err.");
@@ -97,61 +137,110 @@ static void rk_mipi_screen_cmd_init(struct mipi_screen *screen)
 
 int rk_mipi_screen(void) 
 {
+    u8 dcs[16] = {0};
 	u8 rk_dsi_num = gmipi_screen->mipi_dsi_num;
 	
-    rk_mipi_screen_pwr_enable(gmipi_screen);
-
-    dsi_enable_hs_clk(0,1);
-    if(rk_dsi_num == 2){
-        dsi_enable_hs_clk(1, 1);
-    }
-
-    rk_mipi_screen_cmd_init(gmipi_screen);
-
-    dsi_enable_video_mode(0,1);
-    if(rk_dsi_num == 2){
-        dsi_enable_video_mode(1,1);
-    } 
+	if(gmipi_screen->screen_init == 0){
 	
+		dsi_enable_hs_clk(0,1);
+		if(rk_dsi_num == 2){
+			dsi_enable_hs_clk(1, 1);
+		}
+		
+		dcs[0] = LPDT;
+		dcs[1] = DTYPE_DCS_SWRITE_0P;
+		dcs[2] = dcs_exit_sleep_mode; 
+		dsi_send_packet(0, dcs, 3);
+		if(rk_dsi_num ==2)   
+            dsi_send_packet(1, dcs, 3);
+			
+		msleep(10);
+		
+		dcs[0] = LPDT;
+		dcs[1] = DTYPE_DCS_SWRITE_0P;
+		dcs[2] = dcs_set_display_on; 
+		dsi_send_packet(0, dcs, 3);
+		if(rk_dsi_num ==2)
+            dsi_send_packet(1, dcs, 3);   
+
+		msleep(10);
+		
+		dsi_enable_video_mode(0,1);
+		if(rk_dsi_num == 2){
+			dsi_enable_video_mode(1,1);
+		} 
+
+	}
+	else{
+
+        rk_mipi_screen_pwr_enable(gmipi_screen);
+
+        dsi_enable_hs_clk(0,1);
+        if(rk_dsi_num == 2){
+            dsi_enable_hs_clk(1, 1);
+        }
+
+		dsi_enable_video_mode(0,0);
+		if(rk_dsi_num == 2){
+			dsi_enable_video_mode(1,0);
+		} 
+		
+		dsi_enable_command_mode(0, 1);
+		if(rk_dsi_num == 2){
+			dsi_enable_command_mode(1, 1);
+		} 
+
+        rk_mipi_screen_cmd_init(gmipi_screen);
+
+        dsi_enable_command_mode(0,0);
+		if(rk_dsi_num == 2){
+			dsi_enable_command_mode(1,0);
+		} 
+
+        dsi_enable_video_mode(0,1);
+        if(rk_dsi_num == 2){
+            dsi_enable_video_mode(1,1);
+        } 
+	
+	}
+		
 	MIPI_SCREEN_DBG("++++++++++++++++%s:%d\n", __func__, __LINE__);
     return 0;
 }
-#if 0
+
 int rk_mipi_screen_standby(u8 enable) 
 {
 	u8 dcs[16] = {0};
 	u8 rk_dsi_num = 0;
-
-	if(gmipi_screen->screen_init == 0)
-	    return 0;
-
     rk_dsi_num = gmipi_screen->mipi_dsi_num;
 
     if(dsi_is_active(0) != 1) 
         return -1;
-        
+  
     if(rk_dsi_num ==2)
         if((dsi_is_active(0) != 1) ||(dsi_is_active(1) != 1))
             return -1;
-        
+  
 	if(enable) {
 		/*below is changeable*/
 		dcs[0] = LPDT;
-		dcs[1] = dcs_set_display_off; 
-		dsi_send_dcs_packet(0, dcs, 2);
+		dcs[1] = DTYPE_DCS_SWRITE_0P;
+		dcs[2] = dcs_set_display_off; 
+		dsi_send_packet(0, dcs, 3);
 		if(rk_dsi_num ==2)   
-            dsi_send_dcs_packet(1, dcs, 2);
+            dsi_send_packet(1, dcs, 3);
 		
-		msleep(10);
+		msleep(30);
 		
 		dcs[0] = LPDT;
-		dcs[1] = dcs_enter_sleep_mode; 
-		dsi_send_dcs_packet(0, dcs, 2);
+		dcs[1] = DTYPE_DCS_SWRITE_0P;
+		dcs[2] = dcs_enter_sleep_mode; 
+		dsi_send_packet(0, dcs, 3);
 		if(rk_dsi_num ==2)
-            dsi_send_dcs_packet(1, dcs, 2);   
+            dsi_send_packet(1, dcs, 3);   
 
-		msleep(10);
-
+		msleep(100);
+        rk_mipi_screen_pwr_disable(gmipi_screen);
 		MIPI_SCREEN_DBG("++++enable++++++++++++%s:%d\n", __func__, __LINE__);
 	
 	}
@@ -160,7 +249,7 @@ int rk_mipi_screen_standby(u8 enable)
 	}
     return 0;
 }
-#endif
+
 static int rk_mipi_screen_init_dt(struct mipi_screen *screen)
 {
     struct device_node *childnode, *grandchildnode,*root;
@@ -168,7 +257,7 @@ static int rk_mipi_screen_init_dt(struct mipi_screen *screen)
     struct list_head *pos;
     struct property *prop;
     enum of_gpio_flags flags;
-    u32 value,i,debug,gpio,ret,cmds[20],length;
+    u32 value,i,debug,gpio,ret,cmds[25],length;
 
     memset(screen, 0, sizeof(*screen));
     
@@ -188,7 +277,7 @@ static int rk_mipi_screen_init_dt(struct mipi_screen *screen)
                 printk("err: rockchip,mipi_dsi_init not match.\n");
                 return -1;
             }else
-                screen->mipi_dsi_num = value ;
+                screen->screen_init = value ;
 
             MIPI_SCREEN_DBG("%s: lcd->screen_init = %d.\n", __func__, screen->screen_init ); 
         }
@@ -292,7 +381,7 @@ static int rk_mipi_screen_init_dt(struct mipi_screen *screen)
 
             ret = gpio_request(gpio,"mipi_lcd_en");
             if (ret) {
-                screen->lcd_rst_gpio = INVALID_GPIO;
+                screen->lcd_en_gpio = INVALID_GPIO;
                 MIPI_SCREEN_DBG("request mipi_lcd_en gpio fail:%d\n",gpio);
                 return -1;
             }
@@ -306,7 +395,6 @@ static int rk_mipi_screen_init_dt(struct mipi_screen *screen)
     root= of_find_node_by_name(NULL,"screen-on-cmds");
     if (!root) {
         MIPI_SCREEN_DBG("can't find screen-on-cmds node\n");
-        return -ENODEV;
     }
     else{
         for_each_child_of_node(root, childnode){
@@ -355,7 +443,7 @@ static int rk_mipi_screen_init_dt(struct mipi_screen *screen)
                         dcs_cmd->dcs_cmd.dsi_id = value;
                 }                      
             }
-            
+             
             ret = of_property_read_u32(childnode, "rockchip,cmd_type", &value);
             if(ret){
                 MIPI_SCREEN_DBG("%s: Can not read property: %s--->cmd_type\n", __func__,childnode->name);
@@ -389,7 +477,7 @@ static int rk_mipi_screen_init_dt(struct mipi_screen *screen)
                 dcs_cmd = list_entry(pos, struct mipi_dcs_cmd_ctr_list, list);
                 printk("\n dcs_name:%s,dcs_type:%d,side_id:%d,cmd_len:%d,delay:%d\n\n",
                         dcs_cmd->dcs_cmd.name,
-                        dcs_cmd->dcs_cmd.type,
+                        dcs_cmd->dcs_cmd.type, 
                         dcs_cmd->dcs_cmd.dsi_id,
                         dcs_cmd->dcs_cmd.cmd_len,
                         dcs_cmd->dcs_cmd.delay);
@@ -401,7 +489,7 @@ static int rk_mipi_screen_init_dt(struct mipi_screen *screen)
         else
             MIPI_SCREEN_DBG("---close cmd debug---\n");
    }
-    return ret; 
+    return 0; 
 }
 
 int rk_mipi_get_dsi_num(void)
@@ -416,7 +504,6 @@ int rk_mipi_get_dsi_lane(void)
 }
 EXPORT_SYMBOL(rk_mipi_get_dsi_lane);
 
-EXPORT_SYMBOL(rk_mipi_screen);
 
 int rk_mipi_get_dsi_clk(void)
 {

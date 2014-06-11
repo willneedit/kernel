@@ -193,7 +193,7 @@ static void rockchip_show_regs(struct rockchip_i2c *i2c)
 	int i;
 
 	dev_info(i2c->dev, "i2c->clk = %lu\n", clk_get_rate(i2c->clk));
-	dev_info(i2c->dev, "i2c->start = %d\n", i2c->state);
+	dev_info(i2c->dev, "i2c->state = %d\n", i2c->state);
 	dev_info(i2c->dev, "I2C_CON: 0x%08x\n", i2c_readl(i2c->regs + I2C_CON));
 	dev_info(i2c->dev, "I2C_CLKDIV: 0x%08x\n", i2c_readl(i2c->regs + I2C_CLKDIV));
 	dev_info(i2c->dev, "I2C_MRXADDR: 0x%08x\n", i2c_readl(i2c->regs + I2C_MRXADDR));
@@ -744,11 +744,11 @@ static int rockchip_i2c_xfer(struct i2c_adapter *adap,
 	if (msgs[0].scl_rate <= 400000 && msgs[0].scl_rate >= 10000)
 		scl_rate = msgs[0].scl_rate;
 	else if (msgs[0].scl_rate > 400000) {
-		dev_warn_ratelimited(i2c->dev, "Warning: addr[0x%04x] msg[0].scl_rate( = %dKhz) is too high!",
+		dev_dbg_ratelimited(i2c->dev, "Warning: addr[0x%04x] msg[0].scl_rate( = %dKhz) is too high!",
 			msgs[0].addr, msgs[0].scl_rate/1000);
 		scl_rate = 400000;
 	} else {
-		dev_warn_ratelimited(i2c->dev, "Warning: addr[0x%04x] msg[0].scl_rate( = %dKhz) is too low!",
+		dev_dbg_ratelimited(i2c->dev, "Warning: addr[0x%04x] msg[0].scl_rate( = %dKhz) is too low!",
 			msgs[0].addr, msgs[0].scl_rate/1000);
 		scl_rate = 100000;
 	}

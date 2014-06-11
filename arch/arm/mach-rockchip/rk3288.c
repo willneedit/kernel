@@ -29,14 +29,16 @@
 #include <linux/rockchip/dvfs.h>
 #include <linux/rockchip/grf.h>
 #include <linux/rockchip/iomap.h>
+#include <linux/rockchip/pmu.h>
 #include <asm/cpuidle.h>
 #include <asm/cputype.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 #include "cpu_axi.h"
 #include "loader.h"
-#include "pmu.h"
+#define CPU 3288
 #include "sram.h"
+#include "pm.h"
 
 #define RK3288_DEVICE(name) \
 	{ \
@@ -122,11 +124,19 @@ extern void secondary_startup(void);
 
 static void __init rk3288_dt_map_io(void)
 {
+	u32 v;
+
+	rockchip_soc_id = ROCKCHIP_SOC_RK3288;
+
 	iotable_init(rk3288_io_desc, ARRAY_SIZE(rk3288_io_desc));
 	debug_ll_io_init();
 	usb_uart_init();
 
-	rockchip_soc_id = ROCKCHIP_SOC_RK3288;
+	/* pmu reset by second global soft reset */
+	v = readl_relaxed(RK_CRU_VIRT + RK3288_CRU_GLB_RST_CON);
+	v &= ~(3 << 2);
+	v |= 1 << 2;
+	writel_relaxed(v, RK_CRU_VIRT + RK3288_CRU_GLB_RST_CON);
 
 	/* rkpwm is used instead of old pwm */
 	writel_relaxed(0x00010001, RK_GRF_VIRT + RK3288_GRF_SOC_CON2);
@@ -291,6 +301,10 @@ static int rk3288_pmu_set_power_domain(enum pmu_power_domain pd, bool on)
 			writel_relaxed(0x20002 << (pd - PD_CPU_1), RK_CRU_VIRT + RK3288_CRU_SOFTRSTS_CON(0));
 			dsb();
 		}
+                 else if (pd == PD_PERI) {
+			rk3288_pmu_set_idle_request(IDLE_REQ_PERI, true);
+		}
+        
 	}
 
 	rk3288_do_pmu_set_power_domain(pd, on);
@@ -320,12 +334,17 @@ static int rk3288_pmu_set_power_domain(enum pmu_power_domain pd, bool on)
 			RESTORE_QOS(hevc_r_qos, HEVC_R);
 			RESTORE_QOS(hevc_w_qos, HEVC_W);
 		} else if (pd >= PD_CPU_1 && pd <= PD_CPU_3) {
+#ifdef CONFIG_SMP
 			writel_relaxed(0x20000 << (pd - PD_CPU_1), RK_CRU_VIRT + RK3288_CRU_SOFTRSTS_CON(0));
 			dsb();
 			udelay(10);
 			writel_relaxed(virt_to_phys(secondary_startup), RK3288_IMEM_VIRT + 8);
 			writel_relaxed(0xDEADBEAF, RK3288_IMEM_VIRT + 4);
 			dsb_sev();
+#endif
+		}
+                else if (pd == PD_PERI) {
+			rk3288_pmu_set_idle_request(IDLE_REQ_PERI, false);
 		}
 	}
 
@@ -334,9 +353,70 @@ out:
 	return 0;
 }
 
+static int rk3288_sys_set_power_domain(enum pmu_power_domain pd, bool on)
+{
+	u32 clks_ungating[RK3288_CRU_CLKGATES_CON_CNT];
+	u32 clks_save[RK3288_CRU_CLKGATES_CON_CNT];
+	u32 i, ret;
+
+	for (i = 0; i < RK3288_CRU_CLKGATES_CON_CNT; i++) {
+		clks_save[i] = cru_readl(RK3288_CRU_CLKGATES_CON(i));
+		clks_ungating[i] = 0;
+	}
+
+	switch (pd) {
+	case PD_GPU:
+		/* gpu */
+		clks_ungating[5] = 1 << 7;
+		/* aclk_gpu */
+		clks_ungating[18] = 1 << 0;
+		break;
+	case PD_VIDEO:
+		/* aclk_vdpu_src hclk_vpu aclk_vepu_src */
+		clks_ungating[3] = 1 << 11 | 1 << 10 | 1 << 9;
+		/* hclk_video aclk_video */
+		clks_ungating[9] = 1 << 1 | 1 << 0;
+		break;
+	case PD_VIO:
+		/* aclk_lcdc0/1_src dclk_lcdc0/1_src rga_core aclk_rga_src */
+		/* edp_24m edp isp isp_jpeg */
+		clks_ungating[3] =
+		    1 << 0 | 1 << 1 | 1 << 2 | 1 << 3 | 1 << 4 | 1 << 5 |
+		    1 << 12 | 1 << 13 | 1 << 14 | 1 << 15;
+		clks_ungating[15] = 0xffff;
+		clks_ungating[16] = 0x0fff;
+		break;
+	case PD_HEVC:
+		/* hevc_core hevc_cabac aclk_hevc */
+		clks_ungating[13] = 1 << 15 | 1 << 14 | 1 << 13;
+		break;
+#if 0
+	case PD_CS:
+		clks_ungating[12] = 1 << 11 | 1 < 10 | 1 << 9 | 1 << 8;
+		break;
+#endif
+	default:
+		break;
+	}
+
+	for (i = 0; i < RK3288_CRU_CLKGATES_CON_CNT; i++) {
+		if (clks_ungating[i])
+			cru_writel(clks_ungating[i] << 16, RK3288_CRU_CLKGATES_CON(i));
+	}
+
+	ret = rk3288_pmu_set_power_domain(pd, on);
+
+	for (i = 0; i < RK3288_CRU_CLKGATES_CON_CNT; i++) {
+		if (clks_ungating[i])
+			cru_writel(clks_save[i] | 0xffff0000, RK3288_CRU_CLKGATES_CON(i));
+	}
+
+	return ret;
+}
+
 static void __init rk3288_dt_init_timer(void)
 {
-	rockchip_pmu_ops.set_power_domain = rk3288_pmu_set_power_domain;
+	rockchip_pmu_ops.set_power_domain = rk3288_sys_set_power_domain;
 	rockchip_pmu_ops.power_domain_is_on = rk3288_pmu_power_domain_is_on;
 	rockchip_pmu_ops.set_idle_request = rk3288_pmu_set_idle_request;
 	of_clk_init(NULL);
@@ -365,6 +445,9 @@ static void rk3288_restart(char mode, const char *cmd)
 	writel_relaxed(boot_mode, RK_PMU_VIRT + RK3288_PMU_SYS_REG1);	// for linux
 	dsb();
 
+	/* pll enter slow mode */
+	writel_relaxed(0xf3030000, RK_CRU_VIRT + RK3288_CRU_MODE_CON);
+	dsb();
 	writel_relaxed(0xeca8, RK_CRU_VIRT + RK3288_CRU_GLB_SRST_SND_VALUE);
 	dsb();
 }
@@ -393,7 +476,8 @@ static void __init rk3288_init_cpuidle(void)
 {
 	int ret;
 
-	rk3288_cpuidle_driver.states[0].enter = rk3288_cpuidle_enter;
+	if (!rockchip_jtag_enabled)
+		rk3288_cpuidle_driver.states[0].enter = rk3288_cpuidle_enter;
 	ret = cpuidle_register(&rk3288_cpuidle_driver, NULL);
 	if (ret)
 		pr_err("%s: failed to register cpuidle driver: %d\n", __func__, ret);
@@ -409,6 +493,8 @@ static void __init rk3288_init_late(void)
 #ifdef CONFIG_CPU_IDLE
 	rk3288_init_cpuidle();
 #endif
+	if (rockchip_jtag_enabled)
+		clk_prepare_enable(clk_get_sys(NULL, "clk_jtag"));
 }
 
 DT_MACHINE_START(RK3288_DT, "Rockchip RK3288 (Flattened Device Tree)")
@@ -421,7 +507,6 @@ DT_MACHINE_START(RK3288_DT, "Rockchip RK3288 (Flattened Device Tree)")
 	.restart	= rk3288_restart,
 MACHINE_END
 
-#define CPU 3288
 char PIE_DATA(sram_stack)[1024];
 EXPORT_PIE_SYMBOL(DATA(sram_stack));
 
@@ -451,56 +536,6 @@ static int __init rk3288_pie_init(void)
 arch_initcall(rk3288_pie_init);
 #ifdef CONFIG_PM
 #include "pm-rk3288.c"
-int rk3288_sys_set_power_domain(enum pmu_power_domain pd, bool on)
-{   
-            u32 clks_ungating[RK3288_CRU_CLKGATES_CON_CNT];
-            u32 clks_save[RK3288_CRU_CLKGATES_CON_CNT];
-            u32 i,ret;
-            for(i=0;i<RK3288_CRU_CLKGATES_CON_CNT;i++)
-            {
-                clks_save[i]=cru_readl(RK3288_CRU_CLKGATES_CON(i));
-                clks_ungating[i]=0;
-            }
-            switch(pd)
-            {
-                case PD_GPU:                   
-                    clks_ungating[5]=0x1<<7;
-                    break;
-                case PD_VIDEO:
-                     clks_ungating[3]=0x1<<11|0x1<<10|0x1<<9;
-                    break;
-                case PD_VIO:
-                    clks_ungating[3]=0x1<<0|0x1<<2|0x1<<5|0x1<<4|0x1<<1|0x1<<3|0x1<<12|0x1<<13
-                        |0x1<<14|0x1<<15|0x1<<12|0x1<<11;
-                    break;
-                case  PD_HEVC:
-                    clks_ungating[13]=0x1<<15|0x1<<14|0x1<<13;
-                    break;
-                #if 0    
-                case  PD_CS:
-                    clks_ungating[12]=0x1<<11|0x1<10|0x1<<9|0x1<<8;
-                   break;
-                 #endif  
-                    default:
-                        break;
-            }
-            
-            for(i=0;i<RK3288_CRU_CLKGATES_CON_CNT;i++)
-            {
-                if(clks_ungating[i])                  
-                    cru_writel(clks_ungating[i]<<16,RK3288_CRU_CLKGATES_CON(i));           
-            }      
-            ret=rk3288_pmu_set_power_domain(pd,on);
-
-             for(i=0;i<RK3288_CRU_CLKGATES_CON_CNT;i++)
-            {
-                if(clks_ungating[i])
-                    cru_writel(clks_save[i]|0xffff0000,RK3288_CRU_CLKGATES_CON(i));
-            }
-
-            return ret;
-             
-}
 
 static u32 rk_pmu_pwrdn_st;
 static inline void rk_pm_soc_pd_suspend(void)
@@ -545,24 +580,38 @@ static inline void rk_pm_soc_pd_resume(void)
     rkpm_ddr_printascii("\n");
 #endif    
 }
+void inline rkpm_periph_pd_dn(bool on)
+{
+    rk3288_sys_set_power_domain(PD_PERI, on);
+}
 
-extern bool console_suspend_enabled;
-
-static void rk3288_init_suspend(void)
+static void __init rk3288_init_suspend(void)
 {
     printk("%s\n",__FUNCTION__);
     rockchip_suspend_init();       
     //rkpm_pie_init();
     rk3288_suspend_init();
    rkpm_set_ops_pwr_dmns(rk_pm_soc_pd_suspend,rk_pm_soc_pd_resume);  
-    #if 0    
-    console_suspend_enabled=0;
-    do{
-        pm_suspend(PM_SUSPEND_MEM);
-    }
-    while(1);
-    #endif
 }
+
+
+extern bool console_suspend_enabled;
+
+static int  __init rk3288_pm_dbg(void)
+{
+#if 1    
+        console_suspend_enabled=0;
+        do{
+            pm_suspend(PM_SUSPEND_MEM);
+        }
+        while(1);
+        
+#endif
+
+}
+
+//late_initcall_sync(rk3288_pm_dbg);
+
 
 #endif
 #define sram_printascii(s) do {} while (0) /* FIXME */

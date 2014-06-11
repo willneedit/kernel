@@ -45,11 +45,9 @@
 
 #if defined(CONFIG_ION_ROCKCHIP)
 #include <linux/rockchip_ion.h>
-#ifdef USE_ION_MMU
 #include <linux/rockchip/iovmm.h>
 #include <linux/rockchip/sysmmu.h>
 #include <linux/dma-buf.h>
-#endif
 #endif
 #define H_USE_FENCE 1
 static int hdmi_switch_complete;
@@ -61,13 +59,16 @@ int (*video_data_to_mirroring)(struct fb_info *info, u32 yuv_phy[2]);
 EXPORT_SYMBOL(video_data_to_mirroring);
 #endif
 
+struct rk_fb_reg_win_data g_reg_win_data[4];
+static int g_first_buf = 1;
 
 static struct rk_fb_trsm_ops *trsm_lvds_ops;
 static struct rk_fb_trsm_ops *trsm_edp_ops;
 static struct rk_fb_trsm_ops *trsm_mipi_ops;
-__weak int support_uboot_display(void)
+static int uboot_logo_on = 0;
+int support_uboot_display(void)
 {
-	return 0;
+	return uboot_logo_on;
 }
 
 int rk_fb_trsm_ops_register(struct rk_fb_trsm_ops *ops, int type)
@@ -587,11 +588,29 @@ int rk_fb_poll_prmry_screen_vblank(void)
 bool rk_fb_poll_wait_frame_complete(void)
 {
 	uint32_t timeout = RK_LF_MAX_TIMEOUT;
-	if (rk_fb_poll_prmry_screen_vblank() == RK_LF_STATUS_NC)
+	struct rk_lcdc_driver *dev_drv = rk_get_prmry_lcdc_drv();
+	
+	if (likely(dev_drv)) {
+		if (dev_drv->ops->set_irq_to_cpu)
+			dev_drv->ops->set_irq_to_cpu(dev_drv,0);
+	}
+
+       
+	if (rk_fb_poll_prmry_screen_vblank() == RK_LF_STATUS_NC){
+		if (likely(dev_drv)) {
+			if(dev_drv->ops->set_irq_to_cpu)
+	                        dev_drv->ops->set_irq_to_cpu(dev_drv,1);
+		}
 		return false;
+	}	
 
 	while (!(rk_fb_poll_prmry_screen_vblank() == RK_LF_STATUS_FR)  &&  --timeout);
 	while (!(rk_fb_poll_prmry_screen_vblank() == RK_LF_STATUS_FC)  &&  --timeout);
+
+	if (likely(dev_drv)) {
+                if (dev_drv->ops->set_irq_to_cpu)
+                        dev_drv->ops->set_irq_to_cpu(dev_drv,1);
+        }
 
 	return true;
 }
@@ -599,7 +618,6 @@ static int rk_fb_open(struct fb_info *info, int user)
 {
 	struct rk_lcdc_driver *dev_drv = (struct rk_lcdc_driver *)info->par;
 	int win_id;
-
 	win_id = dev_drv->ops->fb_get_win_id(dev_drv, info->fix.id);
 	if (dev_drv->win[win_id]->state)
 		return 0;    /* if this win aready opened ,no need to reopen*/
@@ -815,7 +833,7 @@ static int rk_fb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info
 	u32 xoffset = var->xoffset;
 	u32 yoffset = var->yoffset;
 	u32 xvir = var->xres_virtual;
-	u32 yvir = var->yres_virtual;
+	/*u32 yvir = var->yres_virtual;*/
 	/*u8 data_format = var->nonstd&0xff;*/
 
 	u8  pixel_width;
@@ -979,59 +997,19 @@ void rk_fd_fence_wait(struct rk_lcdc_driver *dev_drv,
 		printk("error waiting on fence\n");
 }
 
-#ifdef USE_ION_MMU
-static unsigned int rk_fb_map_ion_handle(struct fb_info *info,
-	struct rk_fb_reg_area_data *reg_area_data,
-	struct ion_handle *ion_handle,struct dma_buf *buf)
-{
-	struct rk_lcdc_driver *dev_drv  = (struct rk_lcdc_driver *)info->par;
-	reg_area_data->dma_buf = buf;
-	reg_area_data->attachment = 
-		dma_buf_attach(reg_area_data->dma_buf, dev_drv->dev);
-	if (IS_ERR_OR_NULL(reg_area_data->attachment)) {
-		dev_err(dev_drv->dev, "dma_buf_attach() failed: %ld\n",
-				PTR_ERR(reg_area_data->attachment));
-		goto err_buf_map_attach;
-	}
-
-	reg_area_data->sg_table = dma_buf_map_attachment(reg_area_data->attachment,
-								DMA_BIDIRECTIONAL);
-	if (IS_ERR_OR_NULL(reg_area_data->sg_table)) {
-		dev_err(dev_drv->dev, "dma_buf_map_attachment() failed: %ld\n",
-				PTR_ERR(reg_area_data->sg_table));
-		goto err_buf_map_attachment;
-	}
-
-	reg_area_data->dma_addr = iovmm_map(dev_drv->dev, reg_area_data->sg_table->sgl, 0,
-			buf->size);
-	if (!reg_area_data->dma_addr || IS_ERR_VALUE(reg_area_data->dma_addr)) {
-		dev_err(dev_drv->dev, "iovmm_map() failed: %d\n", reg_area_data->dma_addr);
-		goto err_iovmm_map;
-	}
-	reg_area_data->ion_handle = ion_handle;
-	return reg_area_data->dma_buf->size;
-
-err_iovmm_map:
-	dma_buf_unmap_attachment(reg_area_data->attachment, 
-		reg_area_data->sg_table,DMA_BIDIRECTIONAL);
-err_buf_map_attachment:
-	dma_buf_detach(buf, reg_area_data->attachment);
-err_buf_map_attach:
-	return 0;
-}
-
+#ifdef CONFIG_ROCKCHIP_IOMMU
 int rk_fb_sysmmu_fault_handler(struct device *dev,
 		enum rk_sysmmu_inttype itype, unsigned long pgtable_base,
-		unsigned long fault_addr,unsigned int statu)
+		unsigned long fault_addr,unsigned int status)
 {
-	/*struct fb_info *fbi = dev_get_drvdata(dev);
+	struct fb_info *fbi = dev_get_drvdata(dev);
 	struct rk_lcdc_driver *dev_drv = (struct rk_lcdc_driver *)fbi->par;
 
 	pr_err("PAGE FAULT occurred at 0x%lx (Page table base: 0x%lx),status=%d\n",
-			fault_addr, pgtable_base,statu);
+			fault_addr, pgtable_base,status);
 	dev_drv->ops->dump_reg(dev_drv);
 	pr_err("Generating Kernel OOPS... because it is unrecoverable.\n");
-	BUG();*/
+	BUG();
 
 	return 0;
 }
@@ -1042,22 +1020,13 @@ void rk_fb_free_dma_buf(struct device *dev,struct rk_fb_reg_win_data *reg_win_da
 	int i,index_buf;
 	struct rk_fb_reg_area_data *area_data;
 	struct rk_fb *rk_fb =  platform_get_drvdata(fb_pdev);
-#ifdef H_USE_FENCE
-	for(i=0;i<RK_WIN_MAX_AREA;i++){
-		if(reg_win_data->reg_area_data[i].acq_fence)
-			sync_fence_put(reg_win_data->reg_area_data[i].acq_fence);
-	}
-#endif
+	
 	for(i=0;i<reg_win_data->area_num;i++){
 		area_data = &reg_win_data->reg_area_data[i];
 		index_buf = area_data->index_buf;
-#ifdef USE_ION_MMU
-		iovmm_unmap(dev,area_data->dma_addr);
-		dma_buf_unmap_attachment(area_data->attachment, area_data->sg_table,
-			DMA_BIDIRECTIONAL);
-		dma_buf_detach(area_data->dma_buf, area_data->attachment);
-		dma_buf_put(area_data->dma_buf);
-#endif
+		#ifdef CONFIG_ROCKCHIP_IOMMU
+		ion_unmap_iommu(dev, rk_fb->ion_client, area_data->ion_handle);
+		#endif
 		if(area_data->ion_handle != NULL)
 			ion_free(rk_fb->ion_client, area_data->ion_handle);
 		}
@@ -1134,7 +1103,6 @@ static void rk_fb_update_driver(struct rk_lcdc_win *win,struct rk_fb_reg_win_dat
 
 }
 
-
 static void rk_fb_update_reg(struct rk_lcdc_driver * dev_drv,struct rk_fb_reg_data *regs)
 {
 	int i,j,ret=0;
@@ -1144,6 +1112,9 @@ static void rk_fb_update_reg(struct rk_lcdc_driver * dev_drv,struct rk_fb_reg_da
 	struct rk_fb *rk_fb =  platform_get_drvdata(fb_pdev);
 	struct rk_lcdc_driver *ext_dev_drv;
 	struct rk_lcdc_win *ext_win;
+	bool wait_for_vsync;
+	int count = 100;
+	unsigned int dsp_addr[4];
 
 	for(i=0;i<dev_drv->lcdc_win_num;i++){ 
 		//old_reg_win_data[i]= regs->reg_win_data[i];
@@ -1240,15 +1211,38 @@ ext_win_exit:
 	/*dev_drv->atv_layer_cnt = regs->win_num;
 	dev_drv->ops->set_par(dev_drv,0);*/
 
-	ret = wait_event_interruptible_timeout(dev_drv->vsync_info.wait,
-			!ktime_equal(timestamp, dev_drv->vsync_info.timestamp),msecs_to_jiffies(dev_drv->cur_screen->ft+5));
-	
+	//ret = wait_event_interruptible_timeout(dev_drv->vsync_info.wait,
+	//		!ktime_equal(timestamp, dev_drv->vsync_info.timestamp),msecs_to_jiffies(dev_drv->cur_screen->ft+5));
+	do {
+		ret = wait_event_interruptible_timeout(dev_drv->vsync_info.wait,
+				!ktime_equal(timestamp, dev_drv->vsync_info.timestamp),msecs_to_jiffies(dev_drv->cur_screen->ft+5));		
+		dev_drv->ops->get_dsp_addr(dev_drv,dsp_addr);
+		wait_for_vsync = false;
+		for (i = 0; i < dev_drv->lcdc_win_num; i++) {
+			if(dev_drv->win[i]->state == 1){
+				u32 new_start = regs->reg_win_data[i].reg_area_data[0].smem_start +
+						regs->reg_win_data[i].reg_area_data[0].y_offset;
+				u32 reg_start = dsp_addr[i];
+				if (unlikely(new_start != reg_start)) {
+					wait_for_vsync = true;
+					break;
+				}
+			}
+		}
+	} while (wait_for_vsync && count--);
 #ifdef H_USE_FENCE
 	sw_sync_timeline_inc(dev_drv->timeline, 1);
 #endif
-	for(i=0;i<regs->win_num;i++){
-		rk_fb_free_dma_buf(dev_drv->dev,&regs->reg_win_data[i]);
+	if(!g_first_buf){
+		for(i=0;i<regs->win_num;i++){
+			rk_fb_free_dma_buf(dev_drv->dev,&g_reg_win_data[i]);
+		}
 	}
+	for(i=0;i<regs->win_num;i++){
+		memcpy(&g_reg_win_data[i], &(regs->reg_win_data[i]), sizeof(struct rk_fb_reg_win_data));
+	}
+	g_first_buf = 0;
+
 	if (dev_drv->wait_fs == 1)
 		kfree(regs);	
 }
@@ -1270,6 +1264,36 @@ static void rk_fb_update_regs_handler(struct kthread_work *work)
 		kfree(data);
 	}
 }
+static int rk_fb_check_config_var(struct rk_fb_area_par *area_par,struct rk_screen *screen)
+{
+	if ((area_par->x_offset+area_par->xact > area_par->xvir) ||
+		(area_par->xact <= 0) || (area_par->yact <= 0) ||
+		(area_par->xvir <= 0) || (area_par->yvir <= 0)) {
+		pr_err("check config var fail 0:\n"
+			"x_offset=%d,xact=%d,xvir=%d\n",
+			area_par->x_offset,
+			area_par->xact,
+			area_par->xvir);
+		return -EINVAL;
+	}
+
+	if ((area_par->xpos+area_par->xsize > screen->mode.xres) ||
+		(area_par->ypos+area_par->ysize > screen->mode.yres) ||
+		(area_par->xsize <= 0) || (area_par->ysize <= 0)) {
+		pr_err("check config var fail 1:\n"
+			"xpos=%d,xsize=%d,xres=%d\n"
+			"ypos=%d,ysize=%d,yres=%d\n",
+			area_par->xpos,
+			area_par->xsize,
+			screen->mode.xres,
+			area_par->ypos,
+			area_par->ysize,
+			screen->mode.yres			
+			);
+		return -EINVAL;
+	}
+	return 0;
+}
 
 static int rk_fb_set_win_buffer(struct fb_info *info,
 	struct rk_fb_win_par *win_par,struct rk_fb_reg_win_data *reg_win_data)
@@ -1280,7 +1304,7 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
     	struct rk_lcdc_driver * dev_drv = (struct rk_lcdc_driver * )info->par;
 	struct rk_screen *screen = dev_drv->cur_screen;
 
-	int i,j,ion_fd,acq_fence_fd;
+	int i,ion_fd,acq_fence_fd;
 	u32 xvir,yvir;
 	u32 xoffset,yoffset;
 
@@ -1293,16 +1317,11 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
 	u32 stride,uv_stride;
     	u32 stride_32bit_1;
     	u32 stride_32bit_2;
-    	u32 stride_128bit_1;
-    	u32 stride_128bit_2;
 	u16 uv_x_off,uv_y_off,uv_y_act;
 	u8  is_pic_yuv=0;
 	u8  ppixel_a=0,global_a=0;
-#ifdef USE_ION_MMU	
-	struct dma_buf *buf;
-#else
 	ion_phys_addr_t phy_addr;
-#endif
+
 	reg_win_data->reg_area_data[0].smem_start = -1;
 	reg_win_data->area_num = 0;
 	if(win_par->area_par[0].phy_addr == 0){
@@ -1318,19 +1337,13 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
 				}
 				reg_win_data->area_num++;
 				reg_win_data->reg_area_data[i].ion_handle = hdl;
-				#ifndef USE_ION_MMU
+				#ifndef CONFIG_ROCKCHIP_IOMMU
 					ion_phys(rk_fb->ion_client, hdl, &phy_addr, &len);
-					reg_win_data->reg_area_data[i].smem_start = phy_addr;
 				#else
-					buf = ion_share_dma_buf(rk_fb->ion_client, hdl);
-					if (IS_ERR_OR_NULL(buf)) {
-						dev_err(info->dev, "ion_share_dma_buf() failed\n");
-						goto err_share_dma_buf;
-					}
-					rk_fb_map_ion_handle(info,&reg_win_data->reg_area_data[i],hdl,buf);
-					reg_win_data->reg_area_data[i].smem_start = 
-						reg_win_data->reg_area_data[i].dma_addr;
+					ion_map_iommu(dev_drv->dev, rk_fb->ion_client, hdl,
+						(unsigned long *)&phy_addr, (unsigned long *)&len);
 				#endif
+				reg_win_data->reg_area_data[i].smem_start = phy_addr;
 				reg_win_data->area_buf_num++;
 				reg_win_data->reg_area_data[i].index_buf = 1;
 			}
@@ -1375,6 +1388,7 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
 		reg_win_data->win_id  = -1;
 	}
 	for(i=0;i<reg_win_data->area_num;i++){
+		rk_fb_check_config_var(&win_par->area_par[i],screen);
 		reg_win_data->reg_area_data[i].xpos = win_par->area_par[i].xpos;//visiable pos in panel
 		reg_win_data->reg_area_data[i].ypos = win_par->area_par[i].ypos;
 
@@ -1490,7 +1504,7 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
 		}
 	}	
 	return 0;
-#ifdef USE_ION_MMU	
+#ifdef CONFIG_ROCKCHIP_IOMMU	
 err_share_dma_buf:
 	ion_free(rk_fb->ion_client, hdl);
 	return -ENOMEM;	
@@ -1509,7 +1523,6 @@ static int rk_fb_set_win_config(struct fb_info *info,
 	struct sync_fence *retire_fence;
 	struct sync_pt *release_sync_pt[RK_MAX_BUF_NUM];
 	struct sync_pt *retire_sync_pt;
-	int fencd_fd;
 	char fence_name[20];
 #endif
 	int ret,i,j=0;
@@ -1526,6 +1539,7 @@ static int rk_fb_set_win_config(struct fb_info *info,
 	regs->post_cfg.ypos = win_data->post_cfg.ypos;
 	regs->post_cfg.xsize = win_data->post_cfg.xsize;
 	regs->post_cfg.ysize = win_data->post_cfg.xsize;*/
+
 	for (i=0; i<dev_drv->lcdc_win_num; i++) {
 		if(win_data->win_par[i].win_id < dev_drv->lcdc_win_num){
 			rk_fb_set_win_buffer(info,&win_data->win_par[i],&regs->reg_win_data[j]);
@@ -1604,6 +1618,66 @@ err:
 	mutex_unlock(&dev_drv->output_lock);
 	return ret;
 }
+
+#if 1
+static int cfgdone_distlist[10] = {0};
+static int cfgdone_index = 0;
+static int cfgdone_lasttime = 0;
+
+int rk_get_real_fps(int before)
+{
+    if(before > 100)      before = 100;
+    if(before < 0)        before = 0;
+
+    struct timespec now;
+    getnstimeofday(&now);
+    int dist_curr = (now.tv_sec * 1000000 + now.tv_nsec/1000) - cfgdone_lasttime;
+    int dist_total = 0;
+    int dist_count = 0;
+    int dist_first = 0;
+
+    int index = cfgdone_index;
+    int i = 0, fps = 0;
+    int total = dist_curr;
+
+    /*
+    	printk("fps: ");
+    	*/
+    for(i=0; i<10; i++) {
+        if(--index < 0)   index = 9;
+        total += cfgdone_distlist[index];
+        if(i==0)    dist_first = cfgdone_distlist[index];
+        if(total < (before*1000)) {
+            /*
+            	printk("[%d:%d] ", dist_count, cfgdone_distlist[index]);
+            	*/
+            dist_total += cfgdone_distlist[index];
+            dist_count ++;
+        } else {
+            break;
+        }  
+    }
+
+    /*
+    	printk("total %d, count %d, curr %d, ", dist_total, dist_count, dist_curr);
+    	*/
+    dist_curr = (dist_curr > dist_first) ? dist_curr : dist_first;
+    dist_total += dist_curr;
+    dist_count ++;
+
+    if(dist_total > 0)
+        fps = (1000000 * dist_count) / dist_total;
+    else
+        fps = 60;
+
+    /*
+    	printk("curr2 %d, fps=%d\n", dist_curr, fps);
+	*/
+    return fps;
+}
+EXPORT_SYMBOL(rk_get_real_fps);
+
+#endif
 
 static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 {
@@ -1716,6 +1790,19 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg
 	}
 #endif
 	case RK_FBIOSET_CONFIG_DONE:
+		{
+            int curr = 0;
+            struct timespec now;
+
+            getnstimeofday(&now);
+            curr = now.tv_sec * 1000000 + now.tv_nsec/1000;
+            cfgdone_distlist[cfgdone_index++] = curr - cfgdone_lasttime;
+            /*
+            	printk("%d ", curr - cfgdone_lasttime);
+            	*/
+            cfgdone_lasttime = curr;
+            if(cfgdone_index>=10)   cfgdone_index = 0;
+		}
 		if(copy_from_user(&win_data,
 			(struct rk_fb_win_cfg_data __user *)argp,
 			sizeof(win_data))){
@@ -1961,8 +2048,6 @@ static int rk_fb_set_par(struct fb_info *info)
 	u32 stride,uv_stride;
     	u32 stride_32bit_1;
     	u32 stride_32bit_2;
-    	u32 stride_128bit_1;
-    	u32 stride_128bit_2;
 	u16 uv_x_off,uv_y_off,uv_y_act;
 	u8  is_pic_yuv=0;
 
@@ -2200,6 +2285,18 @@ static int fb_setcolreg(unsigned regno,
 	}
 
 	return 0;
+}
+
+static int rk_fb_mmap(struct fb_info *info, struct vm_area_struct *vma)
+{
+	struct rk_lcdc_driver *dev_drv = (struct rk_lcdc_driver *)info->par;
+	int  win_id = dev_drv->ops->fb_get_win_id(dev_drv, info->fix.id);
+	struct rk_lcdc_win *win;
+	win = dev_drv->win[win_id];
+	
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+
+	return dma_buf_mmap(win->area[0].dma_buf, vma, 0);
 }
 
 static struct fb_ops fb_ops = {
@@ -2581,11 +2678,7 @@ static int rk_fb_alloc_buffer(struct fb_info *fbi, int fb_id)
 #if defined(CONFIG_ION_ROCKCHIP)
 	struct ion_handle *handle;
 	ion_phys_addr_t phy_addr;
-#ifdef	USE_ION_MMU
-	struct dma_buf *buf;
-#else
 	size_t len;
-#endif	
 #endif
 	win_id = dev_drv->ops->fb_get_win_id(dev_drv, fbi->fix.id);
 	if (win_id < 0)
@@ -2602,26 +2695,25 @@ static int rk_fb_alloc_buffer(struct fb_info *fbi, int fb_id)
 			dev_err(fbi->device, "failed to ion_alloc:%ld\n",PTR_ERR(handle));
 			return -ENOMEM;
 		}
+		win->area[0].dma_buf = ion_share_dma_buf(rk_fb->ion_client, handle);
+		if (IS_ERR_OR_NULL(win->area[0].dma_buf)) {
+			printk("ion_share_dma_buf() failed\n");
+			goto err_share_dma_buf;
+		}
 		win->area[0].ion_hdl = handle;
 		fbi->screen_base = ion_map_kernel(rk_fb->ion_client, handle);
-#ifndef USE_ION_MMU
-			ion_phys(rk_fb->ion_client, handle, &phy_addr, &len);
-			fbi->fix.smem_start = phy_addr;
-			fbi->fix.smem_len = len;
-			printk(KERN_INFO "alloc_buffer:ion_phy_addr=0x%lx\n",phy_addr);
+#ifndef CONFIG_ROCKCHIP_IOMMU
+		ion_phys(rk_fb->ion_client, handle, &phy_addr, &len);
 #else
-			buf = ion_share_dma_buf(rk_fb->ion_client, handle);
-			if (IS_ERR_OR_NULL(buf)) {
-				dev_err(fbi->device, "ion_share_dma_buf() failed\n");
-				goto err_share_dma_buf;
-			}
-			rk_fb_map_ion_handle(fbi,&dev_drv->reg_area_data,handle,buf);
-			fbi->fix.smem_start = dev_drv->reg_area_data.dma_addr;
-			fbi->fix.smem_len = buf->size;
-			printk(KERN_INFO "alloc_buffer:kernel_vir_addr=0x%x,mmu_vir_addr=0x%x,len=0x%x\n",
-							fbi->screen_base,fbi->fix.smem_start,fbi->fix.smem_len);
+		ion_phys(rk_fb->ion_client, handle, &phy_addr, &len);
+		printk("ion_phys: %x,%x\n", phy_addr, len);
+		ion_map_iommu(dev_drv->dev, rk_fb->ion_client, handle,
+					(unsigned long *)&phy_addr, (unsigned long *)&len);
+		printk("%s: ion_map_iommu: %x,%x\n", __func__, phy_addr, len);
 #endif
-		
+		fbi->fix.smem_start = phy_addr;
+		fbi->fix.smem_len = len;
+		printk(KERN_INFO "alloc_buffer:ion_phy_addr=0x%lx\n",phy_addr);
 #else
 		dma_addr_t fb_mem_phys;
 		void *fb_mem_virt;
@@ -2669,11 +2761,11 @@ static int rk_fb_alloc_buffer(struct fb_info *fbi, int fb_id)
 	}
 
 	return ret;
-#ifdef USE_ION_MMU	
+
 err_share_dma_buf:
 	ion_free(rk_fb->ion_client, handle);
 	return -ENOMEM;	
-#endif	
+	
 }
 
 static int rk_release_fb_buffer(struct fb_info *fbi)
@@ -2800,7 +2892,7 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 	struct rk_fb *rk_fb = platform_get_drvdata(fb_pdev);
 	struct fb_info *fbi;
 	int i = 0, ret = 0, index = 0;
-	#ifdef USE_ION_MMU
+	#ifdef CONFIG_ROCKCHIP_IOMMU
 		struct device *mmu_dev = NULL;
 	#endif
 	if (rk_fb->num_lcdc == RK30_MAX_LCDC_SUPPORT)
@@ -2839,17 +2931,20 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 		fbi->var.width = dev_drv->cur_screen->width;
 		fbi->var.height = dev_drv->cur_screen->height;
 		fbi->var.pixclock = dev_drv->pixclock;
+#ifdef CONFIG_ROCKCHIP_IOMMU
+		fb_ops.fb_mmap = rk_fb_mmap;
+#endif
 		fbi->fbops = &fb_ops;
 		fbi->flags = FBINFO_FLAG_DEFAULT;
 		fbi->pseudo_palette = dev_drv->win[i]->pseudo_pal;
 		if (i == 0){ /* only alloc memory for main fb*/
-		#ifdef USE_ION_MMU
-			mmu_dev = 
-			   	rockchip_get_sysmmu_device_by_compatible(dev_drv->mmu_dts_name);
-			platform_set_sysmmu(mmu_dev, dev_drv->dev);
-			/*rockchip_sysmmu_set_fault_handler(dev_drv->dev,
-				rk_fb_sysmmu_fault_handler);*/
-			iovmm_activate(dev_drv->dev);
+		#ifdef CONFIG_ROCKCHIP_IOMMU
+			mmu_dev = rockchip_get_sysmmu_device_by_compatible("iommu,vopl_mmu");
+			if (mmu_dev) {
+				platform_set_sysmmu(mmu_dev, dev_drv->dev);
+				rockchip_sysmmu_set_fault_handler(dev_drv->dev, rk_fb_sysmmu_fault_handler);
+				iovmm_activate(dev_drv->dev);
+			}
 		#endif		
 			rk_fb_alloc_buffer(fbi, rk_fb->num_fb);
 		}	
@@ -2905,6 +3000,8 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 if (dev_drv->prop == PRMRY) {
 	struct fb_info *main_fbi = rk_fb->fb[0];
 	main_fbi->fbops->fb_open(main_fbi, 1);
+	if(support_uboot_display())
+		return 0;
 	main_fbi->fbops->fb_set_par(main_fbi);
 #if  defined(CONFIG_LOGO_LINUX_BMP)
 	if (fb_prewine_bmp_logo(main_fbi, FB_ROTATE_UR)) {
@@ -2920,6 +3017,7 @@ if (dev_drv->prop == PRMRY) {
 	main_fbi->fbops->fb_pan_display(&main_fbi->var, main_fbi);
 }
 #endif
+
 	return 0;
 
 
@@ -2979,6 +3077,10 @@ static int rk_fb_probe(struct platform_device *pdev)
 	} else {
 		dev_err(&pdev->dev, "no disp-mode node found!");
 		return -ENODEV;
+	}
+
+	if (!of_property_read_u32(np, "rockchip,uboot-logo-on", &uboot_logo_on)) {
+		printk("uboot-logo-on:%d\n", uboot_logo_on);
 	}
 	dev_set_name(&pdev->dev, "rockchip-fb");
 #if defined(CONFIG_ION_ROCKCHIP)

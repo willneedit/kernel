@@ -1,6 +1,9 @@
 /*
  * Copyright (C) ROCKCHIP, Inc.
  * Author:yzq<yzq@rock-chips.com>
+ *
+ * based on exynos_drm_gem.h
+ *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
  * may be copied, distributed, and modified under those terms.
@@ -12,6 +15,14 @@
  */
 #ifndef _ROCKCHIP_DRM_GEM_H_
 #define _ROCKCHIP_DRM_GEM_H_
+#if defined(CONFIG_ION_ROCKCHIP)
+#include <linux/rockchip_ion.h>
+#ifdef USE_ION_MMU
+#include <linux/rockchip/iovmm.h>
+#include <linux/rockchip/sysmmu.h>
+#include <linux/dma-buf.h>
+#endif
+#endif
 
 #define to_rockchip_gem_obj(x)	container_of(x,\
 			struct rockchip_drm_gem_obj, base)
@@ -43,6 +54,10 @@ struct rockchip_drm_gem_buf {
 	struct sg_table		*sgt;
 	unsigned long		size;
 	bool			pfnmap;
+#ifdef CONFIG_ION_ROCKCHIP
+	struct ion_client 	*ion_client;
+	struct ion_handle       *handle;
+#endif
 };
 
 /*

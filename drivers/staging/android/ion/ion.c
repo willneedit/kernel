@@ -36,6 +36,7 @@
 #include <linux/dma-buf.h>
 #include <linux/idr.h>
 #include <linux/rockchip_ion.h>
+#include <asm-generic/dma-contiguous.h>
 
 #include "ion.h"
 #include "ion_priv.h"
@@ -115,7 +116,13 @@ struct ion_handle {
 	int id;
 };
 
+#ifdef CONFIG_ROCKCHIP_IOMMU
 static void ion_iommu_force_unmap(struct ion_buffer *buffer);
+#endif
+#ifdef CONFIG_ION_ROCKCHIP_SNAPSHOT
+extern char *rockchip_ion_snapshot_get(unsigned *size);
+extern int rockchip_ion_snapshot_debugfs(struct dentry* root);
+#endif
 
 bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer)
 {
@@ -890,27 +897,55 @@ out:
 	mutex_unlock(&client->lock);
 }
 EXPORT_SYMBOL(ion_unmap_iommu);
+
+static int ion_debug_client_show_buffer_map(struct seq_file *s, struct ion_buffer *buffer)
+{
+	struct ion_iommu_map *iommu_map;
+	const struct rb_root *rb = &(buffer->iommu_maps);
+	struct rb_node *node = rb_first(rb);
+
+	pr_debug("%s: buffer(%p)\n", __func__, buffer);
+
+	mutex_lock(&buffer->lock);
+
+	while (node != NULL) {
+		iommu_map = rb_entry(node, struct ion_iommu_map, node);
+		seq_printf(s, "%16.16s:   0x%08lx   0x%08lx %8zuKB %4d\n",
+			"<iommu>", iommu_map->iova_addr, 0, iommu_map->mapped_size>>10,
+			atomic_read(&iommu_map->ref.refcount));
+
+		node = rb_next(node);
+	}
+
+	mutex_unlock(&buffer->lock);
+
+	return 0;
+}
 #endif
 
 static int ion_debug_client_show_buffer(struct seq_file *s, void *unused)
 {
 	struct ion_client *client = s->private;
 	struct rb_node *n;
-	ion_phys_addr_t addr;
-	size_t len;
 
 	seq_printf(s, "----------------------------------------------------\n");
-	seq_printf(s, "%16.s: %12.s %8.s %4.s %4.s %4.s\n", "heap_name", "addr", "size", "HC", "IBR", "IHR");
+	seq_printf(s, "%16.s: %12.s %12.s %10.s %4.s %4.s %4.s\n", "heap_name", "VA", "PA",
+		"size", "HC", "IBR", "IHR");
 	mutex_lock(&client->lock);
 	for (n = rb_first(&client->handles); n; n = rb_next(n)) {
 		struct ion_handle *handle = rb_entry(n, struct ion_handle, node);
 		struct ion_buffer *buffer = handle->buffer;
-		if (buffer->heap->ops->phys) {
-			buffer->heap->ops->phys(buffer->heap, buffer, &addr, &len);
-			seq_printf(s, "%16.16s: 0x%08lx %8zuKB %4d %4d %4d\n",
-				buffer->heap->name, addr, len>>10, buffer->handle_count,
-				atomic_read(&buffer->ref.refcount), atomic_read(&handle->ref.refcount));
-		}
+		ion_phys_addr_t pa = 0;
+		size_t len = buffer->size;
+		if (buffer->heap->ops->phys)
+			buffer->heap->ops->phys(buffer->heap, buffer, &pa, &len);
+
+		seq_printf(s, "%16.16s:   0x%08lx   0x%08lx %8zuKB %4d %4d %4d\n",
+			buffer->heap->name, (unsigned long)buffer->vaddr, pa, len>>10, buffer->handle_count,
+			atomic_read(&buffer->ref.refcount), atomic_read(&handle->ref.refcount));
+#ifdef CONFIG_ROCKCHIP_IOMMU
+		ion_debug_client_show_buffer_map(s, buffer);
+#endif
 	}
 	mutex_unlock(&client->lock);
 
@@ -1777,6 +1812,65 @@ DEFINE_SIMPLE_ATTRIBUTE(debug_shrink_fops, debug_shrink_get,
 			debug_shrink_set, "%llu\n");
 #endif
 
+#ifdef CONFIG_CMA
+// struct "cma" quoted from drivers/base/dma-contiguous.c
+struct cma {
+	unsigned long	base_pfn;
+	unsigned long	count;
+	unsigned long	*bitmap;
+};
+
+// struct "ion_cma_heap" quoted from drivers/staging/android/ion/ion_cma_heap.c
+struct ion_cma_heap {
+	struct ion_heap heap;
+	struct device *dev;
+};
+
+static int ion_cma_heap_debug_show(struct seq_file *s, void *unused)
+{
+	struct ion_heap *heap = s->private;
+	struct ion_cma_heap *cma_heap = container_of(heap,
+							struct ion_cma_heap,
+							heap);
+	struct device *dev = cma_heap->dev;
+	struct cma *cma = dev_get_cma_area(dev);
+	int i;
+	int rows = cma->count/(SZ_1M >> PAGE_SHIFT);
+	phys_addr_t base = __pfn_to_phys(cma->base_pfn);
+
+	seq_printf(s, "%s Heap bitmap:\n", heap->name);
+
+	for(i = rows - 1; i>= 0; i--){
+		seq_printf(s, "%.4uM@0x%08x: %08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n",
+				i+1, base+(i)*SZ_1M,
+				cma->bitmap[i*8 + 7],
+				cma->bitmap[i*8 + 6],
+				cma->bitmap[i*8 + 5],
+				cma->bitmap[i*8 + 4],
+				cma->bitmap[i*8 + 3],
+				cma->bitmap[i*8 + 2],
+				cma->bitmap[i*8 + 1],
+				cma->bitmap[i*8]);
+	}
+	seq_printf(s, "Heap size: %luM, Heap base: 0x%08x\n",
+		(cma->count)>>8, base);
+
+	return 0;
+}
+
+static int ion_debug_heap_bitmap_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ion_cma_heap_debug_show, inode->i_private);
+}
+
+static const struct file_operations debug_heap_bitmap_fops = {
+	.open = ion_debug_heap_bitmap_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+#endif
+
 void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 {
 	struct dentry *debug_file;
@@ -1825,6 +1919,22 @@ void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 		}
 	}
 #endif
+#ifdef CONFIG_CMA
+	if (ION_HEAP_TYPE_DMA==heap->type) {
+		char* heap_bitmap_name = kasprintf(
+			GFP_KERNEL, "%s-bitmap", heap->name);
+		debug_file = debugfs_create_file(heap_bitmap_name, 0664,
+						dev->heaps_debug_root, heap,
+						&debug_heap_bitmap_fops);
+		if (!debug_file) {
+			char buf[256], *path;
+			path = dentry_path(dev->heaps_debug_root, buf, 256);
+			pr_err("Failed to create heap debugfs at %s/%s\n",
+				path, heap_bitmap_name);
+		}
+		kfree(heap_bitmap_name);
+	}
+#endif
 	up_write(&dev->lock);
 }
 
@@ -1864,6 +1974,10 @@ struct ion_device *ion_device_create(long (*custom_ioctl)
 						idev->debug_root);
 	if (!idev->clients_debug_root)
 		pr_err("ion: failed to create debugfs clients directory.\n");
+
+#ifdef CONFIG_ION_ROCKCHIP_SNAPSHOT
+	rockchip_ion_snapshot_debugfs(idev->debug_root);
+#endif
 
 debugfs_done:
 
@@ -1918,3 +2032,91 @@ void __init ion_reserve(struct ion_platform_data *data)
 			data->heaps[i].size);
 	}
 }
+
+#ifdef CONFIG_ION_ROCKCHIP_SNAPSHOT
+
+// Find the maximum can be allocated memory
+static unsigned long ion_find_max_zero_area(unsigned long *map, unsigned long size)
+{
+	unsigned long index, i, zero_sz, max_zero_sz, start;
+	start = 0;
+	max_zero_sz = 0;
+
+	do {
+		index = find_next_zero_bit(map, size, start);
+		if (index>=size) break;
+
+		i = find_next_bit(map, size, index);
+		zero_sz = i-index;
+		pr_debug("zero[%lx, %lx]\n", index, zero_sz);
+		max_zero_sz = max(max_zero_sz, zero_sz);
+		start = i + 1;
+	} while(start<=size);
+
+	pr_debug("max_zero_sz=%lx\n", max_zero_sz);
+	return max_zero_sz;
+}
+
+int ion_snapshot_save(struct ion_device *idev)
+{
+	static struct seq_file seqf;
+	struct ion_heap *heap;
+	struct rb_node *n;
+
+	if (!seqf.buf) {
+		seqf.buf = rockchip_ion_snapshot_get(&seqf.size);
+		if (!seqf.buf)
+			return -ENOMEM;
+	}
+	memset(seqf.buf, 0, seqf.size);
+	seqf.count = 0;
+	pr_info("%s: save snapshot 0x%x@0x%lx\n", __func__, seqf.size,
+		__pa(seqf.buf));
+
+	down_read(&idev->lock);
+
+	plist_for_each_entry(heap, &idev->heaps, node) {
+		seqf.private = (void*)heap;
+		seq_printf(&seqf, "++++++++++++++++ HEAP: %s ++++++++++++++++\n",
+			heap->name);
+		ion_debug_heap_show(&seqf, NULL);
+		if (ION_HEAP_TYPE_DMA==heap->type) {
+			struct ion_cma_heap *cma_heap = container_of(heap,
+									struct ion_cma_heap,
+									heap);
+			struct cma *cma = dev_get_cma_area(cma_heap->dev);
+			seq_printf(&seqf, "\n");
+			seq_printf(&seqf, "Maximum allocation of pages: %ld\n",
+					ion_find_max_zero_area(cma->bitmap, cma->count));
+			seq_printf(&seqf, "\n");
+		}
+	}
+
+	for (n = rb_first(&idev->clients); n; n = rb_next(n)) {
+		struct ion_client *client = rb_entry(n, struct ion_client, node);
+		seqf.private = (void*)client;
+		if (client->task) {
+			char task_comm[TASK_COMM_LEN];
+
+			get_task_comm(task_comm, client->task);
+			seq_printf(&seqf, "++++++++++++++++ CLIENT: %s(PID-%d) ++++++++++++++++\n",
+				task_comm, client->pid);
+		} else {
+			seq_printf(&seqf, "++++++++++++++++ CLIENT: %s(PID-%d) ++++++++++++++++\n",
+				client->display_name, client->pid);
+		}
+
+		ion_debug_client_show(&seqf, NULL);
+		seq_printf(&seqf, "\n");
+	}
+
+	up_read(&idev->lock);
+
+	return 0;
+}
+#else
+int ion_snapshot_save(struct ion_device *idev)
+{
+	return 0;
+}
+#endif

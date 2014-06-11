@@ -289,8 +289,7 @@ static irqreturn_t blueberry_kb_interrupt(int irq, void *dev_id)
 {
 	struct blueberry_kb *bbkb = dev_id;
 
-	disable_irq_wake(bbkb->irq);
-    disable_irq_nosync(bbkb->irq);
+	disable_irq_nosync(bbkb->irq);
 	if(bbkb->arm_suspend_status == 1)
 	{
 		//rk28_send_wakeup_key();
@@ -299,7 +298,7 @@ static irqreturn_t blueberry_kb_interrupt(int irq, void *dev_id)
 	queue_work(bbkb->keyboard_wq, &bbkb->input_work);
     //schedule_work(&bbkb->input_work);
 
-    return IRQ_HANDLED;
+	return IRQ_HANDLED;
 }
 
 static void blueberry_kb_keypad_set_input_params(struct input_dev *dev)
@@ -1136,7 +1135,7 @@ static int blueberry_kb_probe(struct i2c_client *client,
 	if(ret){
 		printk("%s: defalte enable keyboard err = %d\n", __func__, ret);
 	}//else break;
-    mdelay(1000);
+//    mdelay(1000);
 }
    // ec_cmd[0] = 0x10;
 	//ec_cmd[1] = 0x00;

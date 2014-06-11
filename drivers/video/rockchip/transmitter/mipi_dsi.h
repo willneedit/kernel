@@ -28,6 +28,11 @@ drivers/video/rockchip/transmitter/mipi_dsi.h
 #define HSDT			0x00
 #define LPDT			0x01
 
+//DSI DATA TYPE FLAG
+#define DATA_TYPE_DCS			0x00
+#define DATA_TYPE_GEN			0x01
+
+
 //Video Mode
 #define VM_NBMWSP		0x00  //Non burst mode with sync pulses
 #define VM_NBMWSE		0x01  //Non burst mode with sync events
@@ -184,14 +189,14 @@ struct mipi_dsi_ops {
 	char name[32];
 	void *dsi;
 	int (*get_id)(void *);
-	int (*dsi_init)(void *, void *, u32 n);
+	int (*dsi_init)(void *, u32 n);
 	int (*dsi_set_regs)(void *, void *, u32 n);
 	int (*dsi_enable_video_mode)(void *, u32 enable);
 	int (*dsi_enable_command_mode)(void *, u32 enable);
 	int (*dsi_enable_hs_clk)(void *, u32 enable);
 	int (*dsi_send_dcs_packet)(void *, unsigned char *, u32 n);
 	int (*dsi_read_dcs_packet)(void *, unsigned char *, u32 n);
-	int (*dsi_send_packet)(void *, void *, u32 n);
+	int (*dsi_send_packet)(void *, unsigned char *, u32 n);
     int (*dsi_is_enable)(void *, u32 enable);
 	int (*dsi_is_active)(void *);
 	int (*power_up)(void *);
@@ -241,6 +246,7 @@ struct mipi_dsi_screen {
 
 struct dcs_cmd {
 	u8 type;
+	u8 dtype;
     u8 dsi_id;
     u8 cmd_len;
 	int cmds[32];
@@ -275,7 +281,7 @@ int del_dsi_ops(struct mipi_dsi_ops *ops);
 int dsi_power_up(unsigned int id);
 int dsi_power_off(unsigned int id);
 int dsi_probe_current_chip(unsigned int id);
-int dsi_init(unsigned int id, void *array, u32 n);
+int dsi_init(unsigned int id, u32 n);
 int dsi_is_active(unsigned int id);
 int dsi_enable_video_mode(unsigned int id, u32 enable);
 int dsi_enable_command_mode(unsigned int id, u32 enable);
@@ -285,7 +291,7 @@ int dsi_set_virtual_channel(unsigned int id, u32 channel);
 int dsi_set_regs(unsigned int id, void *array, u32 n);
 int dsi_send_dcs_packet(unsigned int id, unsigned char *packet, u32 n);
 int dsi_read_dcs_packet(unsigned int id, unsigned char *packet, u32 n);
-int dsi_send_packet(unsigned int id, void *packet, u32 n);
+int dsi_send_packet(unsigned int id, unsigned char *packet, u32 n);
 int dsi_is_enable(unsigned int id, u32 enable);
 
 #endif /* end of MIPI_DSI_H_ */

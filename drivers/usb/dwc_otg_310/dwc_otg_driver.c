@@ -104,6 +104,9 @@ static struct usb20host_pdata_id usb20host_pdata[] = {
 };
 #endif
 
+#ifdef CONFIG_RK_USB_UART
+static u32 usb_to_uart_status;
+#endif
 /*-------------------------------------------------------------------------*/
 /* Encapsulate the module parameter settings */
 
@@ -1141,6 +1144,7 @@ static int host20_driver_probe(struct platform_device *_dev)
 		goto fail;
 	}
 
+	clk_set_rate(pldata->phyclk_480m, 480000000);
 	/*
 	 * Enable the global interrupt after all the interrupt
 	 * handlers are installed if there is no ADP support else 
@@ -1381,8 +1385,13 @@ static int otg20_driver_probe(struct platform_device *_dev)
 	if(pldata->dwc_otg_uart_mode)
 		pldata->dwc_otg_uart_mode(pldata, PHY_USB_MODE);
 
+	/* do reset later, because reset need about
+	 * 100ms to ensure otg id state change.
+	 */
+	/*
 	if(pldata->soft_reset)
 		pldata->soft_reset();
+	*/
 	/*end todo*/
 
 	res_base=platform_get_resource(_dev, IORESOURCE_MEM, 0);
@@ -1565,6 +1574,82 @@ static struct platform_driver dwc_otg_driver = {
 };
 #endif
 
+void rk_usb_power_up(void)
+{
+	struct dwc_otg_platform_data *pldata_otg;
+	struct dwc_otg_platform_data *pldata_host;
+	struct rkehci_platform_data *pldata_ehci;
+
+	if(cpu_is_rk3288()){
+#ifdef CONFIG_RK_USB_UART
+		/* enable USB bypass UART function  */
+		writel_relaxed(0x00c00000 | usb_to_uart_status, RK_GRF_VIRT + RK3288_GRF_UOC0_CON3);
+
+#endif
+		/* unset siddq,the analog blocks are powered up */
+#ifdef CONFIG_USB20_OTG
+		if((pldata_otg = &usb20otg_pdata_rk3288)){
+			if(pldata_otg->phy_status == USB_PHY_SUSPEND)
+				writel_relaxed((0x01<<13)<<16, RK_GRF_VIRT + RK3288_GRF_UOC0_CON0);
+		}
+#endif
+#ifdef CONFIG_USB20_HOST
+		if((pldata_host = &usb20host_pdata_rk3288)){
+			if(pldata_host->phy_status == USB_PHY_SUSPEND)
+				writel_relaxed((0x01<<13)<<16, RK_GRF_VIRT + RK3288_GRF_UOC2_CON0);
+		}
+#endif
+#ifdef CONFIG_USB_EHCI_RK
+		if((pldata_ehci = &rkehci_pdata_rk3288)){
+			if(pldata_ehci->phy_status == USB_PHY_SUSPEND)
+				writel_relaxed((0x01<<13)<<16, RK_GRF_VIRT + RK3288_GRF_UOC1_CON0);
+		}
+#endif
+
+	}
+}
+
+void rk_usb_power_down(void)
+{
+	struct dwc_otg_platform_data *pldata_otg;
+	struct dwc_otg_platform_data *pldata_host;
+	struct rkehci_platform_data *pldata_ehci;
+
+	if(cpu_is_rk3288()){
+#ifdef CONFIG_RK_USB_UART
+		/* disable USB bypass UART function */
+		usb_to_uart_status = readl_relaxed(RK_GRF_VIRT + RK3288_GRF_UOC0_CON3);
+		writel_relaxed(0x00c00000, RK_GRF_VIRT + RK3288_GRF_UOC0_CON3);
+#endif
+		/* set siddq,the analog blocks are powered down
+		 * note:
+		 * 1. Before asserting SIDDQ, ensure that VDATSRCENB0,
+		 * VDATDETENB0, DCDENB0, BYPASSSEL0, ADPPRBENB0,
+		 * and TESTBURNIN are set to 1'b0.
+		 * 2. Before asserting SIDDQ, ensure that phy enter suspend.*/
+#ifdef CONFIG_USB20_OTG
+		if((pldata_otg = &usb20otg_pdata_rk3288)){
+			if(pldata_otg->phy_status == USB_PHY_SUSPEND)
+				writel_relaxed((0x01<<13)|((0x01<<13)<<16), RK_GRF_VIRT + RK3288_GRF_UOC0_CON0);
+		}
+#endif
+#ifdef CONFIG_USB20_HOST
+		if((pldata_host = &usb20host_pdata_rk3288)){
+			if(pldata_host->phy_status == USB_PHY_SUSPEND)
+				writel_relaxed((0x01<<13)|((0x01<<13)<<16), RK_GRF_VIRT + RK3288_GRF_UOC2_CON0);
+		}
+#endif
+#ifdef CONFIG_USB_EHCI_RK
+		if((pldata_ehci = &rkehci_pdata_rk3288)){
+			if(pldata_ehci->phy_status == USB_PHY_SUSPEND)
+				writel_relaxed((0x01<<13)|((0x01<<13)<<16), RK_GRF_VIRT + RK3288_GRF_UOC1_CON0);
+		}
+#endif
+	}
+}
+
+EXPORT_SYMBOL(rk_usb_power_up);
+EXPORT_SYMBOL(rk_usb_power_down);
 /**
  * This function is called when the dwc_otg_driver is installed with the
  * insmod command. It registers the dwc_otg_driver structure with the

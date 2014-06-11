@@ -24,6 +24,7 @@
 #include <asm/gpio.h>
 #include <linux/delay.h>
 #include <linux/rfkill-bt.h>
+#include <linux/rfkill-wlan.h>
 #include <linux/wakelock.h>
 #include <linux/interrupt.h>
 #include <asm/irq.h>
@@ -245,6 +246,22 @@ void rfkill_rk_sleep_bt(bool sleep)
 }
 EXPORT_SYMBOL(rfkill_rk_sleep_bt);
 
+static int bt_power_state = 0;
+int rfkill_get_bt_power_state(int *power, bool *toggle)
+{
+    struct rfkill_rk_data *mrfkill = g_rfkill;
+
+    if (mrfkill == NULL) {
+        LOG("%s: rfkill-bt driver has not Successful initialized\n", __func__);
+        return -1;
+    }
+
+    *toggle = mrfkill->pdata->power_toggle;
+    *power = bt_power_state;
+
+    return 0;
+}
+
 static int rfkill_rk_set_power(void *data, bool blocked)
 {
 	struct rfkill_rk_data *rfkill = data;
@@ -254,10 +271,19 @@ static int rfkill_rk_set_power(void *data, bool blocked)
     struct rfkill_rk_gpio* rts = &rfkill->pdata->rts_gpio;
     struct pinctrl *pinctrl = rfkill->pdata->pinctrl;
 #endif
+    int power = 0; bool toggle = false;
 
     DBG("Enter %s\n", __func__);
 
     DBG("Set blocked:%d\n", blocked);
+
+    toggle = rfkill->pdata->power_toggle;
+    if (toggle) {
+        if(!rfkill_get_wifi_power_state(&power) && power == 1) {
+            LOG("%s: bt shouldn't control the power, it was enabled by wifi!\n", __func__);
+            return 0;
+        }
+    }
 
 	if (false == blocked) { 
         rfkill_rk_sleep_bt(BT_WAKEUP); // ensure bt is wakeup
@@ -287,6 +313,7 @@ static int rfkill_rk_set_power(void *data, bool blocked)
             pinctrl_select_state(pinctrl, rts->default_state);
         }
 #endif
+        bt_power_state = 1;
     	LOG("bt turn on power\n");
 	} else {
             if (gpio_is_valid(poweron->io))
@@ -295,6 +322,7 @@ static int rfkill_rk_set_power(void *data, bool blocked)
                 msleep(20);
             }
 
+            bt_power_state = 0;
     		LOG("bt shut off power\n");
 		if (gpio_is_valid(reset->io))
         {      
@@ -436,6 +464,13 @@ static int bluetooth_platdata_parse_dt(struct device *dev,
 
     memset(data, 0, sizeof(*data));
 
+    if (of_find_property(node, "wifi-bt-power-toggle", NULL)) {
+        data->power_toggle = true;
+        LOG("%s: get property wifi-bt-power-toggle.\n", __func__);
+    } else {
+        data->power_toggle = false;
+    }
+
     gpio = of_get_named_gpio_flags(node, "uart_rts_gpios", 0, &flags);
     if (gpio_is_valid(gpio)) {
         data->rts_gpio.io = gpio;
@@ -574,10 +609,12 @@ static int rfkill_rk_probe(struct platform_device *pdev)
     ret = rfkill_rk_setup_gpio(pdev, &pdata->wake_gpio, pdata->name, "wake");
     if (ret) goto fail_gpio;
 
-    ret = rfkill_rk_setup_wake_irq(rfkill);
+    ret = rfkill_rk_setup_gpio(pdev, &pdata->rts_gpio, rfkill->pdata->name, "rts"); 
     if (ret) goto fail_gpio;
 
-    ret = rfkill_rk_setup_gpio(pdev, &pdata->rts_gpio, rfkill->pdata->name, "rts"); 
+    wake_lock_init(&(rfkill->bt_irq_wl), WAKE_LOCK_SUSPEND, "rfkill_rk_irq_wl");
+
+    ret = rfkill_rk_setup_wake_irq(rfkill);
     if (ret) goto fail_gpio;
 
     DBG("setup rfkill\n");
@@ -591,7 +628,6 @@ static int rfkill_rk_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto fail_rfkill;
 
-    wake_lock_init(&(rfkill->bt_irq_wl), WAKE_LOCK_SUSPEND, "rfkill_rk_irq_wl");
     INIT_DELAYED_WORK(&rfkill->bt_sleep_delay_work, rfkill_rk_delay_sleep_bt);
 
     //rfkill_rk_set_power(rfkill, BT_BLOCKED);

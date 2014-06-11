@@ -4,8 +4,24 @@
 #define MAX_HDMI_WIDTH   1920
 #define MAX_HDMI_HEIGHT  1080
 
+#define LAYER_NORMAL_WIN  	0
+#define LAYER_VIDEO_WIN   	1
+#define LAYER_CURSOR_WIN   	2
 #define get_extend_context(dev)	platform_get_drvdata(to_platform_device(dev))
+struct rk_overlay_api {
+	unsigned int y_addr;
+	unsigned int uv_addr;
+	int format;
 
+	int xpos;
+	int ypos;
+	int xact;
+	int yact;
+	int xsize;
+	int ysize;
+
+	int xvir;
+};
 struct extend_win_data {
 	unsigned int		offset_x;
 	unsigned int		offset_y;

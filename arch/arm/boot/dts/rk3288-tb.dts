@@ -28,6 +28,8 @@
     wireless-bluetooth {
         compatible = "bluetooth-platdata";
 
+        //wifi-bt-power-toggle;
+
         uart_rts_gpios = <&gpio4 GPIO_C3 GPIO_ACTIVE_LOW>;
         pinctrl-names = "default","rts_gpio";
         pinctrl-0 = <&uart0_rts>;
@@ -57,7 +59,7 @@
 
 	pwm_regulator {
 		compatible = "rockchip_pwm_regulator";
-		pwms = <&pwm1 0 25000>;
+		pwms = <&pwm1 0 2000>;
 		rockchip,pwm_id= <1>;
 		rockchip,pwm_voltage_map= <925000 950000 975000 1000000 1025000 1050000 1075000 1100000 1125000 1150000 1175000 1200000 1225000 1250000 1275000 1300000 1325000 1350000 1375000 1400000>;
 		rockchip,pwm_voltage= <1000000>;
@@ -155,6 +157,15 @@
 		};
 	};
 
+	usb_control {
+		compatible = "rockchip,rk3288-usb-control";
+
+		host_drv_gpio = <&gpio0 GPIO_B6 GPIO_ACTIVE_LOW>;
+		otg_drv_gpio = <&gpio0 GPIO_B4 GPIO_ACTIVE_LOW>;
+
+		rockchip,remote_wakeup;
+		rockchip,usb_irq_wakeup;
+	};
 };
 
 &gmac {
@@ -165,6 +176,11 @@
 };
 
 &pinctrl {
+	//used for init some gpio
+	init-gpios = <&gpio0 GPIO_A6 GPIO_ACTIVE_HIGH
+			/*&gpio0 GPIO_C2 GPIO_ACTIVE_HIGH */
+			/*&gpio7 GPIO_B7 GPIO_ACTIVE_LOW */>;
+	
 	gpio0_gpio {
 			gpio0_c2: gpio0-c2 {
 				rockchip,pins = <GPIO0_C2>;
@@ -182,13 +198,14 @@
 
 			//to add
 		};
+		
 	//could add other pinctrl definition such as gpio
 
 };
 
 &emmc {
-		clock-frequency = <200000000>;
-	 	clock-freq-min-max = <400000 200000000>;
+		clock-frequency = <150000000>;
+	 	clock-freq-min-max = <400000 1500000000>;
         supports-highspeed;
 		supports-emmc;
 		bootpart-no-access;
@@ -306,7 +323,65 @@
 		reg = <0x1b>;
 		status = "okay";
 	};
-	
+	rk818: rk818@1c {
+		reg = <0x1c>;
+		status = "okay";
+ 	};
+		syr827: syr827@40 {
+		compatible = "silergy,syr82x";
+  	reg = <0x40>;
+		status = "okay";
+		regulators {
+			#address-cells = <1>;
+			#size-cells = <0>;	
+			syr827_dc1: regulator@0 {
+			reg = <0>;
+			regulator-compatible = "syr82x_dcdc1";
+			regulator-name = "vdd_arm";
+			regulator-min-microvolt = <712500>;
+			regulator-max-microvolt = <1500000>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-disabled;
+				regulator-state-uv = <900000>;
+			};
+		};
+	   };
+	};
+	syr828: syr828@41 {
+		compatible = "silergy,syr82x";
+		reg = <0x41>;
+		status = "okay";
+		regulators {
+			#address-cells = <1>;
+			#size-cells = <0>;	
+			syr828_dc1: regulator@0 {
+			reg = <0>;
+			regulator-compatible = "syr82x_dcdc1";
+			regulator-name = "vdd_gpu";
+			regulator-min-microvolt = <712500>;
+			regulator-max-microvolt = <1500000>;
+			regulator-always-on;
+  		regulator-boot-on;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <900000>;
+			};	
+		};
+	   };
+	};
+
+	ricoh619: ricoh619@32 {
+		reg = <0x32>;
+ 		status = "okay";
+ 	};
 	bq24296: bq24296@6b {
 		compatible = "ti,bq24296";
 		reg = <0x6b>;
@@ -314,6 +389,7 @@
 		bq24296,chg_current = <1000 2000 3000>;
 		status = "okay";
 	};
+	
 	bq27320: bq27320@55 {
 		compatible = "ti,bq27320";
 		reg = <0x55>;
@@ -436,14 +512,12 @@
 	};
 	
 	ts@01 {
-		compatible = "ct,ct36x";
+		compatible = "ct,vtl_ts";
 		reg = <0x01>;
-		ct-model = <365>;
-		touch-gpio = <&gpio7 GPIO_A6 IRQ_TYPE_LEVEL_LOW>;
-		reset-gpio = <&gpio7 GPIO_A5 GPIO_ACTIVE_HIGH>;
-		max-x = <1280>;
-		max-y = <800>;
-		orientation=<1 0 0 1>;
+		screen_max_x = <2048>;
+		screen_max_y = <1536>;
+		irq_gpio_number = <&gpio7 GPIO_A6 IRQ_TYPE_LEVEL_LOW>;
+		rst_gpio_number = <&gpio7 GPIO_A5 GPIO_ACTIVE_HIGH>;
 	};
 };
 
@@ -453,6 +527,7 @@
 
 &fb {
 	rockchip,disp-mode = <DUAL>;
+	rockchip,uboot-logo-on = <1>;
 };
 
 &rk_screen {
@@ -472,7 +547,7 @@
 		};
 		
 		lcd_cs:lcd_cs {
-rockchip,power_type = <GPIO>;
+			rockchip,power_type = <GPIO>;
 			gpios = <&gpio7 GPIO_A4 GPIO_ACTIVE_HIGH>;
 			rockchip,delay = <10>;
 		};
@@ -525,7 +600,7 @@ rockchip,power_type = <GPIO>;
 			label = "volume down";
 			rockchip,adc_value = <170>;
 		};
-
+		
 		power-key {
 			gpios = <&gpio0 GPIO_A5 GPIO_ACTIVE_LOW>;
 			linux,code = <116>;
@@ -618,6 +693,7 @@ rockchip,power_type = <GPIO>;
 		SYS_STATUS_VIDEO	300000
 		SYS_STATUS_DUALVIEW	500000
 		>;
+	auto_freq=<1>;
 	status="okay";
 };
 
@@ -730,6 +806,349 @@ rockchip,power_type = <GPIO>;
 			regulator-name= "rk_ldo10";
 			regulator-always-on;
 			regulator-boot-on;
+		};
+	};
+};
+
+/include/ "ricoh619.dtsi"
+&ricoh619 {
+	gpios =<&gpio0 GPIO_A4 GPIO_ACTIVE_HIGH>,<&gpio0 GPIO_B3 GPIO_ACTIVE_LOW>,<&gpio0 GPIO_B0 GPIO_ACTIVE_HIGH>;
+	ricoh619,system-power-controller;
+	
+	regulators {
+		ricoh619_dcdc1_reg: regulator@0 {
+			regulator-name = "vdd_logic";
+			regulator-min-microvolt = < 700000>;
+			regulator-max-microvolt = <1500000>;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <900000>;
+			};	
+		};
+		ricoh619_dcdc2_reg: regulator@1 {
+			regulator-name = "ricoh619_dcdc2";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <1200000>;
+			};	
+		};
+		ricoh619_dcdc3_reg: regulator@2 {
+			regulator-name = "ricoh619_dcdc3";
+			regulator-min-microvolt = < 1200000>;
+			regulator-max-microvolt = <1200000>;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <1200000>;
+			};	
+		};
+		ricoh619_dcdc4_reg: regulator@3 {
+			regulator-name = "ricoh619_dcdc4";
+			regulator-min-microvolt = < 3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <2800000>;
+			};	
+		};
+		ricoh619_dcdc5_reg: regulator@4 {
+			regulator-name = "ricoh619_dcdc5";
+			regulator-min-microvolt = < 2000000>;
+			regulator-max-microvolt = <2000000>;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <2000000>;
+			};	
+		};
+		ricoh619_ldo1_reg: regulator@5  {
+			regulator-name = "ricoh619_ldo1";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};	
+		};
+		ricoh619_ldo2_reg: regulator@6  {
+			regulator-name = "ricoh619_ldo2";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+		ricoh619_ldo3_reg: regulator@7  {
+			regulator-name = "ricoh619_ldo3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+		ricoh619_ldo4_reg: regulator@8  {
+			regulator-name = "vcc_sd";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+		ricoh619_ldo5_reg: regulator@9  {
+			regulator-name = "ricoh619_ldo5";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+		ricoh619_ldo6_reg: regulator@10  {
+			regulator-name = "ricoh619_ldo6";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1800000>;
+			};
+		};
+		ricoh619_ldo7_reg: regulator@11  {
+			regulator-name = "ricoh619_ldo7";
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+		ricoh619_ldo8_reg: regulator@12  {
+			regulator-name = "ricoh619_ldo8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+		ricoh619_ldo9_reg: regulator@13  {
+			regulator-name = "ricoh619_ldo9";
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+		ricoh619_ldo10_reg: regulator@14  {
+			regulator-name = "ricoh619_ldo10";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+		ricoh619_ldortc1_reg: regulator@15  {
+			regulator-name = "ricoh619_ldortc1";
+			regulator-min-microvolt = < 3300000>;
+			regulator-max-microvolt = <3300000>;
+		};
+		ricoh619_ldortc2_reg: regulator@16  {
+			regulator-name = "ricoh619_ldortc2";
+			regulator-min-microvolt = < 3300000>;
+			regulator-max-microvolt = <3300000>;
+		};
+	};
+};
+/include/ "rk818.dtsi"
+&rk818 {
+	gpios =<&gpio0 GPIO_A4 GPIO_ACTIVE_HIGH>,<&gpio0 GPIO_B3 GPIO_ACTIVE_LOW>;
+	rk818,system-power-controller;
+
+	regulators {
+		
+		rk818_dcdc1_reg: regulator@0{
+			regulator-name= "vdd_logic";
+			regulator-min-microvolt = <700000>;
+			regulator-max-microvolt = <1500000>;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <900000>;
+			};		
+		};
+
+		rk818_dcdc2_reg: regulator@1 {
+			regulator-name= "rk818_dcdc2";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;	
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <1200000>;
+			};	
+		};
+
+		rk818_dcdc3_reg: regulator@2 {
+			regulator-name= "rk818_dcdc3";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+				regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <1200000>;
+			};	
+		};
+
+		rk818_dcdc4_reg: regulator@3 {
+			regulator-name= "vccio";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <2800000>;
+			};	
+		};
+
+		rk818_ldo1_reg: regulator@4 {
+			regulator-name= "rk818_ldo1";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};	
+		};
+
+		rk818_ldo2_reg: regulator@5 {
+			regulator-name= "rk818_ldo2";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};	
+		};
+
+		rk818_ldo3_reg: regulator@6 {
+			regulator-name= "rk818_ldo3";
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1000000>;
+			};	
+		};
+
+		rk818_ldo4_reg:regulator@7 {
+			regulator-name= "rk818_ldo4";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-disabled;
+				regulator-state-uv = <1800000>;
+			};
+		};
+
+		rk818_ldo5_reg: regulator@8 {
+			regulator-name= "rk818_ldo5";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+
+		rk818_ldo6_reg: regulator@9 {
+			regulator-name= "rk818_ldo6";
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-disabled;
+				regulator-state-uv = <1000000>;
+			};	
+		};
+
+		rk818_ldo7_reg: regulator@10 {
+			regulator-name= "rk818_ldo7";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1800000>;
+			};	
+		};
+
+		rk818_ldo8_reg: regulator@11 {
+			regulator-name= "rk818_ldo8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1800000>;
+			};	
+		};
+		rk818_ldo9_reg: regulator@12 {
+			regulator-name= "vcc_sd";
+			regulator-min-microvolt = <1800000>;
+  		regulator-max-microvolt = <3300000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+		rk818_ldo10_reg: regulator@13 {
+			regulator-name= "rk818_ldo10";
+			regulator-state-mem {
+				regulator-state-disabled;
+			};
 		};
 	};
 };
