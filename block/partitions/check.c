@@ -43,6 +43,10 @@ static int (*check_part[])(struct parsed_partitions *) = {
 	 * Probe partition formats with tables at disk address 0
 	 * that also have an ADFS boot block at 0xdc0.
 	 */
+#if CONFIG_MMC_DW_ROCKCHIP
+	mtdpart_partition,
+#endif
+
 #ifdef CONFIG_ACORN_PARTITION_ICS
 	adfspart_check_ICS,
 #endif
@@ -106,10 +110,6 @@ static int (*check_part[])(struct parsed_partitions *) = {
 	sysv68_partition,
 #endif
 
-#if CONFIG_MMC_DW_ROCKCHIP
-    mtdpart_partition,
-#endif
-
 	NULL
 };
 
@@ -163,22 +163,22 @@ check_partition(struct gendisk *hd, struct block_device *bdev)
 		sprintf(state->name, "p");
 
 	i = res = err = 0;
-	
-	//if the disk is eMMC,then skip directly the check_part to mtdpart_partition; added by xbw, at 2014-03-24	
- 	if((179 == MAJOR(bdev->bd_dev)&& (1 == hd->emmc_disk)))
-    		i=sizeof(check_part)/sizeof(struct parsed_partitions *)-2;
 
+	//if the disk is eMMC,then skip directly the check_part to mtdpart_partition; added by xbw, at 2014-03-24
+	if((179 == MAJOR(bdev->bd_dev) && (1 == hd->emmc_disk)))
+		i = 0;
+	else
+		i = 1;
 	while (!res && check_part[i]) {
 		memset(state->parts, 0, state->limit * sizeof(state->parts[0]));
 		res = check_part[i++](state);
 		if (res < 0) {
 			/* We have hit an I/O error which we don't report now.
-		 	* But record it, and let the others do their job.
-		 	*/
+			 * But record it, and let the others do their job.
+			 */
 			err = res;
 			res = 0;
 		}
-
 	}
 	if (res > 0) {
 		printk(KERN_INFO "%s", state->pp_buf);
