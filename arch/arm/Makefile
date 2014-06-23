@@ -339,7 +339,7 @@ kernel.img: zImage
 	rm -f $(objtree)/zImage-dtb
 	@echo '  Image:  kernel.img (with $*.dtb) is ready'
 
-LOGO := $(notdir $(wildcard $(srctree)/logo.bmp))
+LOGO := $(wildcard $(srctree)/logo.bmp)
 %.img: %.dtb kernel.img $(LOGO)
 	$(Q)$(srctree)/resource_tool $(objtree)/arch/arm/boot/dts/$*.dtb $(LOGO)
 	@echo '  Image:  resource.img (with $*.dtb $(LOGO)) is ready'
