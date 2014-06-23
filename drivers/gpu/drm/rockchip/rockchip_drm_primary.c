@@ -263,7 +263,7 @@ static void primary_win_mode_set(struct device *dev,
 	win_data->bpp = overlay->bpp;
 	win_data->buf_offsize = (overlay->fb_width - overlay->crtc_width) *
 	    (overlay->bpp >> 3);
-	win_data->line_size = overlay->crtc_width * (overlay->bpp >> 3);
+	win_data->line_size = overlay->pitch;
 
 }
 
@@ -393,7 +393,7 @@ static void primary_win_commit(struct device *dev, int zpos)
 	rk_win->yact = win_data->ovl_height;
 	rk_win->xsize = win_data->ovl_width;
 	rk_win->ysize = win_data->ovl_height;
-	rk_win->xvir = win_data->fb_width;
+	rk_win->xvir = win_data->line_size / (win_data->bpp >> 3);
 	rk_win->yrgb_addr = win_data->dma_addr;
 	rk_win->enabled = true;
 
