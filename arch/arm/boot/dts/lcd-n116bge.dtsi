@@ -1,0 +1,31 @@
+/*
+ * RockChip. DisplayPort screen N116BGE
+ *
+ */
+
+/ {
+
+		disp_timings: display-timings {
+                        native-mode = <&timing0>;
+                        timing0: timing0 {
+				screen-type = <SCREEN_EDP>;
+				out-face    = <OUT_P666>;
+				clock-frequency = <76000000>;
+				hactive = <1366>;
+				vactive = <768>;
+				hback-porch = <100>;
+				hfront-porch = <100>;
+				vback-porch = <18>;
+				vfront-porch = <10>;
+				hsync-len = <26>;
+				vsync-len = <4>;
+				hsync-active = <0>;
+				vsync-active = <0>;
+				de-active = <0>;
+				pixelclk-active = <1>;
+				swap-rb = <0>;
+				swap-rg = <0>;
+				swap-gb = <0>;
+                     	};
+               };
+};
