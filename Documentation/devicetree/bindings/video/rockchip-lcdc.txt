@@ -1,0 +1,96 @@
+Device-Tree bindings for Rockchip SoC display controller (LCDC)
+
+LCDC (LCD Controller) is the Display Controller for the Rockchip
+series of SoCs which transfers the image data from a video memory
+buffer to an external LCD interface.
+
+Required properties:
+- compatible: value should be one of the following
+		"rockchip,rk3066-lcdc";
+		"rockchip,rk3188-lcdc";
+		"rockchip,rk3288-lcdc";
+
+- interrupts: should contain a list of all LCDC IP block interrupts in the
+		 order: VSYNC, LCD_SYSTEM. The interrupt specifier
+		 format depends on the interrupt controller used.
+
+- clocks: must include clock specifiers corresponding to entries in the
+         clock-names property.
+
+- clock-names:  Must contain
+		aclk_lcdc: for ddr buffer transfer.
+		hclk_lcdc: for ahb bus to R/W the phy regs.
+		dclk_lcdc: pixel clock.
+
+- rockchip,prop: select which display interface attach lcdc
+		0: attach the lcd interface, such as lvds,edp,etc.
+		1: attach the hdmi interface.
+
+- rockchip,pwr18: lcdc support VCC 3.3V or 1.8V
+		0: 3.3V mode
+		1: 1.8V mode
+
+- rockchip,type: select the display interface type, as the following
+		0: there is no display interface.
+		1: RGB screen
+		2: LVDS screen
+		3~5: Reserved
+		6: HDMI screen
+		7: MIPI screen
+		8: DUAL_MIPI screen
+		9: EDP screen
+
+- rockchip,face: select the lcdc display mode. value should set as following
+		0x0: 24bit display port, R8 G8 B8
+		0x1: 18bit display port, R6 G6 B6
+		0x2: 16bit display port, R5 G6 B5
+		0x21: 18bit display port, R6 G6 B6, support dither
+		0x22: 16bit display port, R5 G6 B5, support dither
+
+- rockchip,lvds-format: if display interface is LVDS, set the lvds_format.
+		0: lvds format is 24bit, R6-R7, G6-G7, B6-B7 at channel 3
+		1: lvds format is 24bit, R0-R1, G0-G1, B0-B1 at channel 3
+		2: lvds format is 24bit, R0-R1, G0-G1, B0-B1 at channel 3
+			but channel 3 data is zero
+		3: lvds format is 18bit, it have no channel 3
+
+- rockchip,color-swap: if need color swap,set flags as the following
+		0x1: swap R and B color
+		0x2: swap R and G color
+		0x4: swap B and G color
+
+[1]: Documentation/devicetree/bindings/video/display-timing.txt
+
+Example:
+
+SoC specific DT entry:
+	lcdc1 {
+		lcdc1_gpio:lcdc1_gpio {
+			rockchip,pins = <RK_GPIO1 32 RK_FUNC_GPIO &pcfg_pull_none>,
+					<RK_GPIO1 33 RK_FUNC_GPIO &pcfg_pull_none>,
+					<RK_GPIO1 34 RK_FUNC_GPIO &pcfg_pull_none>,
+					<RK_GPIO1 35 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	lcdc0: lcdc@ff930000 {
+		compatible = "rockchip,rk3288-lcdc";
+		rockchip,prop = <1>;
+		rockchip,pwr18 = <0>;
+		reg = <0xff930000 0x10000>;
+		interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru ACLK_LCDC0>, <&cru DCLK_LCDC0>, <&cru HCLK_LCDC0>;
+		clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc";
+	};
+
+	lcdc1: lcdc@ff940000 {
+		compatible = "rockchip,rk3288-lcdc";
+		rockchip,prop = <0>;
+		rochchip,pwr18 = <0>;
+		reg = <0xff940000 0x10000>;
+		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
+		pinctrl-names = "default", "gpio";
+		pinctrl-0 = <&lcdc1_gpio>;
+		clocks = <&cru ACLK_LCDC1>, <&cru DCLK_LCDC1>, <&cru HCLK_LCDC1>;
+		clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc";
+	};
