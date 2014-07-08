@@ -14,3 +14,15 @@ config DRM_ROCKCHIP
 	  The driver provides an abstraction for the graphics hardware,
 	  such as lcd controller and display interface. alloc dma buffer
 	  for graphics devices, set devices display mode.
+
+config DRM_ROCKCHIP_LCDC
+	bool "ROCKCHIP DRM LCDC"
+	depends on DRM_ROCKCHIP
+	select FB_MODE_HELPERS
+	help
+	  Choose this option if you want to use Rockchip lcdc for DRM.
+	  The driver provides an abstraction for Rockchip lcd controller,
+	  lcd controller is the display interface from memory frame buffer
+	  to display device.
+
+source "drivers/gpu/drm/rockchip/lcdc/Kconfig"
