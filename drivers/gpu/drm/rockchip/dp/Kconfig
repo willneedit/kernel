@@ -1,0 +1,8 @@
+config RK32XX_LVDS
+	bool "RK32XX lvds transmitter support"
+	depends on DRM_ROCKCHIP_DP
+	help
+	  Choose this option if you have a rk32xx lvds transmitter.
+	  rk32xx lvds transmitter support ttl rgb, lvds and dual lvds
+	  mode, dual lvds mode is support for the plane which need dual
+	  lvds channels.

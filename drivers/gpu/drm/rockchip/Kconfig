@@ -25,4 +25,15 @@ config DRM_ROCKCHIP_LCDC
 	  lcd controller is the display interface from memory frame buffer
 	  to display device.
 
+config DRM_ROCKCHIP_DP
+	bool "RK LCD DISPLAY"
+	depends on OF && DRM_ROCKCHIP && DRM_ROCKCHIP_LCDC
+	select FB_MODE_HELPERS
+	select VIDEOMODE_HELPERS
+	help
+	  Choose this option if you want to use Rockchip Primary DISPLAY.
+	  The driver provides an abstraction for Rockchip display devices,
+	  such as lcd plane, lvds, edp , mipi, etc.
+
 source "drivers/gpu/drm/rockchip/lcdc/Kconfig"
+source "drivers/gpu/drm/rockchip/dp/Kconfig"
