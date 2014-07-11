@@ -39,6 +39,7 @@
 #define GPIO0_B2 0x0b20
 #define OTP_OUT 0x0b21
 
+#define GPIO0_B4 0x0b40
 
 #define GPIO0_B5 0x0b50
 #define CLK_27M 0x0b51
