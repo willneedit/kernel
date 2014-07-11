@@ -194,6 +194,15 @@ config SND_RK_SOC_RT3261
 	help
 	  Say Y if you want to add support for SoC audio on rockchip
 	  with the RT3261.
+	  
+config SND_RK_SOC_MAX98090
+	tristate "SoC I2S Audio support for rockchip - MAX98090"
+	depends on SND_RK_SOC
+	select SND_RK_SOC_I2S
+	select SND_SOC_MAX98090
+	help
+	  Say Y if you want to add support for SoC audio on rockchip
+	  with the MAX98090.
 
 config SND_RK_SOC_WM8994
 	tristate "SoC I2S Audio support for rockchip - WM8994"
