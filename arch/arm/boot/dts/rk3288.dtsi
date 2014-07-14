@@ -14,6 +14,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/pinctrl/rockchip.h>
+#include <dt-bindings/display/display.h>
 #include <dt-bindings/clock/rk3288-cru.h>
 #include "skeleton.dtsi"
 
@@ -257,6 +258,14 @@
 				interrupt-controller;
 				#interrupt-cells = <2>;
 			};
+			lcdc1 {
+				lcdc1_gpio:lcdc1_gpio {
+					rockchip,pins = <RK_GPIO1 32 RK_FUNC_GPIO &pcfg_pull_none>,
+							<RK_GPIO1 33 RK_FUNC_GPIO &pcfg_pull_none>,
+							<RK_GPIO1 34 RK_FUNC_GPIO &pcfg_pull_none>,
+							<RK_GPIO1 35 RK_FUNC_GPIO &pcfg_pull_none>;
+	   			};
+	   		};
 
 			pcfg_pull_up: pcfg_pull_up {
 				bias-pull-up;
@@ -536,6 +545,54 @@
 			clocks = <&cru SCLK_UART0>, <&cru PCLK_UART0>;
 			clock-names = "baudclk", "apb_pclk";
 			status = "disabled";
+		};
+
+		lvds: lvds@ff96c000 {
+			compatible = "rockchip,rk32xx-lvds";
+			rockchip,grf = <&grf>;
+			reg = <0xff96c000 0x4000>;
+			clocks = <&cru PCLK_LVDS_PHY>;
+			clock-names = "pclk_lvds";
+		};
+
+		lcdc1: lcdc@ff940000 {
+			compatible = "rockchip,rk3288-lcdc";
+			rockchip,prop = <0>;
+			rochchip,pwr18 = <0>;
+			reg = <0xff940000 0x10000>;
+			interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
+			pinctrl-names = "default", "gpio";
+			pinctrl-0 = <&lcdc1_gpio>;
+			//pinctrl-1 = <&lcdc0_gpio>;
+			status = "disabled";
+			clocks = <&cru ACLK_VOP1>, <&cru DCLK_VOP1>, <&cru HCLK_VOP1>;
+			clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc";
+		};
+
+		gpu{
+			compatible = "arm,malit764",
+				     "arm,malit76x",
+				     "arm,malit7xx",
+				     "arm,mali-midgard";
+			reg = <0xffa30000 0x10000>;
+			interrupts = <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-names = "JOB", "MMU", "GPU";
+			
+			clocks = <&cru SCLK_GPU>, <&cru ACLK_GPU>;
+			clock-names = "sclk_gpu", "aclk_gpu";
+		};
+
+		lcdc0: lcdc@ff930000 {
+			compatible = "rockchip,rk3288-lcdc";
+			rockchip,prop = <1>;
+			rockchip,pwr18 = <0>;
+			reg = <0xff930000 0x10000>;
+			interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+			clocks = <&cru ACLK_VOP0>, <&cru DCLK_VOP0>, <&cru HCLK_VOP0>;
+			clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc";
 		};
 
 		uart1: serial@ff190000 {

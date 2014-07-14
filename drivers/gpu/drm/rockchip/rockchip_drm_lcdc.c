@@ -577,5 +577,17 @@ struct platform_driver lcdc_platform_driver = {
 		.of_match_table = of_match_ptr(lcdc_driver_dt_match),
 	},
 };
+static int rockchip_drm_init(void)
+{
+	platform_driver_register(&lcdc_platform_driver);
+	return 0;
+}
 
-module_platform_driver(lcdc_platform_driver);
+static void rockchip_drm_exit(void)
+{
+	platform_driver_unregister(&lcdc_platform_driver);
+}
+
+fs_initcall(rockchip_drm_init);
+module_exit(rockchip_drm_exit);
+//module_platform_driver(lcdc_platform_driver);

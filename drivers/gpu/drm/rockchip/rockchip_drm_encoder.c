@@ -108,9 +108,9 @@ static void rockchip_drm_encoder_disable(struct drm_encoder *encoder)
 	rockchip_drm_encoder_dpms(encoder, DRM_MODE_DPMS_OFF);
 
 	/* all planes connected to this encoder should be also disabled. */
-	drm_for_each_legacy_plane(plane, &dev->mode_config.plane_list) {
-		if (plane->crtc == encoder->crtc)
-			plane->funcs->disable_plane(plane);
+	list_for_each_entry(plane, &dev->mode_config.plane_list, head) {        
+	if (plane->crtc == encoder->crtc)
+		plane->funcs->disable_plane(plane);
 	}
 }
 

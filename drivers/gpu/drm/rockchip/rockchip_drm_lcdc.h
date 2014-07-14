@@ -16,7 +16,6 @@
 #define _ROCKCHIP_DRM_LCDC_H_
 #include <linux/platform_device.h>
 #include <drm/drm_crtc.h>
-#include <drm/drm_modes.h>
 /*
  * display output interface supported by rockchip lcdc
  */

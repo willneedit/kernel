@@ -22,7 +22,6 @@
 #include <linux/platform_device.h>
 #include <drm/rockchip_drm.h>
 #include <drm/drm_crtc.h>
-#include <drm/drm_modes.h>
 
 #ifdef CONFIG_OF
 #include <linux/of.h>

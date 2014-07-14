@@ -18,7 +18,6 @@
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_panel.h>
 
-#include "../drm_crtc_internal.h"
 #include <linux/regulator/consumer.h>
 
 #include <video/of_videomode.h>
@@ -36,7 +35,7 @@ struct rockchip_dp_context {
 	struct drm_connector connector;
 	struct drm_encoder *encoder;
 
-	struct drm_display_mode *mode;
+	struct drm_display_mode mode;
 
 	int dpms_mode;
 };
@@ -67,15 +66,15 @@ static int rockchip_dp_get_modes(struct drm_connector *connector)
 {
 	struct rockchip_dp_context *ctx = connector_to_dp(connector);
 	struct drm_display_mode *mode;
-	const struct drm_display_mode *priv_mode = ctx->mode;
+	const struct drm_display_mode *priv_mode = &ctx->mode;
 
-	if (ctx->mode) {
-		mode = drm_mode_duplicate(connector->dev, priv_mode);
-		if (mode) {
-			drm_mode_probed_add(connector, mode);
-			return 1;
-		}
+	mode = drm_mode_duplicate(connector->dev, priv_mode);
+
+	if (mode) {
+		drm_mode_probed_add(connector, mode);
+		return 1;
 	}
+
 	return 0;
 }
 
@@ -152,8 +151,14 @@ static void rockchip_dp_dpms(struct rockchip_drm_display *display, int mode)
 	ctx->dpms_mode = mode;
 }
 
+static int rockchip_check_mode(struct rockchip_drm_display *display,
+			       struct drm_display_mode *mode)
+{
+	return MODE_OK;
+}
 static struct rockchip_drm_display_ops rockchip_dp_display_ops = {
 	.create_connector = rockchip_dp_create_connector,
+	.check_mode = rockchip_check_mode,
 	.dpms = rockchip_dp_dpms,
 };
 
@@ -171,7 +176,6 @@ static int rockchip_dp_parse_dt(struct rockchip_dp_context *ctx)
 	struct rockchip_mode_priv *priv;
 	u32 val;
 	int ret;
-
 	np = of_get_child_by_name(dn, "display-timings");
 	if (!np) {
 		DRM_ERROR("can't find display timings\n");
@@ -185,19 +189,12 @@ static int rockchip_dp_parse_dt(struct rockchip_dp_context *ctx)
 	ret = of_get_videomode(dn, &vm, 0);
 	if (ret < 0)
 		return ret;
+	drm_display_mode_from_videomode(&vm, &ctx->mode);
 
-	ctx->mode = kzalloc(sizeof(ctx->mode), GFP_KERNEL);
-	if (!ctx->mode) {
-		DRM_ERROR("failed to create a new display mode\n");
-		return 0;
-	}
+	ctx->mode.type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
 
-	drm_display_mode_from_videomode(&vm, ctx->mode);
-	ctx->mode->type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
-
-	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
+	priv = devm_kzalloc(dev,sizeof(*priv), GFP_KERNEL);
 	if (!priv) {
-		kfree(ctx->mode);
 		DRM_ERROR("failed to create private mode data\n");
 		return -ENOMEM;
 	}
@@ -220,10 +217,9 @@ static int rockchip_dp_parse_dt(struct rockchip_dp_context *ctx)
 		priv->color_swap = 0;
 	else
 		priv->color_swap = val;
-
 	priv->lcdc_id = 1;
 	priv->flags = vm.flags;
-	ctx->mode->private = (void *)priv;
+	ctx->mode.private = (void *)priv;
 
 	return 0;
 }
@@ -239,7 +235,7 @@ struct rockchip_drm_display *rockchip_dp_probe(struct device *dev)
 	if (ret)
 		return ERR_PTR(ret);
 
-	ctx = devm_kzalloc(dev, sizeof(*ctx), GFP_KERNEL);
+	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (!ctx)
 		goto err_del_component;
 
@@ -278,14 +274,13 @@ int rockchip_dp_remove(struct device *dev)
 int rockchip_dp_register(struct rockchip_dp *dp)
 {
 	struct rockchip_dp_context *ctx = rockchip_dp_display.ctx;
-	struct rockchip_mode_priv *priv;
 
-	if (!(ctx && ctx->mode)) {
+	if (!(ctx)) {
 		DRM_ERROR("dp controller have not init, register later\n");
 		return -1;
 	}
 
-	priv = (void *)ctx->mode->private;
+	priv = (void *)ctx->mode.private;
 
 	if (priv->type != dp->type)
 		return -1;
@@ -294,7 +289,7 @@ int rockchip_dp_register(struct rockchip_dp *dp)
 		DRM_ERROR("dp type(%d) already registered\n", dp->type);
 	ctx->dp = dp;
 	if (ctx->dp->setmode)
-		ctx->dp->setmode(dp, ctx->mode);
+		ctx->dp->setmode(dp, &ctx->mode);
 	DRM_DEBUG_KMS("succes register dp type=%d\n", dp->type);
 
 	return 0;

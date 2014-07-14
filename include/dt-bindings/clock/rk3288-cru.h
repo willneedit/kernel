@@ -113,6 +113,10 @@
 #define PCLK_TIMER		353
 #define PCLK_TZPC		354
 
+#define PCLK_LVDS_PHY           353 //temp set cym
+#define PCLK_EDP_CTRL              354//temp set cym
+#define PCLK_HDMI_CTRL        355//temp set cym
+
 /* hclk gates */
 #define HCLK_GPS		448
 #define HCLK_OTG0		449

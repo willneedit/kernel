@@ -138,20 +138,20 @@ static int rockchip_drm_crtc_mode_set(struct drm_crtc *crtc,
 	 */
 	memcpy(&crtc->mode, adjusted_mode, sizeof(*adjusted_mode));
 
-	crtc_w = crtc->primary->fb->width - x;
-	crtc_h = crtc->primary->fb->height - y;
+	crtc_w = crtc->fb->width - x;
+	crtc_h = crtc->fb->height - y;
 
 	if (manager->ops->mode_set)
 		manager->ops->mode_set(manager, &crtc->mode);
 
-	ret = rockchip_plane_mode_set(plane, crtc, crtc->primary->fb,
+	ret = rockchip_plane_mode_set(plane, crtc, crtc->fb,
 				      0, 0, crtc_w, crtc_h,
 				      x, y, crtc_w, crtc_h);
 	if (ret)
 		return ret;
 
 	plane->crtc = crtc;
-	plane->fb = crtc->primary->fb;
+	plane->fb = crtc->fb;
 	drm_framebuffer_reference(plane->fb);
 
 	return 0;
@@ -173,10 +173,10 @@ static int rockchip_drm_crtc_mode_set_commit(struct drm_crtc *crtc,
 		return -EPERM;
 	}
 
-	crtc_w = crtc->primary->fb->width - x;
-	crtc_h = crtc->primary->fb->height - y;
+	crtc_w = crtc->fb->width - x;
+	crtc_h = crtc->fb->height - y;
 
-	ret = rockchip_plane_mode_set(plane, crtc, crtc->primary->fb,
+	ret = rockchip_plane_mode_set(plane, crtc, crtc->fb,
 				      0, 0, crtc_w, crtc_h, x, y,
 				      crtc_w, crtc_h);
 	if (ret)
@@ -200,7 +200,7 @@ static void rockchip_drm_crtc_disable(struct drm_crtc *crtc)
 
 	rockchip_drm_crtc_dpms(crtc, DRM_MODE_DPMS_OFF);
 
-	drm_for_each_legacy_plane(plane, &crtc->dev->mode_config.plane_list) {
+	list_for_each_entry(plane, &crtc->dev->mode_config.plane_list, head) {
 		if (plane->crtc != crtc)
 			continue;
 
@@ -227,7 +227,7 @@ static int rockchip_drm_crtc_page_flip(struct drm_crtc *crtc,
 {
 	struct drm_device *dev = crtc->dev;
 	struct rockchip_drm_crtc *rockchip_crtc = to_rockchip_crtc(crtc);
-	struct drm_framebuffer *old_fb = crtc->primary->fb;
+	struct drm_framebuffer *old_fb = crtc->fb;
 	int ret = -EINVAL;
 
 	/* when the page flip is requested, crtc's dpms should be on */
@@ -259,10 +259,10 @@ static int rockchip_drm_crtc_page_flip(struct drm_crtc *crtc,
 	atomic_set(&rockchip_crtc->pending_flip, 1);
 	spin_unlock_irq(&dev->event_lock);
 
-	crtc->primary->fb = fb;
+	crtc->fb = fb;
 	ret = rockchip_drm_crtc_mode_set_commit(crtc, crtc->x, crtc->y, NULL);
 	if (ret) {
-		crtc->primary->fb = old_fb;
+		crtc->fb = old_fb;
 
 		spin_lock_irq(&dev->event_lock);
 		drm_vblank_put(dev, rockchip_crtc->pipe);
