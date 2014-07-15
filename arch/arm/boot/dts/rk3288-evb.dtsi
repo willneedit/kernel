@@ -75,3 +75,15 @@
 		};
 	};
 };
+
+&usb_otg {
+	status = "okay";
+};
+
+&usb_host1 {
+	status = "okay";
+};
+
+&usb_host0_ehci {
+	status = "okay";
+};
