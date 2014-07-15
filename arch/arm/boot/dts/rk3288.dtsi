@@ -557,5 +557,51 @@
 			clock-names = "baudclk", "apb_pclk";
 			status = "disabled";
 		};
+
+		usb_otg: dwc2@ff580000 {
+			compatible = "snps,dwc2";
+			reg = <0xff580000 0x40000>;
+			interrupts = <GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&cru HCLK_OTG0>;
+			clock-names = "otg";
+			status = "disabled";
+		};
+
+		usb_host1: dwc2@ff540000 {
+			compatible = "snps,dwc2";
+			reg = <0xff540000 0x40000>;
+			interrupts = <GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&cru HCLK_USBHOST1>;
+			clock-names = "otg";
+			status = "disabled";
+		};
+
+		usb_host0_ehci: ehci@ff500000 {
+			compatible = "generic-ehci";
+			reg = <0xff500000 0x100>;
+			interrupts = <GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&cru HCLK_USBHOST0>;
+			clock-names = "usbhost";
+			status = "disabled";
+		};
+
+		/* NOTE: OHCI doesn't actually work on hardware */
+		usb_host0_ohci: ohci@ff520000 {
+			compatible = "generic-ohci";
+			reg = <0xff520000 0x100>;
+			interrupts = <GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&cru HCLK_USBHOST0>;
+			clock-names = "usbhost";
+			status = "disabled";
+		};
+
+		usb_hsic: ehci@ff5c0000 {
+			compatible = "generic-ehci";
+			reg = <0xff5c0000 0x100>;
+			interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&cru HCLK_HSIC>;
+			clock-names = "usbhost";
+			status = "disabled";
+		};
 	};
 };
