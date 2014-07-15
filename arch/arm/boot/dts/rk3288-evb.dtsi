@@ -1,0 +1,77 @@
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "rk3288.dtsi"
+
+/ {
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial2 = &uart2;
+		serial3 = &uart3;
+		serial4 = &uart4;
+	};
+
+	memory {
+		reg = <0x0 0x80000000>;
+	};
+
+	soc {
+		gpio-keys {
+			compatible = "gpio-keys";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			autorepeat;
+
+			button@0 {
+				gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
+				linux,code = <116>;
+				label = "GPIO Key Power";
+				linux,input-type = <1>;
+				gpio-key,wakeup = <1>;
+				debounce-interval = <100>;
+			};
+		};
+
+		i2c0: i2c@ff650000 {
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c0_xfer>;
+			status = "okay";
+		};
+
+		watchdog@ff800000 {
+			status = "okay";
+		};
+
+		serial@ff180000 {
+			status = "okay";
+		};
+
+		serial@ff190000 {
+			status = "okay";
+		};
+
+		uart2: serial@ff690000 {
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart2_xfer>;
+			status = "okay";
+		};
+
+		uart3: serial@ff1b0000 {
+			status = "okay";
+		};
+
+		uart4: serial@ff1c0000 {
+			status = "okay";
+		};
+	};
+};
