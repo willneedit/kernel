@@ -274,6 +274,7 @@ int rockchip_dp_remove(struct device *dev)
 int rockchip_dp_register(struct rockchip_dp *dp)
 {
 	struct rockchip_dp_context *ctx = rockchip_dp_display.ctx;
+	struct rockchip_mode_priv *priv;
 
 	if (!(ctx)) {
 		DRM_ERROR("dp controller have not init, register later\n");
