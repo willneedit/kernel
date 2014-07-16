@@ -4,6 +4,10 @@
 
 # Create $(fwabs) from $(CONFIG_EXTRA_FIRMWARE_DIR) -- if it doesn't have a
 # leading /, it's relative to $(srctree).
+ifeq ($(CONFIG_MV8897),y)
+CONFIG_EXTRA_FIRMWARE="sd8897_uapsta.bin"
+CONFIG_EXTRA_FIRMWARE_DIR="firmware/mrvl"
+endif
 fwdir := $(subst ",,$(CONFIG_EXTRA_FIRMWARE_DIR))
 fwabs := $(addprefix $(srctree)/,$(filter-out /%,$(fwdir)))$(filter /%,$(fwdir))
 
@@ -198,7 +202,7 @@ $(patsubst %,$(obj)/%.gen.S, $(fw-shipped-y)): %: $(wordsize_deps) \
 		| $(objtree)/$$(dir %)
 	$(call cmd,fwbin,$(patsubst %.gen.S,%,$@))
 $(patsubst %,$(obj)/%.gen.S, $(fw-external-y)): %: $(wordsize_deps) \
-		include/config/extra/firmware/dir.h | $(objtree)/$$(dir %)
+		| $(objtree)/$$(dir %)
 	$(call cmd,fwbin,$(fwabs)/$(patsubst $(obj)/%.gen.S,%,$@))
 
 # The .o files depend on the binaries directly; the .S files don't.

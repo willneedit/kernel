@@ -11,5 +11,6 @@ obj-$(CONFIG_RDA5990)          += rockchip_wlan/rda5990/
 obj-$(CONFIG_MT5931)           += rockchip_wlan/mt5931/
 obj-$(CONFIG_MT5931_MT6622)    += rockchip_wlan/mt5931/
 obj-$(CONFIG_RTL8723BS)        += rockchip_wlan/rtl8723bs/
+obj-$(CONFIG_MV8897)           += rockchip_wlan/mv8897/
 obj-$(CONFIG_MTK_COMBO_WIFI)   += rockchip_wlan/combo_mt66xx/
 obj-$(CONFIG_MTK_MT5931)       += rockchip_wlan/mt5931_kk/
