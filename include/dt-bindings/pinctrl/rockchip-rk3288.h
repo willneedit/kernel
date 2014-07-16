@@ -530,6 +530,8 @@
 #define GPIO7_A1 0x7a10
 #define PWM1 0x7a11
 
+#define GPIO7_A3 0x7a30
+
 #define GPIO7_A7 0x7a70
 #define UART3GPS_SIN 0x7a71
 #define GPS_MAG 0x7a72
