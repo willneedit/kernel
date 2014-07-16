@@ -239,6 +239,11 @@
 
 &i2c1 {
 	status = "okay";
+
+	tpm: tpm@20 {
+		compatible = "infineon,slb9645tt";
+		reg = <0x20>;
+	};
 };
 
 &i2c2 {
