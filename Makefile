@@ -201,8 +201,8 @@ endif
 ifneq ($(wildcard ../prebuilt/linux-x86/toolchain/arm-eabi-4.4.3),)
 CROSS_COMPILE	?= ../prebuilt/linux-x86/toolchain/arm-eabi-4.4.3/bin/arm-eabi-
 endif
-ifneq ($(wildcard /android/29/kitkat/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6),)
-CROSS_COMPILE   ?= /android/29/kitkat/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin/arm-eabi-
+ifneq ($(wildcard ../prebuilts/gcc/linux-x86/arm/arm-eabi-4.6),)
+CROSS_COMPILE   ?= ../prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin/arm-eabi-
 endif
 CROSS_COMPILE	?= $(CONFIG_CROSS_COMPILE:"%"=%)
 
