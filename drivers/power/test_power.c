@@ -21,7 +21,7 @@
 #include <linux/delay.h>
 #include <linux/vermagic.h>
 
-static int ac_online			= 1;
+static int ac_online			= 0;
 static int usb_online			= 1;
 static int battery_status		= POWER_SUPPLY_STATUS_DISCHARGING;
 static int battery_health		= POWER_SUPPLY_HEALTH_GOOD;
