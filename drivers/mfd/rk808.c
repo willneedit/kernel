@@ -352,7 +352,6 @@ static int rk808_probe(struct i2c_client *client,
 	struct rk808_board *pdev;
 	const struct of_device_id *match;
 	int ret;
-	printk("=================rk808_probe\n");
 	dev_info(&client->dev, "%s,line=%d\n", __func__, __LINE__);
 
 	if (client->dev.of_node) {

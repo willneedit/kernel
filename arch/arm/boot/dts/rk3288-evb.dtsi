@@ -46,8 +46,14 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2c0_xfer>;
 			status = "okay";
+			rk808: rk808@1b {
+				compatible = "rockchip,rk808";
+				reg = <0x1b>;
+				interrupt-parent = <&gpio0>;
+				interrupts = <4 IRQ_TYPE_EDGE_FALLING>; /* gpio0_a */
+				gpios = <&gpio0 4 GPIO_ACTIVE_HIGH>,<&gpio0 11 GPIO_ACTIVE_LOW>;
+			};
 		};
-
 		watchdog@ff800000 {
 			status = "okay";
 		};
@@ -106,6 +112,10 @@
 		bus-width = <4>;
 		disable-wp;
 	};
+};
+
+&spi2 {
+	status = "okay";
 };
 
 &usb_otg {

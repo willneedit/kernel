@@ -348,7 +348,6 @@ static int rk808_regulator_probe(struct platform_device *pdev)
 	int i = 0;
 
 	dev_info(rk808->dev, "%s,line=%d\n", __func__, __LINE__);
-	printk("=================================rk808_regulator_probe\n");
 	regulator_pdev = dev_get_platdata(rk808->dev);
 	if (rk808->dev->of_node)
 		regulator_pdev = rk808_regulator_dts(rk808);
