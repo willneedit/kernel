@@ -54,6 +54,17 @@
 				gpios = <&gpio0 4 GPIO_ACTIVE_HIGH>,<&gpio0 11 GPIO_ACTIVE_LOW>;
 			};
 		};
+		
+		i2c1: i2c@ff140000 {
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c1_xfer>;
+			status = "okay";
+			tpm: tpm@20 {
+				compatible = "infineon,slb9635tt";
+				reg = <0x20>;
+			};
+		};
+		
 		watchdog@ff800000 {
 			status = "okay";
 		};
