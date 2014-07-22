@@ -56,6 +56,7 @@ struct rk_drm_display {
 	/***** user fill info  *****/
 	struct fb_videomode *mode;
 	bool enable;
+	bool screen_status;
 	struct rk_win_data win[RK30_MAX_LAYER_SUPPORT]; 
 	void (*event_call_back)(struct rk_drm_display *drm_disp,int win_id,int event);
 };

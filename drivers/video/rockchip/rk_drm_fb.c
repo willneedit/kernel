@@ -208,19 +208,20 @@ static int rk_screen_setenable(struct rk_drm_display *drm_display, int enable)
 	struct rk_drm_screen_private *drm_screen_priv =
 	     	container_of(drm_display, struct rk_drm_screen_private, drm_disp);
 	struct rk_screen *screen = drm_screen_priv->lcdc_dev_drv->cur_screen;
+	int ret = -1;
 
 	if(drm_display->screen_type == RK_DRM_EXTEND_SCREEN){
 		struct rk_display_device *ex_display = rk_drm_extend_display_get(screen->type);
 		if(ex_display)
-			ex_display->ops->setenable(ex_display, enable);
+			ret = ex_display->ops->setenable(ex_display, enable);
 	}else if(drm_display->screen_type == RK_DRM_PRIMARY_SCREEN){
 		struct rk_fb_trsm_ops *trsm_ops = rk_fb_trsm_ops_get(screen->type);
 		if(enable)
-			trsm_ops->enable();
+			ret = trsm_ops->enable();
 		else
-			trsm_ops->disable();
+			ret = trsm_ops->disable();
 	}
-	return 0;
+	return ret;
 }
 
 static int rk_screen_setmode(struct rk_drm_display *drm_display, struct fb_videomode *mode)
@@ -606,7 +607,7 @@ static int rk_drm_screen_blank(struct rk_drm_display *drm_disp)
 	lcdc_dev->ops->blank(lcdc_dev, 0,drm_disp->enable?FB_BLANK_UNBLANK:FB_BLANK_NORMAL);
 	
 	/*    set enable to display devices  */
-	drm_disp->screen_ops.setenable(drm_disp,drm_disp->enable);
+	drm_disp->screen_status = drm_disp->screen_ops.setenable(drm_disp,drm_disp->enable);
 
 	return 0;
 }
@@ -873,6 +874,11 @@ static int rk_drm_display_commit(struct rk_drm_display *drm_disp)
 	     	container_of(drm_disp, struct rk_drm_screen_private, drm_disp);
 	struct rk_lcdc_driver *lcdc_dev = drm_screen_priv->lcdc_dev_drv;
 	lcdc_dev->ops->lcdc_reg_update(lcdc_dev);
+	if (drm_disp->screen_status)
+		drm_disp->screen_status =
+			drm_disp->screen_ops.setenable(drm_disp,
+						       drm_disp->enable);
+
 	return 0;
 }
 
