@@ -181,34 +181,38 @@
 
 &emmc {
 	clock-frequency = <150000000>;
-	clock-freq-min-max = <400000 1500000000>;
+	clock-freq-min-max = <400000 150000000>;
 	supports-highspeed;
 	supports-emmc;
 	bootpart-no-access;
 	ignore-pm-notify;
 	keep-power-in-suspend;
+	caps2-mmc-hs200;
 	status = "okay";
 };
     
 &sdmmc {
-	clock-frequency = <50000000>;
-	lock-freq-min-max = <400000 50000000>;
+	clock-frequency = <150000000>;
+	clock-freq-min-max = <400000 150000000>;
 	supports-highspeed;
 	supports-sd;
 	broken-cd;
+	ignore-pm-notify;
+	keep-power-in-suspend;
 	card-detect-delay = <200>;
 	vmmc-supply = <&rk808_ldo5_reg>;
 	status = "okay";
 };
 		
 &sdio {
-	clock-frequency = <50000000>;
-	clock-freq-min-max = <200000 50000000>;
+	clock-frequency = <150000000>;
+	clock-freq-min-max = <200000 150000000>;
 	supports-highspeed;
 	supports-sdio;
 	ignore-pm-notify;
 	keep-power-in-suspend;
 	//cap-sdio-irq;
+	//status = "disabled";
 	status = "okay";
 };
 
