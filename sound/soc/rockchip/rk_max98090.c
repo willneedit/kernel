@@ -82,6 +82,7 @@ static int rockchip_max98090_asoc_hw_params(struct snd_pcm_substream *substream,
 	printk("Enter:%s, %d, rate=%d\n", __FUNCTION__, __LINE__, params_rate(params));
 
 	snd_soc_dai_set_sysclk(cpu_dai, 0, pll_out, 0);
+	snd_soc_dai_set_sysclk(codec_dai, 0, pll_out, 0);
 	//snd_soc_dai_set_clkdiv(cpu_dai, ROCKCHIP_DIV_BCLK, (pll_out/4)/params_rate(params)-1);
 	//snd_soc_dai_set_clkdiv(cpu_dai, ROCKCHIP_DIV_MCLK, 3);
  
