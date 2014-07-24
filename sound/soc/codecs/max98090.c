@@ -1926,11 +1926,6 @@ static int max98090_dai_digital_mute(struct snd_soc_dai *codec_dai, int mute)
 	struct snd_soc_codec *codec = codec_dai->codec;
 	int regval;
 
-	snd_soc_write(codec, 0x45, 0x80);
-	snd_soc_write(codec, 0x25, 0x03);
-	snd_soc_write(codec, 0x3f, 0x33);
-	snd_soc_write(codec, 0x2e, 0x01);
-
 	regval = mute ? M98090_DVM_MASK : 0;
 	snd_soc_update_bits(codec, M98090_REG_DAI_PLAYBACK_LEVEL,
 		M98090_DVM_MASK, regval);
@@ -2309,13 +2304,11 @@ static int max98090_i2c_probe(struct i2c_client *i2c,
 {
 	struct max98090_priv *max98090;
 	struct device_node *np = i2c->dev.of_node;
-	unsigned long irq_flags;
 	int ret;
 
 	pr_debug("max98090_i2c_probe\n");
 
-	max98090 = devm_kzalloc(&i2c->dev, sizeof(struct max98090_priv),
-		GFP_KERNEL);
+	max98090 = devm_kzalloc(&i2c->dev, sizeof(max98090), GFP_KERNEL);
 	if (max98090 == NULL)
 		return -ENOMEM;
 
@@ -2324,8 +2317,13 @@ static int max98090_i2c_probe(struct i2c_client *i2c,
 	max98090->control_data = i2c;
 	max98090->pdata = i2c->dev.platform_data;
 
-	i2c->irq = of_get_named_gpio_flags(np, "irq_gpio", 0,
-		(enum of_gpio_flags *)&irq_flags);
+	i2c->irq = of_get_named_gpio_flags(np, "irq_gpio", 0, NULL);
+	ret = gpio_request(i2c->irq, "hpdet_irq");
+	if (ret < 0)
+		dev_err(&i2c->dev, "Failed to request gpio %d with ret:%d\n",
+			i2c->irq, ret);
+	else
+		gpio_direction_input(i2c->irq);
 
 	max98090->irq = gpio_to_irq(i2c->irq);
 

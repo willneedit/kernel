@@ -79,12 +79,8 @@ static int rockchip_max98090_asoc_hw_params(struct snd_pcm_substream *substream,
 			break;
 	}
 
-	printk("Enter:%s, %d, rate=%d\n", __FUNCTION__, __LINE__, params_rate(params));
-
 	snd_soc_dai_set_sysclk(cpu_dai, 0, pll_out, 0);
 	snd_soc_dai_set_sysclk(codec_dai, 0, pll_out, 0);
-	//snd_soc_dai_set_clkdiv(cpu_dai, ROCKCHIP_DIV_BCLK, (pll_out/4)/params_rate(params)-1);
-	//snd_soc_dai_set_clkdiv(cpu_dai, ROCKCHIP_DIV_MCLK, 3);
  
 	return 0;
 }
@@ -94,17 +90,40 @@ static struct snd_soc_ops rockchip_max98090_ops = {
 };
 
 static const struct snd_soc_dapm_widget rockchip_max98090_dapm_widgets[] = {
-	SND_SOC_DAPM_HP("Headphones", NULL),
-	SND_SOC_DAPM_SPK("Speakers", NULL),
 	SND_SOC_DAPM_MIC("Mic Jack", NULL),
+	SND_SOC_DAPM_MIC("Headset Jack", NULL),	
+	SND_SOC_DAPM_SPK("Ext Spk", NULL),
+	SND_SOC_DAPM_HP("Headphone Jack", NULL),
 };
+
+static const struct snd_soc_dapm_route audio_map[]={
+	{"MICBIAS", NULL, "Mic Jack"},
+	{"IN3", NULL, "MICBIAS"},
+	{"Ext Spk", NULL, "SPKL"},
+   	{"Ext Spk", NULL, "SPKR"},
+	{"Headphone Jack", NULL, "HPL"},
+	{"Headphone Jack", NULL, "HPR"},
+} ;
 
 static const struct snd_kcontrol_new rockchip_max98090_controls[] = {
-	SOC_DAPM_PIN_SWITCH("Speakers"),
+	SOC_DAPM_PIN_SWITCH("Mic Jack"),
+	SOC_DAPM_PIN_SWITCH("Ext Spk"),
+	SOC_DAPM_PIN_SWITCH("Headphone Jack"),
 };
 
-static int rockchip_max98090_card_remove(struct snd_soc_card *card)
+static int rockchip_max98090_init(struct snd_soc_pcm_runtime *rtd)
 {
+	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
+
+	mutex_lock(&dapm->card->dapm_mutex);
+	snd_soc_dapm_enable_pin(dapm, "Mic Jack");
+	snd_soc_dapm_enable_pin(dapm, "Ext Spk");
+	snd_soc_dapm_enable_pin(dapm, "Headphone Jack");
+	mutex_unlock(&dapm->card->dapm_mutex);
+
+	snd_soc_dapm_sync(dapm);
+
 	return 0;
 }
 
@@ -113,6 +132,7 @@ static struct snd_soc_dai_link rockchip_max98090_dai = {
 	.stream_name = "max98090 PCM",
 	.codec_dai_name = "HiFi",
 	.ops = &rockchip_max98090_ops,
+	.init = rockchip_max98090_init,
 	.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 			SND_SOC_DAIFMT_CBS_CFS,
 };
@@ -120,7 +140,6 @@ static struct snd_soc_dai_link rockchip_max98090_dai = {
 static struct snd_soc_card snd_soc_rockchip_max98090 = {
 	.name = "rockchip-max98090",
 	.owner = THIS_MODULE,
-	.remove = rockchip_max98090_card_remove,
 	.dai_link = &rockchip_max98090_dai,
 	.num_links = 1,
 	.controls = rockchip_max98090_controls,
@@ -128,6 +147,8 @@ static struct snd_soc_card snd_soc_rockchip_max98090 = {
 	.dapm_widgets = rockchip_max98090_dapm_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(rockchip_max98090_dapm_widgets),
 	.fully_routed = true,
+	.dapm_routes = audio_map,
+	.num_dapm_routes = ARRAY_SIZE(audio_map),
 };
 
 static int rockchip_max98090_probe(struct platform_device *pdev)
