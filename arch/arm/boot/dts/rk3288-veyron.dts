@@ -161,7 +161,16 @@
 
 			//to add
 		};
-		
+
+	gpio6_gpio {
+			gpio6_a7: gpio6-a7 {
+				rockchip,pins = <GPIO6_A7>;
+				rockchip,pull = <VALUE_PULL_DOWN>;
+			};
+	
+			//to add
+		};
+
 	gpio7_gpio {
 			gpio7_a3: gpio7-a3 {
 				rockchip,pins = <GPIO7_A3>;
@@ -260,6 +269,9 @@
 	max98090: max98090@10 {
 		compatible = "maxim,max98090";
 		reg = <0x10>;
+		irq_gpio = <&gpio6 GPIO_A7 IRQ_TYPE_LEVEL_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio6_a7>;
 	};
 };
 
