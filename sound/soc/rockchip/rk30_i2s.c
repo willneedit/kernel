@@ -36,6 +36,8 @@
 #include <asm/io.h>
 #include <linux/spinlock.h>
 #include <linux/workqueue.h>
+#include <linux/rockchip/iomap.h>
+#include <linux/rockchip/grf.h>
 
 #define CLK_SET_lATER
 
@@ -62,6 +64,8 @@ struct rk30_i2s_info {
 	struct clk *i2s_hclk;
 	struct snd_dmaengine_dai_dma_data capture_dma_data;
 	struct snd_dmaengine_dai_dma_data playback_dma_data;
+
+	bool pwr18;
 
 	bool i2s_tx_status;//active = true;
 	bool i2s_rx_status;
@@ -546,6 +550,18 @@ static int rockchip_i2s_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Can't allocate i2s info\n");
 		ret = -ENOMEM;
 		goto err;
+	}
+
+	if (of_property_read_u32(node, "rockchip,pwr18", &ret))
+		i2s->pwr18 = false;	/*default set it as 3.xv power supply */
+	else
+		i2s->pwr18 = (ret ? true : false);
+
+	if (i2s->pwr18 == true) {
+		/*bit6: 1,1.8v;0,3.3v*/
+		writel_relaxed(0x00400040, RK_GRF_VIRT + RK3288_GRF_IO_VSEL);
+	} else {
+		writel_relaxed(0x00040000, RK_GRF_VIRT + RK3288_GRF_IO_VSEL);
 	}
 
 	rk30_i2s = i2s;
