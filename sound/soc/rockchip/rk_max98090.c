@@ -91,14 +91,13 @@ static struct snd_soc_ops rockchip_max98090_ops = {
 
 static const struct snd_soc_dapm_widget rockchip_max98090_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Mic Jack", NULL),
-	SND_SOC_DAPM_MIC("Headset Jack", NULL),	
 	SND_SOC_DAPM_SPK("Ext Spk", NULL),
 	SND_SOC_DAPM_HP("Headphone Jack", NULL),
 };
 
 static const struct snd_soc_dapm_route audio_map[]={
-	{"MICBIAS", NULL, "Mic Jack"},
-	{"IN3", NULL, "MICBIAS"},
+	{"Mic Jack", NULL, "MICBIAS"},
+	{"IN34", NULL, "Mic Jack"},
 	{"Ext Spk", NULL, "SPKL"},
    	{"Ext Spk", NULL, "SPKR"},
 	{"Headphone Jack", NULL, "HPL"},
@@ -116,11 +115,13 @@ static int rockchip_max98090_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 
-	mutex_lock(&dapm->card->dapm_mutex);
-	snd_soc_dapm_enable_pin(dapm, "Mic Jack");
-	snd_soc_dapm_enable_pin(dapm, "Ext Spk");
-	snd_soc_dapm_enable_pin(dapm, "Headphone Jack");
-	mutex_unlock(&dapm->card->dapm_mutex);
+	/* Microphone BIAS is needed to power the analog mic.
+	 * MICBIAS2 is connected to analog mic (MIC3, which is in turn
+	 * connected to MIC2 via 'External MIC') on the max98095 codec.
+	 * Microphone BIAS is controlled by MICBIAS
+	 * on the max98090 / max98091 codec.
+	*/
+	snd_soc_dapm_force_enable_pin(dapm, "MICBIAS");
 
 	snd_soc_dapm_sync(dapm);
 
