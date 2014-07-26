@@ -36,6 +36,7 @@
 #include <linux/uaccess.h>
 #include <linux/jiffies.h>
 #include <linux/completion.h>
+#include <linux/of_device.h>
 
 #define DRIVER_NAME		"elan_i2c"
 #define ELAN_DRIVER_VERSION	"1.5.3"
@@ -1693,7 +1694,6 @@ static u8 elan_check_adapter_functionality(struct i2c_client *client)
 	return ret;
 }
 
-#include <linux/of_gpio.h>
 static int elan_probe(struct i2c_client *client,
 		      const struct i2c_device_id *dev_id)
 {
@@ -1702,6 +1702,7 @@ static int elan_probe(struct i2c_client *client,
 	u8 adapter_func;
 	union i2c_smbus_data dummy;
 	struct device *dev = &client->dev;
+	unsigned long irqflags;
 
 	adapter_func = elan_check_adapter_functionality(client);
 	if (adapter_func == ELAN_ADAPTER_FUNC_NONE) {
@@ -1728,21 +1729,6 @@ static int elan_probe(struct i2c_client *client,
 	else
 		data->smbus = false;
 
-/* temp add by cjf, from wxt */
-	unsigned long irq_flags;
-	struct device_node *np = client->dev.of_node;
-	client->irq = of_get_named_gpio_flags(np, "irq_gpio", 0,
-		(enum of_gpio_flags *)&irq_flags);
-
-	ret = gpio_request(client->irq, "elan_irq");
-	if (ret < 0) {
-	    dev_err(&client->dev, "Failed to request gpio %d with ret:%d\n",
-		    client->irq, ret);
-	}
-	gpio_direction_input(client->irq);
-	client->irq = gpio_to_irq(client->irq);
-
-
 	data->client = client;
 	data->irq = client->irq;
 	data->wait_signal_from_updatefw = false;
@@ -1758,8 +1744,15 @@ static int elan_probe(struct i2c_client *client,
 	if (ret < 0)
 		goto err_input_dev;
 
+	/*
+	 * Systems using device tree should set up interrupt via DTS,
+	 * the rest will use the default.
+	 */
+	irqflags = of_driver_match_device(&client->dev, client->dev.driver) ?
+	    0 : IRQF_TRIGGER_FALLING;
+
 	ret = request_threaded_irq(client->irq, NULL, elan_isr,
-				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+				   irqflags | IRQF_ONESHOT,
 				   client->name, data);
 	if (ret < 0) {
 		dev_err(&client->dev, "cannot register irq=%d\n",
@@ -1853,12 +1846,21 @@ static const struct acpi_device_id elan_acpi_id[] = {
 MODULE_DEVICE_TABLE(acpi, elan_acpi_id);
 #endif
 
+#ifdef CONFIG_OF
+static const struct of_device_id elan_of_match[] = {
+	{ .compatible = "elan,ekt3000" },
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(of, elan_of_match);
+#endif
+
 static struct i2c_driver elan_driver = {
 	.driver = {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
 		.pm	= &elan_pm_ops,
 		.acpi_match_table = ACPI_PTR(elan_acpi_id),
+		.of_match_table = of_match_ptr(elan_of_match),
 	},
 	.probe		= elan_probe,
 	.remove		= elan_remove,

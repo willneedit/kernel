@@ -281,14 +281,12 @@
 
 &i2c4 {
 	status = "okay";
-	//ts@4b {
-	//	compatible = "atmel,atmel_mxt_tp";
-	//	reg = <0x4b>;
 	elan_i2c@15 {
-		compatible = "elan,elan_i2c";
+		compatible = "elan,ekt3000";
 		reg = <0x15>;
-
-		irq_gpio = <&gpio7 GPIO_A3 IRQ_TYPE_LEVEL_HIGH>;
+		gpios = <&gpio7 GPIO_A3>;
+		interrupt-parent = <&gpio7>;
+		interrupts = <0x0 GPIO_A3 IRQ_TYPE_LEVEL_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&gpio7_a3>;
 	};
