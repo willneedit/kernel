@@ -2264,6 +2264,12 @@ static int max98090_probe(struct snd_soc_codec *codec)
 	snd_soc_write(codec, M98090_REG_BIAS_CONTROL,
 		M98090_VCM_MODE_MASK);
 
+	/* Turn on Speaker Mixer Out */
+	snd_soc_write(codec, M98090_REG_LEFT_SPK_MIXER,
+		M98090_MIXSPL_DACL_MASK);
+	snd_soc_write(codec, M98090_REG_RIGHT_SPK_MIXER,
+		M98090_MIXSPR_DACR_MASK);
+
 	max98090_handle_pdata(codec);
 
 	max98090_add_widgets(codec);
