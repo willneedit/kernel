@@ -590,9 +590,9 @@
 						<FUNC_TO_GPIO(I2S_LRCKRX)>,
 						<FUNC_TO_GPIO(I2S_LRCKTX)>,
 						<FUNC_TO_GPIO(I2S_SDO0)>,
-						<FUNC_TO_GPIO(I2S_SDO1)>,
-						<FUNC_TO_GPIO(I2S_SDO2)>,
-						<FUNC_TO_GPIO(I2S_SDO3)>,
+						//<FUNC_TO_GPIO(I2S_SDO1)>,
+						//<FUNC_TO_GPIO(I2S_SDO2)>,
+						//<FUNC_TO_GPIO(I2S_SDO3)>,
 						<FUNC_TO_GPIO(I2S_SDI)>;
 
 				rockchip,drive = <VALUE_DRV_DEFAULT>;

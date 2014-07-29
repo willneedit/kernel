@@ -112,6 +112,8 @@
 
 	rockchip-max98090 {
 		compatible = "rockchip-max98090";
+		rockchip,mic-det-gpios = <&gpio6 GPIO_B3 IRQ_TYPE_LEVEL_LOW>;
+		rockchip,hp-det-gpios = <&gpio6 GPIO_A5 IRQ_TYPE_LEVEL_HIGH>;
 		dais {
 			dai0 {
 				audio-codec = <&max98090>;
@@ -163,8 +165,8 @@
 		};
 
 	gpio6_gpio {
-			gpio6_a7: gpio6-a7 {
-				rockchip,pins = <GPIO6_A7>;
+			gpio6_a5: gpio6-a5 {
+				rockchip,pins = <GPIO6_A5>;
 				rockchip,pull = <VALUE_PULL_DOWN>;
 			};
 	
@@ -269,9 +271,6 @@
 	max98090: max98090@10 {
 		compatible = "maxim,max98090";
 		reg = <0x10>;
-		irq_gpio = <&gpio6 GPIO_A7 IRQ_TYPE_LEVEL_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&gpio6_a7>;
 	};
 };
 

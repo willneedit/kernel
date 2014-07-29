@@ -2182,21 +2182,6 @@ static int max98090_probe(struct snd_soc_codec *codec)
 
 	INIT_DELAYED_WORK(&max98090->jack_work, max98090_jack_work);
 
-	/* Enable jack detection */
-	snd_soc_write(codec, M98090_REG_JACK_DETECT,
-		M98090_JDETEN_MASK | M98090_JDEB_25MS);
-
-	/* Register for interrupts */
-	dev_dbg(codec->dev, "irq = %d\n", max98090->irq);
-
-	ret = request_threaded_irq(max98090->irq, NULL,
-		max98090_interrupt, IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
-		"max98090_interrupt", codec);
-	if (ret < 0) {
-		dev_err(codec->dev, "request_irq failed: %d\n",
-			ret);
-	}
-
 	/*
 	 * Clear any old interrupts.
 	 * An old interrupt ocurring prior to installing the ISR
@@ -2215,15 +2200,18 @@ static int max98090_probe(struct snd_soc_codec *codec)
 		M98090_ADCHP_MASK,
 		1 << M98090_ADCHP_SHIFT);
 
+	/* Speaker Mixer Enable */
+	snd_soc_update_bits(codec, M98090_REG_LEFT_SPK_MIXER,
+		M98090_MIXSPL_DACL_MASK,
+		1 << M98090_MIXSPL_DACL_SHIFT);
+	snd_soc_update_bits(codec, M98090_REG_RIGHT_SPK_MIXER,
+		M98090_MIXSPR_DACR_MASK,
+		1 << M98090_MIXSPR_DACR_SHIFT);
+
+
 	/* Turn on VCM bandgap reference */
 	snd_soc_write(codec, M98090_REG_BIAS_CONTROL,
 		M98090_VCM_MODE_MASK);
-
-	/* Turn on Speaker Mixer Out */
-	snd_soc_write(codec, M98090_REG_LEFT_SPK_MIXER,
-		M98090_MIXSPL_DACL_MASK);
-	snd_soc_write(codec, M98090_REG_RIGHT_SPK_MIXER,
-		M98090_MIXSPR_DACR_MASK);
 
 	max98090_handle_pdata(codec);
 
@@ -2268,7 +2256,6 @@ static int max98090_i2c_probe(struct i2c_client *i2c,
 				 const struct i2c_device_id *id)
 {
 	struct max98090_priv *max98090;
-	struct device_node *np = i2c->dev.of_node;
 	int ret;
 
 	pr_debug("max98090_i2c_probe\n");
@@ -2281,16 +2268,6 @@ static int max98090_i2c_probe(struct i2c_client *i2c,
 	i2c_set_clientdata(i2c, max98090);
 	max98090->control_data = i2c;
 	max98090->pdata = i2c->dev.platform_data;
-
-	i2c->irq = of_get_named_gpio_flags(np, "irq_gpio", 0, NULL);
-	ret = gpio_request(i2c->irq, "hpdet_irq");
-	if (ret < 0)
-		dev_err(&i2c->dev, "Failed to request gpio %d with ret:%d\n",
-			i2c->irq, ret);
-	else
-		gpio_direction_input(i2c->irq);
-
-	max98090->irq = gpio_to_irq(i2c->irq);
 
 	max98090->regmap = devm_regmap_init_i2c(i2c, &max98090_regmap);
 	if (IS_ERR(max98090->regmap)) {

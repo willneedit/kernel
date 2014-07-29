@@ -41,11 +41,8 @@
 
 #define DRV_NAME "rockchip-snd-max98090"
 
-struct rockchip_max98090 {
-	int gpio_hp_det;
-};
 
-static int rockchip_max98090_asoc_hw_params(struct snd_pcm_substream *substream,
+static int rockchip_max98090_hw_params(struct snd_pcm_substream *substream,
 					struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -86,27 +83,58 @@ static int rockchip_max98090_asoc_hw_params(struct snd_pcm_substream *substream,
 }
 
 static struct snd_soc_ops rockchip_max98090_ops = {
-	.hw_params = rockchip_max98090_asoc_hw_params,
+	.hw_params = rockchip_max98090_hw_params,
 };
 
-static const struct snd_soc_dapm_widget rockchip_max98090_dapm_widgets[] = {
+static struct snd_soc_jack rockchip_hp_jack;
+static struct snd_soc_jack_pin rockchip_hp_jack_pins[] = {
+	{
+		.pin = "Headphone Jack",
+		.mask = SND_JACK_HEADPHONE,
+	},
+	{
+		.pin = "Speakers",
+		.mask = SND_JACK_HEADPHONE,
+		.invert = 1,
+	},
+};
+
+static struct snd_soc_jack_gpio rockchip_hp_jack_gpio = {
+	.name = "headphone detect",
+	.report = SND_JACK_HEADPHONE,
+};
+
+static struct snd_soc_jack rockchip_mic_jack;
+static struct snd_soc_jack_pin rockchip_mic_jack_pins[] = {
+	{
+		.pin = "Mic Jack",
+		.mask = SND_JACK_MICROPHONE,
+	},
+};
+
+static struct snd_soc_jack_gpio rockchip_mic_jack_gpio = {
+	.name = "mic detect",
+	.report = SND_JACK_MICROPHONE,
+};
+
+static const struct snd_soc_dapm_route rockchip_audio_map[] = {
+	{"Mic Jack", NULL, "MICBIAS"},
+	{"MIC2", NULL, "Mic Jack"},
+	{"Headphone Jack", NULL, "HPL"},
+	{"Headphone Jack", NULL, "HPR"},
+	{"Speakers", NULL, "SPKL"},
+	{"Speakers", NULL, "SPKR"},
+};
+
+static const struct snd_soc_dapm_widget rockchip_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Mic Jack", NULL),
-	SND_SOC_DAPM_SPK("Ext Spk", NULL),
+	SND_SOC_DAPM_SPK("Speakers", NULL),
 	SND_SOC_DAPM_HP("Headphone Jack", NULL),
 };
 
-static const struct snd_soc_dapm_route audio_map[]={
-	{"Mic Jack", NULL, "MICBIAS"},
-	{"IN34", NULL, "Mic Jack"},
-	{"Ext Spk", NULL, "SPKL"},
-   	{"Ext Spk", NULL, "SPKR"},
-	{"Headphone Jack", NULL, "HPL"},
-	{"Headphone Jack", NULL, "HPR"},
-} ;
-
-static const struct snd_kcontrol_new rockchip_max98090_controls[] = {
+static const struct snd_kcontrol_new rockchip_dapm_controls[] = {
 	SOC_DAPM_PIN_SWITCH("Mic Jack"),
-	SOC_DAPM_PIN_SWITCH("Ext Spk"),
+	SOC_DAPM_PIN_SWITCH("Speakers"),
 	SOC_DAPM_PIN_SWITCH("Headphone Jack"),
 };
 
@@ -114,6 +142,40 @@ static int rockchip_max98090_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
+	struct snd_soc_card *card = codec->card;
+	struct device_node *dn = card->dev->of_node;
+
+	if (dn) {
+		enum of_gpio_flags flags;
+
+		rockchip_mic_jack_gpio.gpio = of_get_named_gpio_flags(
+				dn, "rockchip,mic-det-gpios", 0, &flags);
+		rockchip_mic_jack_gpio.invert = !!(flags & OF_GPIO_ACTIVE_LOW);
+
+		rockchip_hp_jack_gpio.gpio = of_get_named_gpio_flags(
+				dn, "rockchip,hp-det-gpios", 0, &flags);
+		rockchip_hp_jack_gpio.invert = !!(flags & OF_GPIO_ACTIVE_LOW);
+	}
+
+	if (gpio_is_valid(rockchip_mic_jack_gpio.gpio)) {
+		snd_soc_jack_new(codec, "Mic Jack", SND_JACK_MICROPHONE,
+				 &rockchip_mic_jack);
+		snd_soc_jack_add_pins(&rockchip_mic_jack,
+				      ARRAY_SIZE(rockchip_mic_jack_pins),
+				      rockchip_mic_jack_pins);
+		snd_soc_jack_add_gpios(&rockchip_mic_jack, 1,
+				       &rockchip_mic_jack_gpio);
+	}
+
+	if (gpio_is_valid(rockchip_hp_jack_gpio.gpio)) {
+		snd_soc_jack_new(codec, "Headphone Jack",
+				 SND_JACK_HEADPHONE, &rockchip_hp_jack);
+		snd_soc_jack_add_pins(&rockchip_hp_jack,
+				      ARRAY_SIZE(rockchip_hp_jack_pins),
+				      rockchip_hp_jack_pins);
+		snd_soc_jack_add_gpios(&rockchip_hp_jack, 1,
+				       &rockchip_hp_jack_gpio);
+	}
 
 	/* Microphone BIAS is needed to power the analog mic.
 	 * MICBIAS2 is connected to analog mic (MIC3, which is in turn
@@ -122,10 +184,6 @@ static int rockchip_max98090_init(struct snd_soc_pcm_runtime *rtd)
 	 * on the max98090 / max98091 codec.
 	*/
 	snd_soc_dapm_force_enable_pin(dapm, "MICBIAS");
-
-	snd_soc_dapm_enable_pin(dapm, "Mic Jack");
-	snd_soc_dapm_enable_pin(dapm, "Ext Spk");
-	snd_soc_dapm_enable_pin(dapm, "Headphone Jack");
 
 	snd_soc_dapm_sync(dapm);
 
@@ -147,13 +205,12 @@ static struct snd_soc_card snd_soc_rockchip_max98090 = {
 	.owner = THIS_MODULE,
 	.dai_link = &rockchip_max98090_dai,
 	.num_links = 1,
-	.controls = rockchip_max98090_controls,
-	.num_controls = ARRAY_SIZE(rockchip_max98090_controls),
-	.dapm_widgets = rockchip_max98090_dapm_widgets,
-	.num_dapm_widgets = ARRAY_SIZE(rockchip_max98090_dapm_widgets),
-	.fully_routed = true,
-	.dapm_routes = audio_map,
-	.num_dapm_routes = ARRAY_SIZE(audio_map),
+	.controls = rockchip_dapm_controls,
+	.num_controls = ARRAY_SIZE(rockchip_dapm_controls),
+	.dapm_widgets = rockchip_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(rockchip_dapm_widgets),
+	.dapm_routes = rockchip_audio_map,
+	.num_dapm_routes = ARRAY_SIZE(rockchip_audio_map),
 };
 
 static int rockchip_max98090_probe(struct platform_device *pdev)
