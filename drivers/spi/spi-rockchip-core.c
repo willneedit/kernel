@@ -733,11 +733,13 @@ static void pump_transfers(unsigned long data)
 		spi_chip_sel(dws, spi->chip_select);
 
         dw_writew(dws, SPIM_CTRLR1, dws->len-1);
-		
-		if (txint_level)
+
+		//if (txint_level)
+		if (txint_level != dw_readl(dws, SPIM_TXFTLR))
 			dw_writew(dws, SPIM_TXFTLR, txint_level);
-			
-		if (rxint_level)
+
+		//if (rxint_level)
+		if (rxint_level != dw_readl(dws, SPIM_RXFTLR))
 		{
 			dw_writew(dws, SPIM_RXFTLR, rxint_level);
 			DBG_SPI("%s:rxint_level=%d\n",__func__,rxint_level);
@@ -800,11 +802,19 @@ static int dw_spi_transfer_one_message(struct spi_master *master,
 	int ret = 0;
 	
 	dws->cur_msg = msg;
+
 	/* Initial message state*/
 	dws->cur_msg->state = START_STATE;
 	dws->cur_transfer = list_entry(dws->cur_msg->transfers.next,
 						struct spi_transfer,
 						transfer_list);
+	if(!dws->cur_transfer->tx_buf && !dws->cur_transfer->rx_buf)
+	{
+		//printk("%s empty buff\n",__func__);
+		dws->cur_msg->status = 0;
+		giveback(dws);
+		return 0;
+	}
 
 	/* prepare to setup the SSP, in pump_transfers, using the per
 	 * chip configuration */
