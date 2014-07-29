@@ -99,7 +99,7 @@
 			};
 		};
 	};
-	
+
 	rockchip-hdmi-spdif {
 		compatible = "rockchip-hdmi-spdif";
 		dais {
@@ -147,7 +147,7 @@
 &pinctrl {
 	//used for init some gpio
 	init-gpios = <&gpio0 GPIO_A6 GPIO_ACTIVE_HIGH>;
-	
+
 	gpio0_gpio {
 			gpio0_c2: gpio0-c2 {
 				rockchip,pins = <GPIO0_C2>;
@@ -167,7 +167,7 @@
 				rockchip,pins = <GPIO6_A7>;
 				rockchip,pull = <VALUE_PULL_DOWN>;
 			};
-	
+
 			//to add
 		};
 
@@ -183,7 +183,7 @@
 			};
 			//to add
 		};
-		
+
 	//could add other pinctrl definition such as gpio
 
 };
@@ -199,7 +199,7 @@
 	caps2-mmc-hs200;
 	status = "okay";
 };
-    
+
 &sdmmc {
 	clock-frequency = <150000000>;
 	clock-freq-min-max = <400000 150000000>;
@@ -212,7 +212,7 @@
 	vmmc-supply = <&rk808_ldo5_reg>;
 	status = "okay";
 };
-		
+
 &sdio {
 	clock-frequency = <150000000>;
 	clock-freq-min-max = <200000 150000000>;
@@ -227,7 +227,34 @@
 
 &spi0 {
 	status = "okay";
-	max-freq = <48000000>;	
+	max-freq = <48000000>;
+	cros_ec: cros-ec@0 {
+		compatible = "google,cros-ec-spi";
+		spi-max-frequency = <1000000>;
+		gpios = <&gpio7 GPIO_A7 GPIO_ACTIVE_HIGH>;
+		reg = <0>;
+		google,cros-ec-spi-msg-delay = <2000>;
+
+		charger: gpio-charger@0 {
+			compatible = "gpio-charger";
+			charger-type = "usb-sdp";
+			gpios = <&gpio0 GPIO_B0 GPIO_ACTIVE_HIGH>;
+		};
+
+		i2c-tunnel {
+			compatible = "google,cros-ec-i2c-tunnel";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			google,remote-bus = <0>;
+
+			battery: sbs-battery@b {
+				compatible = "sbs,sbs-battery";
+				reg = <0xb>;
+				sbs,i2c-retry-count = <2>;
+				sbs,poll-retry-count = <1>;
+			};
+		};
+	};
 };
 
 &spi1 {
@@ -347,7 +374,7 @@
 			label = "volume down";
 			rockchip,adc_value = <170>;
 		};
-		
+
 		power-key {
 			gpios = <&gpio0 GPIO_A5 GPIO_ACTIVE_LOW>;
 			linux,code = <116>;
@@ -450,7 +477,7 @@
 	rk808,system-power-controller;
 
 	regulators {
-		
+
 		rk808_dcdc1_reg: regulator@0{
 			regulator-name= "vdd_arm";
 			regulator-always-on;
@@ -561,30 +588,30 @@
 	regulator-name = "vcc30_lcd";
 	};
 &dpio_vdd_domain{
-	regulator-name = "vcc18_cif";	
+	regulator-name = "vcc18_cif";
 	};
 &flash0_vdd_domain{
-	regulator-name = "vcc_flash";	
+	regulator-name = "vcc_flash";
 	};
 &flash1_vdd_domain{
-	regulator-name = "vcc_flash";			
+	regulator-name = "vcc_flash";
 	};
 &apio3_vdd_domain{
-	regulator-name = "vccio_wl";		
+	regulator-name = "vccio_wl";
 	};
 &apio5_vdd_domain{
-	regulator-name = "vccio";		
+	regulator-name = "vccio";
 	};
 &apio4_vdd_domain{
-	regulator-name = "vccio";		
+	regulator-name = "vccio";
 	};
 &apio1_vdd_domain{
-	regulator-name = "vccio";			
+	regulator-name = "vccio";
 	};
 &apio2_vdd_domain{
-	regulator-name = "vccio";		
+	regulator-name = "vccio";
 	};
 &sdmmc0_vdd_domain{
-	regulator-name = "vcc_sd";			
+	regulator-name = "vcc_sd";
 	};
-	
+
