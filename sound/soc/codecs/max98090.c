@@ -1267,17 +1267,6 @@ static const struct snd_soc_dapm_widget max98090_dapm_widgets[] = {
 	SND_SOC_DAPM_OUTPUT("RCVR"),
 };
 
-static const struct snd_soc_dapm_widget max98091_dapm_widgets[] = {
-
-	SND_SOC_DAPM_INPUT("DMIC3"),
-	SND_SOC_DAPM_INPUT("DMIC4"),
-
-	SND_SOC_DAPM_SUPPLY("DMIC3_ENA", M98090_REG_DIGITAL_MIC_ENABLE,
-		 M98090_DIGMIC3_SHIFT, 0, NULL, 0),
-	SND_SOC_DAPM_SUPPLY("DMIC4_ENA", M98090_REG_DIGITAL_MIC_ENABLE,
-		 M98090_DIGMIC4_SHIFT, 0, NULL, 0),
-};
-
 static const struct snd_soc_dapm_route max98090_dapm_routes[] = {
 
 	{"MIC1 Input", NULL, "MIC1"},
@@ -1454,46 +1443,12 @@ static const struct snd_soc_dapm_route max98090_dapm_routes[] = {
 	{"SPKR", NULL, "SPK Right Out"},
 	{"RCVL", NULL, "RCV Left Out"},
 	{"RCVR", NULL, "RCV Right Out"},
-
-};
-
-static const struct snd_soc_dapm_route max98091_dapm_routes[] = {
-
-	/* DMIC inputs */
-	{"DMIC3", NULL, "DMIC3_ENA"},
-	{"DMIC4", NULL, "DMIC4_ENA"},
-	{"DMIC3", NULL, "AHPF"},
-	{"DMIC4", NULL, "AHPF"},
-
 };
 
 static int max98090_add_widgets(struct snd_soc_codec *codec)
 {
-	struct max98090_priv *max98090 = snd_soc_codec_get_drvdata(codec);
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
-
 	snd_soc_add_codec_controls(codec, max98090_snd_controls,
 		ARRAY_SIZE(max98090_snd_controls));
-
-	if (max98090->devtype == MAX98091) {
-		snd_soc_add_codec_controls(codec, max98091_snd_controls,
-			ARRAY_SIZE(max98091_snd_controls));
-	}
-
-	snd_soc_dapm_new_controls(dapm, max98090_dapm_widgets,
-		ARRAY_SIZE(max98090_dapm_widgets));
-
-	snd_soc_dapm_add_routes(dapm, max98090_dapm_routes,
-		ARRAY_SIZE(max98090_dapm_routes));
-
-	if (max98090->devtype == MAX98091) {
-		snd_soc_dapm_new_controls(dapm, max98091_dapm_widgets,
-			ARRAY_SIZE(max98091_dapm_widgets));
-
-		snd_soc_dapm_add_routes(dapm, max98091_dapm_routes,
-			ARRAY_SIZE(max98091_dapm_routes));
-
-	}
 
 	return 0;
 }
@@ -2291,6 +2246,10 @@ static struct snd_soc_codec_driver soc_codec_dev_max98090 = {
 	.probe   = max98090_probe,
 	.remove  = max98090_remove,
 	.set_bias_level = max98090_set_bias_level,
+	.dapm_widgets	  = max98090_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(max98090_dapm_widgets),
+	.dapm_routes     = max98090_dapm_routes,
+	.num_dapm_routes = ARRAY_SIZE(max98090_dapm_routes),
 };
 
 static const struct regmap_config max98090_regmap = {
