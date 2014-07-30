@@ -21,6 +21,9 @@
 #include <linux/opp.h>
 #include <linux/rockchip/dvfs.h>
 #include <linux/rockchip/common.h>
+#include <linux/fb.h>
+#include <linux/reboot.h>
+#include "../../../drivers/clk/rockchip/clk-pd.h"
 
 extern int rockchip_tsadc_get_temp(int chn);
 
@@ -31,6 +34,109 @@ static struct workqueue_struct *dvfs_wq;
 static struct dvfs_node *clk_cpu_dvfs_node;
 static unsigned int target_temp = 80;
 static int temp_limit_enable = 1;
+
+static int pd_gpu_off, early_suspend;
+static DEFINE_MUTEX(switch_vdd_gpu_mutex);
+struct regulator *vdd_gpu_regulator;
+
+static int vdd_gpu_reboot_notifier_event(struct notifier_block *this,
+	unsigned long event, void *ptr)
+{
+	int ret;
+
+	DVFS_DBG("%s: enable vdd_gpu\n", __func__);
+	mutex_lock(&switch_vdd_gpu_mutex);
+	if (!regulator_is_enabled(vdd_gpu_regulator))
+		ret = regulator_enable(vdd_gpu_regulator);
+	mutex_unlock(&switch_vdd_gpu_mutex);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block vdd_gpu_reboot_notifier = {
+	.notifier_call = vdd_gpu_reboot_notifier_event,
+};
+
+static int clk_pd_gpu_notifier_call(struct notifier_block *nb,
+	unsigned long event, void *ptr)
+{
+	int ret;
+
+	switch (event) {
+	case RK_CLK_PD_PREPARE:
+		mutex_lock(&switch_vdd_gpu_mutex);
+		pd_gpu_off = 0;
+		if (early_suspend) {
+			if (!regulator_is_enabled(vdd_gpu_regulator))
+				ret = regulator_enable(vdd_gpu_regulator);
+		}
+		mutex_unlock(&switch_vdd_gpu_mutex);
+		break;
+	case RK_CLK_PD_UNPREPARE:
+		mutex_lock(&switch_vdd_gpu_mutex);
+		pd_gpu_off = 1;
+		if (early_suspend) {
+			if (regulator_is_enabled(vdd_gpu_regulator))
+				ret = regulator_disable(vdd_gpu_regulator);
+		}
+		mutex_unlock(&switch_vdd_gpu_mutex);
+		break;
+	default:
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block clk_pd_gpu_notifier = {
+	.notifier_call = clk_pd_gpu_notifier_call,
+};
+
+
+static int early_suspend_notifier_call(struct notifier_block *self,
+				unsigned long action, void *data)
+{
+	struct fb_event *event = data;
+	int blank_mode = *((int *)event->data);
+	int ret;
+
+	mutex_lock(&switch_vdd_gpu_mutex);
+	if (action == FB_EARLY_EVENT_BLANK) {
+		switch (blank_mode) {
+		case FB_BLANK_UNBLANK:
+			early_suspend = 0;
+			if (pd_gpu_off) {
+				if (!regulator_is_enabled(vdd_gpu_regulator))
+					ret = regulator_enable(
+					vdd_gpu_regulator);
+			}
+			break;
+		default:
+			break;
+		}
+	} else if (action == FB_EVENT_BLANK) {
+		switch (blank_mode) {
+		case FB_BLANK_POWERDOWN:
+			early_suspend = 1;
+			if (pd_gpu_off) {
+				if (regulator_is_enabled(vdd_gpu_regulator))
+					ret = regulator_disable(
+					vdd_gpu_regulator);
+			}
+
+			break;
+		default:
+			break;
+		}
+	}
+	mutex_unlock(&switch_vdd_gpu_mutex);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block early_suspend_notifier = {
+		.notifier_call = early_suspend_notifier_call,
+};
 
 static void dvfs_volt_up_delay(struct vd_node *vd, int new_volt, int old_volt)
 {
@@ -312,7 +418,7 @@ static int dvfs_get_rate_range(struct dvfs_node *clk_dvfs_node)
 	int i = 0;
 
 	if (!clk_dvfs_node)
-		return -1;
+		return -EINVAL;
 
 	clk_dvfs_node->min_rate = 0;
 	clk_dvfs_node->max_rate = 0;
@@ -341,7 +447,7 @@ static void dvfs_table_round_clk_rate(struct dvfs_node  *clk_dvfs_node)
 		//ddr rate = real rate+flags
 		flags = clk_dvfs_node->dvfs_table[i].frequency%1000;
 		rate = (clk_dvfs_node->dvfs_table[i].frequency/1000)*1000;
-		temp_rate = clk_round_rate(clk_dvfs_node->clk, rate*1000);
+		temp_rate = __clk_round_rate(clk_dvfs_node->clk, rate*1000);
 		if(temp_rate <= 0){	
 			DVFS_WARNING("%s: clk(%s) rate %d round return %d\n",
 				__func__, clk_dvfs_node->name, clk_dvfs_node->dvfs_table[i].frequency, temp_rate);
@@ -385,24 +491,20 @@ static int clk_dvfs_node_get_ref_volt(struct dvfs_node *clk_dvfs_node, int rate_
 	clk_fv->frequency = 0;
 	clk_fv->index = 0;
 	//DVFS_DBG("%s get corresponding voltage error! out of bound\n", clk_dvfs_node->name);
-	return -1;
+	return -EINVAL;
 }
 
 static int dvfs_pd_get_newvolt_byclk(struct pd_node *pd, struct dvfs_node *clk_dvfs_node)
 {
 	int volt_max = 0;
 
-	if (!pd || !clk_dvfs_node)
-		return 0;
-
-	if (clk_dvfs_node->set_volt >= pd->cur_volt) {
+	if (clk_dvfs_node->enable_count && (clk_dvfs_node->set_volt >= pd->cur_volt)) {
 		return clk_dvfs_node->set_volt;
 	}
 
 	list_for_each_entry(clk_dvfs_node, &pd->clk_list, node) {
-		// DVFS_DBG("%s ,pd(%s),dvfs(%s),volt(%u)\n",__func__,pd->name,
-		// clk_dvfs_node->name,clk_dvfs_node->set_volt);
-		volt_max = max(volt_max, clk_dvfs_node->set_volt);
+		if (clk_dvfs_node->enable_count)
+			volt_max = max(volt_max, clk_dvfs_node->set_volt);
 	}
 	return volt_max;
 }
@@ -416,7 +518,7 @@ static void dvfs_update_clk_pds_volt(struct dvfs_node *clk_dvfs_node)
 	
 	pd = clk_dvfs_node->pd;
 	if (!pd)
-		return ;
+		return;
 	
 	pd->cur_volt = dvfs_pd_get_newvolt_byclk(pd, clk_dvfs_node);
 }
@@ -425,29 +527,22 @@ static int dvfs_vd_get_newvolt_bypd(struct vd_node *vd)
 {
 	int volt_max_vd = 0;
 	struct pd_node *pd;
-	//struct depend_list	*depend;
 
 	if (!vd)
 		return -EINVAL;
 	
 	list_for_each_entry(pd, &vd->pd_list, node) {
-		// DVFS_DBG("%s pd(%s,%u)\n",__func__,pd->name,pd->cur_volt);
 		volt_max_vd = max(volt_max_vd, pd->cur_volt);
 	}
 
-	/* some clks depend on this voltage domain */
-/*	if (!list_empty(&vd->req_volt_list)) {
-		list_for_each_entry(depend, &vd->req_volt_list, node2vd) {
-			volt_max_vd = max(volt_max_vd, depend->req_volt);
-		}
-	}*/
 	return volt_max_vd;
 }
 
 static int dvfs_vd_get_newvolt_byclk(struct dvfs_node *clk_dvfs_node)
 {
 	if (!clk_dvfs_node)
-		return -1;
+		return -EINVAL;
+
 	dvfs_update_clk_pds_volt(clk_dvfs_node);
 	return  dvfs_vd_get_newvolt_bypd(clk_dvfs_node->vd);
 }
@@ -575,7 +670,7 @@ int dvfs_clk_enable_limit(struct dvfs_node *clk_dvfs_node, unsigned int min_rate
 		}
 
 		if (clk_dvfs_node->last_set_rate == 0)
-			rate = clk_get_rate(clk_dvfs_node->clk);
+			rate = __clk_get_rate(clk_dvfs_node->clk);
 		else
 			rate = clk_dvfs_node->last_set_rate;
 		ret = clk_dvfs_node->vd->vd_dvfs_target(clk_dvfs_node, rate);
@@ -692,6 +787,7 @@ EXPORT_SYMBOL(dvfs_set_freq_volt_table);
 int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 {
 	struct cpufreq_frequency_table clk_fv;
+	int volt_new;
 
 	if (!clk_dvfs_node)
 		return -EINVAL;
@@ -753,9 +849,9 @@ int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 				return 0;
 			}
 		}
-
+		clk_dvfs_node->enable_count++;
 		clk_dvfs_node->set_volt = clk_fv.index;
-		dvfs_vd_get_newvolt_byclk(clk_dvfs_node);
+		volt_new = dvfs_vd_get_newvolt_byclk(clk_dvfs_node);
 		DVFS_DBG("%s: %s, freq %u(ref vol %u)\n",
 			__func__, clk_dvfs_node->name, clk_dvfs_node->set_freq, clk_dvfs_node->set_volt);
 #if 0
@@ -764,9 +860,10 @@ int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 			clk_notifier_register(clk, clk_dvfs_node->dvfs_nb);
 		}
 #endif
-		if(clk_dvfs_node->vd->cur_volt < clk_dvfs_node->set_volt) {
+		if(clk_dvfs_node->vd->cur_volt != volt_new) {
 			int ret;
-			ret = dvfs_regulator_set_voltage_readback(clk_dvfs_node->vd->regulator, clk_dvfs_node->set_volt, clk_dvfs_node->set_volt);
+			ret = dvfs_regulator_set_voltage_readback(clk_dvfs_node->vd->regulator, volt_new, volt_new);
+			dvfs_volt_up_delay(clk_dvfs_node->vd,volt_new, clk_dvfs_node->vd->cur_volt);
 			if (ret < 0) {
 				clk_dvfs_node->vd->volt_set_flag = DVFS_SET_VOLT_FAILURE;
 				clk_dvfs_node->enable_count = 0;
@@ -774,11 +871,10 @@ int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 				mutex_unlock(&clk_dvfs_node->vd->mutex);
 				return -EAGAIN;
 			}
-			clk_dvfs_node->vd->cur_volt = clk_dvfs_node->set_volt;
+			clk_dvfs_node->vd->cur_volt = volt_new;
 			clk_dvfs_node->vd->volt_set_flag = DVFS_SET_VOLT_SUCCESS;
 		}
 
-		clk_dvfs_node->enable_count++;
 	} else {
 		DVFS_DBG("%s: dvfs already enable clk enable = %d!\n",
 			__func__, clk_dvfs_node->enable_count);
@@ -793,6 +889,8 @@ EXPORT_SYMBOL(clk_enable_dvfs);
 
 int clk_disable_dvfs(struct dvfs_node *clk_dvfs_node)
 {
+	int volt_new;
+
 	if (!clk_dvfs_node)
 		return -EINVAL;
 
@@ -803,12 +901,16 @@ int clk_disable_dvfs(struct dvfs_node *clk_dvfs_node)
 	if (!clk_dvfs_node->enable_count) {
 		DVFS_WARNING("%s:clk(%s) is already closed!\n", 
 			__func__, __clk_get_name(clk_dvfs_node->clk));
+		mutex_unlock(&clk_dvfs_node->vd->mutex);
 		return 0;
 	} else {
 		clk_dvfs_node->enable_count--;
 		if (0 == clk_dvfs_node->enable_count) {
 			DVFS_DBG("%s:dvfs clk(%s) disable dvfs ok!\n",
 				__func__, __clk_get_name(clk_dvfs_node->clk));
+			volt_new = dvfs_vd_get_newvolt_byclk(clk_dvfs_node);
+			dvfs_scale_volt_direct(clk_dvfs_node->vd, volt_new);
+
 #if 0
 			clk_notifier_unregister(clk, clk_dvfs_node->dvfs_nb);
 			DVFS_DBG("clk unregister nb!\n");
@@ -819,9 +921,6 @@ int clk_disable_dvfs(struct dvfs_node *clk_dvfs_node)
 	return 0;
 }
 EXPORT_SYMBOL(clk_disable_dvfs);
-
-
-
 
 static unsigned long dvfs_get_limit_rate(struct dvfs_node *clk_dvfs_node, unsigned long rate)
 {
@@ -872,8 +971,8 @@ static int dvfs_target(struct dvfs_node *clk_dvfs_node, unsigned long rate)
 	}
 
 	rate = dvfs_get_limit_rate(clk_dvfs_node, rate);
-	new_rate = clk_round_rate(clk, rate);
-	old_rate = clk_get_rate(clk);
+	new_rate = __clk_round_rate(clk, rate);
+	old_rate = __clk_get_rate(clk);
 	if (new_rate == old_rate)
 		return 0;
 
@@ -902,9 +1001,9 @@ static int dvfs_target(struct dvfs_node *clk_dvfs_node, unsigned long rate)
 
 	/* scale rate */
 	if (clk_dvfs_node->clk_dvfs_target) {
-		ret = clk_dvfs_node->clk_dvfs_target(clk, new_rate);
+		ret = clk_dvfs_node->clk_dvfs_target(clk, rate);
 	} else {
-		ret = clk_set_rate(clk, new_rate);
+		ret = clk_set_rate(clk, rate);
 	}
 
 	if (ret) {
@@ -915,7 +1014,7 @@ static int dvfs_target(struct dvfs_node *clk_dvfs_node, unsigned long rate)
 	clk_dvfs_node->set_freq = new_rate / 1000;
 
 	DVFS_DBG("%s:dvfs clk(%s) set rate %lu ok\n", 
-		__func__, clk_dvfs_node->name, clk_get_rate(clk));
+		__func__, clk_dvfs_node->name, __clk_get_rate(clk));
 
 	/* if down the rate */
 	if (new_rate < old_rate) {
@@ -931,11 +1030,30 @@ out:
 	return ret;
 }
 
+unsigned long dvfs_clk_round_rate(struct dvfs_node *clk_dvfs_node, unsigned long rate)
+{
+	return __clk_round_rate(clk_dvfs_node->clk, rate);
+}
+EXPORT_SYMBOL_GPL(dvfs_clk_round_rate);
+
 unsigned long dvfs_clk_get_rate(struct dvfs_node *clk_dvfs_node)
 {
-	return clk_get_rate(clk_dvfs_node->clk);
+	return __clk_get_rate(clk_dvfs_node->clk);
 }
 EXPORT_SYMBOL_GPL(dvfs_clk_get_rate);
+
+unsigned long dvfs_clk_get_last_set_rate(struct dvfs_node *clk_dvfs_node)
+{
+	unsigned long last_set_rate;
+
+	mutex_lock(&clk_dvfs_node->vd->mutex);
+	last_set_rate = clk_dvfs_node->last_set_rate;
+	mutex_unlock(&clk_dvfs_node->vd->mutex);
+
+	return last_set_rate;
+}
+EXPORT_SYMBOL_GPL(dvfs_clk_get_last_set_rate);
+
 
 int dvfs_clk_enable(struct dvfs_node *clk_dvfs_node)
 {
@@ -1306,7 +1424,7 @@ static int dump_dbg_map(char *buf)
 						" enable_dvfs = %s\n",
 						clk_dvfs_node->name, clk_dvfs_node->set_freq, clk_dvfs_node->set_volt,
 						clk_dvfs_node->enable_count == 0 ? "DISABLE" : "ENABLE");
-				printk( "|  |  |- clk limit(%s):[%u, %u]; last set rate = %u\n",
+				printk( "|  |  |- clk limit(%s):[%u, %u]; last set rate = %lu\n",
 						clk_dvfs_node->freq_limit_en ? "enable" : "disable",
 						clk_dvfs_node->min_rate, clk_dvfs_node->max_rate,
 						clk_dvfs_node->last_set_rate/1000);
@@ -1381,6 +1499,17 @@ static int __init dvfs_init(void)
 		clk_cpu_dvfs_node->temp_limit_rate = clk_cpu_dvfs_node->max_rate;
 		dvfs_wq = alloc_workqueue("dvfs", WQ_NON_REENTRANT | WQ_MEM_RECLAIM | WQ_HIGHPRI | WQ_FREEZABLE, 1);
 		queue_delayed_work_on(0, dvfs_wq, &dvfs_temp_limit_work, 0*HZ);
+	}
+
+	vdd_gpu_regulator = dvfs_get_regulator("vdd_gpu");
+	if (!IS_ERR_OR_NULL(vdd_gpu_regulator)) {
+		struct clk *clk = clk_get(NULL, "pd_gpu");
+
+		if (clk)
+			rk_clk_pd_notifier_register(clk, &clk_pd_gpu_notifier);
+
+		fb_register_client(&early_suspend_notifier);
+		register_reboot_notifier(&vdd_gpu_reboot_notifier);
 	}
 
 	return ret;

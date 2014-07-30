@@ -8,46 +8,46 @@
 		status = "okay";
 	};
 
-    wireless-wlan {
-        compatible = "wlan-platdata";
+	wireless-wlan {
+		compatible = "wlan-platdata";
 
-        wifi_chip_type = "";
-        sdio_vref = <1800>; //1800mv or 3300mv
+		wifi_chip_type = "";
+		sdio_vref = <1800>; //1800mv or 3300mv
 
-        //power_ctrl_by_pmu;
-        pmu_regulator = "act_ldo3";
-        pmu_enable_level = <1>; //1->HIGH, 0->LOW
+		//power_ctrl_by_pmu;
+		pmu_regulator = "act_ldo3";
+		pmu_enable_level = <1>; //1->HIGH, 0->LOW
 
-        WIFI,poweren_gpio = <&gpio4 GPIO_D4 GPIO_ACTIVE_HIGH>;
-        WIFI,host_wake_irq = <&gpio4 GPIO_D6 GPIO_ACTIVE_HIGH>;
-        //WIFI,reset_gpio = <&gpio0 GPIO_A2 GPIO_ACTIVE_LOW>;
+		WIFI,poweren_gpio = <&gpio4 GPIO_D4 GPIO_ACTIVE_HIGH>;
+		WIFI,host_wake_irq = <&gpio4 GPIO_D6 GPIO_ACTIVE_HIGH>;
+		//WIFI,reset_gpio = <&gpio0 GPIO_A2 GPIO_ACTIVE_LOW>;
 
-        status = "okay";
-    };
+		status = "okay";
+	};
 
-    wireless-bluetooth {
-        compatible = "bluetooth-platdata";
+	wireless-bluetooth {
+		compatible = "bluetooth-platdata";
 
-        //wifi-bt-power-toggle;
+		//wifi-bt-power-toggle;
 
-        uart_rts_gpios = <&gpio4 GPIO_C3 GPIO_ACTIVE_LOW>;
-        pinctrl-names = "default","rts_gpio";
-        pinctrl-0 = <&uart0_rts>;
-        pinctrl-1 = <&uart0_rts_gpio>;
+		uart_rts_gpios = <&gpio4 GPIO_C3 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default","rts_gpio";
+		pinctrl-0 = <&uart0_rts>;
+		pinctrl-1 = <&uart0_rts_gpio>;
 
-        BT,power_gpio = <&gpio4 GPIO_D3 GPIO_ACTIVE_HIGH>;
-        BT,reset_gpio = <&gpio4 GPIO_D5 GPIO_ACTIVE_HIGH>;
-        BT,wake_gpio = <&gpio4 GPIO_D2 GPIO_ACTIVE_HIGH>;
-        BT,wake_host_irq = <&gpio4 GPIO_D7 GPIO_ACTIVE_LOW>;
+		BT,power_gpio = <&gpio4 GPIO_D3 GPIO_ACTIVE_HIGH>;
+		BT,reset_gpio = <&gpio4 GPIO_D5 GPIO_ACTIVE_HIGH>;
+		BT,wake_gpio = <&gpio4 GPIO_D2 GPIO_ACTIVE_HIGH>;
+		BT,wake_host_irq = <&gpio4 GPIO_D7 GPIO_ACTIVE_LOW>;
 
-        status = "okay";
-    };
+		status = "okay";
+	};
 
-    hallsensor {
-               compatible = "hall_och165t";
-               type = <SENSOR_TYPE_HALL>;
-               irq-gpio = <&gpio0 GPIO_A6 IRQ_TYPE_EDGE_BOTH>;
-     };
+	hallsensor {
+		compatible = "hall_och165t";
+		type = <SENSOR_TYPE_HALL>;
+		irq-gpio = <&gpio0 GPIO_A6 IRQ_TYPE_EDGE_BOTH>;
+	};
 
 	backlight {
 		compatible = "pwm-backlight";
@@ -87,6 +87,7 @@
 
 	codec_hdmi_spdif: codec-hdmi-spdif {
 		compatible = "hdmi-spdif";
+		status = "disabled";
 	};
 
 	rockchip-hdmi-i2s {
@@ -102,6 +103,7 @@
 
 	rockchip-hdmi-spdif {
 		compatible = "rockchip-hdmi-spdif";
+		status = "disabled";
 		dais {
 			dai0 {
 				audio-codec = <&codec_hdmi_spdif>;
@@ -265,8 +267,8 @@
 };
 
 &spi2 {
-	status = "okay";
-	max-freq = <48000000>;
+	status = "disabled";
+	max-freq = <48000000>;	
 };
 
 &uart_bt {
@@ -277,9 +279,9 @@
 
 &i2c0 {
 	status = "okay";
+
 	rk808: rk808@1b {
 		reg = <0x1b>;
-		status = "okay";
 	};
 };
 
@@ -302,7 +304,7 @@
 };
 
 &i2c3 {
-	status = "okay";
+	status = "disabled";
 };
 
 &i2c4 {
@@ -319,7 +321,7 @@
 };
 
 &i2c5 {
-	status = "disable";
+	status = "disabled";
 };
 
 &fb {
@@ -356,55 +358,7 @@
 };
 
 &adc {
-	status = "okay";
-
-	key {
-		compatible = "rockchip,key";
-		io-channels = <&adc 1>;
-
-		vol-up-key {
-			linux,code = <115>;
-			label = "volume up";
-			rockchip,adc_value = <1>;
-		};
-
-		vol-down-key {
-			linux,code = <114>;
-			label = "volume down";
-			rockchip,adc_value = <170>;
-		};
-
-		power-key {
-			gpios = <&gpio0 GPIO_A5 GPIO_ACTIVE_LOW>;
-			linux,code = <116>;
-			label = "power";
-			gpio-key,wakeup;
-		};
-
-		menu-key {
-			linux,code = <59>;
-			label = "menu";
-			rockchip,adc_value = <355>;
-		};
-
-		home-key {
-			linux,code = <102>;
-			label = "home";
-			rockchip,adc_value = <746>;
-		};
-
-		back-key {
-			linux,code = <158>;
-			label = "back";
-			rockchip,adc_value = <560>;
-		};
-
-		camera-key {
-			linux,code = <212>;
-			label = "camera";
-			rockchip,adc_value = <450>;
-		};
-	};
+	status = "disabled";
 };
 
 &pwm0 {
@@ -419,17 +373,17 @@
 &clk_core_dvfs_table {
 	operating-points = <
 		/* KHz    uV */
-		100000 850000
-		200000 850000
-		300000 850000
-		400000 850000
-		500000 850000
+		100000 800000
+		200000 800000
+		300000 800000
+		400000 800000
+		500000 800000
 		600000 850000
-		700000 900000
-		800000 950000
-		1000000 1000000
-		1200000 1050000
-		1400000 1150000
+		700000 850000
+		800000 850000
+		1000000 900000
+		1200000 1000000
+		1400000 1100000
 		1600000 1200000
 		1800000 1300000
 		>;
@@ -439,12 +393,12 @@
 &clk_gpu_dvfs_table {
 	operating-points = <
 		/* KHz    uV */
-//		100000 850000
-//		200000 850000
-//		300000 1100000
-//		400000 1000000
+		100000 850000
+		200000 900000
+		300000 1000000
+		400000 1050000
 		500000 1150000
-//		600000 1200000
+		600000 1200000
 		>;
 	status="okay";
 };
@@ -452,21 +406,32 @@
 &clk_ddr_dvfs_table {
 	operating-points = <
 		/* KHz    uV */
-		200000 950000
+		200000 900000
 		300000 950000
 		400000 1000000
 		533000 1100000
 		666000 1150000
 		>;
 
-	freq_table = <
+	freq-table = <
 		/*status		freq(KHz)*/
-		SYS_STATUS_NORMAL	533000
+		SYS_STATUS_NORMAL	400000
 		SYS_STATUS_SUSPEND	200000
-		SYS_STATUS_VIDEO	300000
-		SYS_STATUS_DUALVIEW	500000
+		SYS_STATUS_VIDEO_1080P  240000
+		SYS_STATUS_VIDEO_4K     400000
+		SYS_STATUS_PERFORMANCE  528000
+		SYS_STATUS_DUALVIEW	400000
+		SYS_STATUS_BOOST	324000
+		SYS_STATUS_ISP		533000
 		>;
-	auto_freq=<0>;
+	auto-freq-table = <
+		240000
+		324000
+		396000
+		528000
+		648000
+		>;
+	auto-freq=<1>;
 	status="okay";
 };
 
