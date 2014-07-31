@@ -128,4 +128,7 @@ extern struct platform_driver rockchip_lcdc_platform_driver;
 #ifdef CONFIG_RK3288_LVDS
 extern struct platform_driver rk3288_lvds_driver;
 #endif
+#ifdef CONFIG_RK3288_DP
+extern struct platform_driver rk3288_edp_driver;
+#endif
 #endif /* _ROCKCHIP_DRM_DRV_H_ */

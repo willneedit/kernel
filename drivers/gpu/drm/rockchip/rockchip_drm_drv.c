@@ -586,6 +586,10 @@ static int rockchip_drm_init(void)
 out_drm_driver:
 	platform_device_unregister(rockchip_drm_pdev);
 out_drm_pdev:
+#ifdef CONFIG_RK3288_DP
+	platform_driver_unregister(&rk3288_edp_driver);
+out_edp:
+#endif
 #ifdef CONFIG_RK3288_LVDS
 	platform_driver_unregister(&rk3288_lvds_driver);
 out_lvds:
@@ -602,6 +606,9 @@ static void rockchip_drm_exit(void)
 {
 	platform_device_unregister(rockchip_drm_pdev);
 	platform_driver_unregister(&rockchip_drm_platform_driver);
+#ifdef CONFIG_RK3288_DP
+	platform_driver_unregister(&rk3288_edp_driver);
+#endif
 #ifdef CONFIG_RK3288_LVDS
 	platform_driver_unregister(&rk3288_lvds_driver);
 #endif

@@ -6,3 +6,12 @@ config RK3288_LVDS
 	  rk3288 lvds transmitter support ttl rgb, lvds and dual lvds
 	  mode, dual lvds mode is support for the plane which need dual
 	  lvds channels.
+
+config RK3288_DP
+	bool "RK3288 edp connector support"
+	depends on DRM_ROCKCHIP_CONNECTOR
+	help
+	  Choose this option if you have a rk32xx eDP connector.
+	  Rockchip rk3288 SoC has eDP TX Controller can be used.
+	  If you have an Embedded DisplayPort Panel, say Y to enable its
+	  driver.
