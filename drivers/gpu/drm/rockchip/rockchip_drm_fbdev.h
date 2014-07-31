@@ -1,4 +1,4 @@
-/* rockchip_drm_fbdev.h
+/*
  *
  * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
  * Author:mark yao <mark.yao@rock-chips.com>
@@ -19,8 +19,6 @@
 #define _ROCKCHIP_DRM_FBDEV_H_
 
 int rockchip_drm_fbdev_init(struct drm_device *dev);
-int rockchip_drm_fbdev_reinit(struct drm_device *dev);
 void rockchip_drm_fbdev_fini(struct drm_device *dev);
-void rockchip_drm_fbdev_restore_mode(struct drm_device *dev);
 
 #endif /* _ROCKCHIP_DRM_FBDEV_H_ */

@@ -109,7 +109,7 @@
 		};
 		lcdc1: lcdc@ff940000 {
 			status = "okay";
-			rockchip,type = <SCREEN_LVDS>;
+			rockchip,type = <SCREEN_EDP>;
 			rockchip,face = <OUT_D888_P666>;
 			rockchip,lvds-format = <LVDS_8BIT_2>;
 			rockchip,color-swap = <0>;
@@ -141,21 +141,21 @@
 				native-mode = <&timing1>;
 
 				timing1: timing@1 {
-					clock-frequency = <71000000>;
-					hactive = <1280>;
-					vactive = <800>;
-					hback-porch = <100>;
-					hfront-porch = <18>;
-					vback-porch = <8>;
-					vfront-porch = <6>;
-					hsync-len = <10>;
-					vsync-len = <2>;
-					hsync-active = <0>;
-					vsync-active = <0>;
-					de-active = <0>;
-					pixelclk-active = <0>;
+					clock-frequency = <205000000>;
+                                	hactive = <1536>;
+                                	vactive = <2048>;
+                                	hback-porch = <48>;
+                                	hfront-porch = <12>;
+                                	vback-porch = <8>;
+                                	vfront-porch = <8>;
+                                	hsync-len = <16>;
+                                	vsync-len = <4>;
+                                	hsync-active = <0>;
+                                	vsync-active = <0>;
+                                	de-active = <0>;
+                                	pixelclk-active = <1>;
+					};
 				};
-			};
 		};
 		watchdog@ff800000 {
 			status = "okay";

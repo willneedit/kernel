@@ -1,4 +1,4 @@
-/* rk32xx_lvds.h
+/*
  * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
  * Author:
  *      hjc <hjc@rock-chips.com>
@@ -14,8 +14,8 @@
  * GNU General Public License for more details.
  */
 
-#ifndef _RK32XX_LVDS_
-#define _RK32XX_LVDS_
+#ifndef _RK3288_LVDS_
+#define _RK3288_LVDS_
 
 #define LVDS_CH0_REG_0			0x00
 #define LVDS_CH0_REG_1			0x04
@@ -24,9 +24,9 @@
 #define LVDS_CH0_REG_4			0x10
 #define LVDS_CH0_REG_5			0x14
 #define LVDS_CH0_REG_9			0x24
-#define LVDS_CFG_REG_c			0x30
-#define LVDS_CH0_REG_d			0x34
-#define LVDS_CH0_REG_f			0x3c
+#define LVDS_CFG_REG_C			0x30
+#define LVDS_CH0_REG_D			0x34
+#define LVDS_CH0_REG_F			0x3c
 #define LVDS_CH0_REG_20			0x80
 #define LVDS_CFG_REG_21			0x84
 
@@ -42,4 +42,9 @@
 #define LVDS_CH0_EN			(0x01 << 11)
 #define LVDS_CH1_EN			(0x01 << 12)
 #define LVDS_PWRDN			(0x01 << 15)
-#endif /* _RK32XX_LVDS_ */
+
+#define LVDS_24BIT		(0 << 1)
+#define LVDS_18BIT		(1 << 1)
+#define LVDS_FORMAT_VESA	(0 << 0)
+#define LVDS_FORMAT_JEIDA	(1 << 0)
+#endif /* _RK3288_LVDS_ */

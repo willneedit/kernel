@@ -1,5 +1,4 @@
-/* rockchip_drm_drv.c
- *
+/*
  * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
  * Author:mark yao <mark.yao@rock-chips.com>
  *
@@ -18,6 +17,7 @@
 #include <linux/pm_runtime.h>
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_gem_cma_helper.h>
 
 #include <linux/anon_inodes.h>
 #include <linux/component.h>
@@ -25,17 +25,13 @@
 #include <drm/rockchip_drm.h>
 
 #include "rockchip_drm_drv.h"
-#include "rockchip_drm_crtc.h"
-#include "rockchip_drm_encoder.h"
-#include "rockchip_drm_fbdev.h"
 #include "rockchip_drm_fb.h"
+#include "rockchip_drm_fbdev.h"
 #include "rockchip_drm_gem.h"
-#include "rockchip_drm_plane.h"
-#include "rockchip_drm_dmabuf.h"
 
-#define DRIVER_NAME	"rockchip"
-#define DRIVER_DESC	"rockchip Soc DRM"
-#define DRIVER_DATE	"20140623"
+#define DRIVER_NAME	"rockchip-drm"
+#define DRIVER_DESC	"RockChip Soc DRM"
+#define DRIVER_DATE	"20140725"
 #define DRIVER_MAJOR	1
 #define DRIVER_MINOR	0
 
@@ -50,8 +46,10 @@ struct component_dev {
 	struct list_head list;
 	struct device *crtc_dev;
 	struct device *conn_dev;
-	enum rockchip_drm_output_type out_type;
-	unsigned int dev_type_flag;
+	unsigned int out_type;
+	int pipe;
+	void *crtc_data;
+	void *conn_data;
 };
 
 static int rockchip_drm_load(struct drm_device *dev, unsigned long flags)
@@ -70,6 +68,12 @@ static int rockchip_drm_load(struct drm_device *dev, unsigned long flags)
 	drm_mode_config_init(dev);
 
 	rockchip_drm_mode_config_init(dev);
+
+
+	/* Try to bind all sub drivers. */
+	ret = component_bind_all(dev->dev, dev);
+	if (ret)
+		goto err_cleanup_vblank;
 
 	for (nr = 0; nr < MAX_PLANE; nr++) {
 		struct drm_plane *plane;
@@ -93,11 +97,7 @@ static int rockchip_drm_load(struct drm_device *dev, unsigned long flags)
 	drm_vblank_offdelay = VBLANK_OFF_DELAY;
 
 	platform_set_drvdata(dev->platformdev, dev);
-
-	/* Try to bind all sub drivers. */
-	ret = component_bind_all(dev->dev, dev);
-	if (ret)
-		goto err_cleanup_vblank;
+	rockchip_drm_fbdev_init(dev);
 
 	/* force connectors detection */
 	drm_helper_hpd_irq_event(dev);
@@ -127,10 +127,6 @@ static int rockchip_drm_unload(struct drm_device *dev)
 
 	return 0;
 }
-
-static const struct file_operations rockchip_drm_gem_fops = {
-	.mmap = rockchip_drm_gem_mmap_buffer,
-};
 
 static int rockchip_drm_suspend(struct drm_device *dev, pm_message_t state)
 {
@@ -169,43 +165,12 @@ static int rockchip_drm_resume(struct drm_device *dev)
 
 static int rockchip_drm_open(struct drm_device *dev, struct drm_file *file)
 {
-	struct drm_rockchip_file_private *file_priv;
-	struct file *anon_filp;
-	int ret;
-
-	file_priv = kzalloc(sizeof(*file_priv), GFP_KERNEL);
-	if (!file_priv)
-		return -ENOMEM;
-
-	file->driver_priv = file_priv;
-
-	anon_filp = anon_inode_getfile("rockchip_gem", &rockchip_drm_gem_fops,
-				       NULL, 0);
-	if (IS_ERR(anon_filp)) {
-		ret = PTR_ERR(anon_filp);
-		goto err_file_priv_free;
-	}
-
-	anon_filp->f_mode = FMODE_READ | FMODE_WRITE;
-	file_priv->anon_filp = anon_filp;
-
-	return ret;
-
-err_file_priv_free:
-	kfree(file_priv);
-	file->driver_priv = NULL;
-	return ret;
-}
-
-static void rockchip_drm_preclose(struct drm_device *dev,
-				  struct drm_file *file)
-{
+	return 0;
 }
 
 static void rockchip_drm_postclose(struct drm_device *dev,
 				   struct drm_file *file)
 {
-	struct drm_rockchip_file_private *file_priv;
 	struct drm_pending_event *e, *et;
 	unsigned long flags;
 
@@ -225,24 +190,9 @@ static void rockchip_drm_postclose(struct drm_device *dev,
 
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 
-	file_priv = file->driver_priv;
-	if (file_priv->anon_filp)
-		fput(file_priv->anon_filp);
-
 	kfree(file->driver_priv);
 	file->driver_priv = NULL;
 }
-
-static void rockchip_drm_lastclose(struct drm_device *dev)
-{
-	rockchip_drm_fbdev_restore_mode(dev);
-}
-
-static const struct vm_operations_struct rockchip_drm_gem_vm_ops = {
-	.fault = rockchip_drm_gem_fault,
-	.open = drm_gem_vm_open,
-	.close = drm_gem_vm_close,
-};
 
 static const struct drm_ioctl_desc rockchip_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_CREATE, rockchip_drm_gem_create_ioctl,
@@ -259,7 +209,7 @@ static const struct drm_ioctl_desc rockchip_ioctls[] = {
 static const struct file_operations rockchip_drm_driver_fops = {
 	.owner = THIS_MODULE,
 	.open = drm_open,
-	.mmap = rockchip_drm_gem_mmap,
+	.mmap = drm_gem_cma_mmap,
 	.poll = drm_poll,
 	.read = drm_read,
 	.unlocked_ioctl = drm_ioctl,
@@ -276,21 +226,24 @@ static struct drm_driver rockchip_drm_driver = {
 	.suspend		= rockchip_drm_suspend,
 	.resume			= rockchip_drm_resume,
 	.open			= rockchip_drm_open,
-	.preclose		= rockchip_drm_preclose,
-	.lastclose		= rockchip_drm_lastclose,
 	.postclose		= rockchip_drm_postclose,
 	.get_vblank_counter	= drm_vblank_count,
 	.enable_vblank		= rockchip_drm_crtc_enable_vblank,
 	.disable_vblank		= rockchip_drm_crtc_disable_vblank,
-	.gem_free_object	= rockchip_drm_gem_free_object,
-	.gem_vm_ops		= &rockchip_drm_gem_vm_ops,
-	.dumb_create		= rockchip_drm_gem_dumb_create,
-	.dumb_map_offset	= rockchip_drm_gem_dumb_map_offset,
-	.dumb_destroy		= drm_gem_dumb_destroy,
+	.gem_free_object        = drm_gem_cma_free_object,
+	.gem_vm_ops             = &drm_gem_cma_vm_ops,
+	.dumb_create            = drm_gem_cma_dumb_create,
+	.dumb_map_offset        = drm_gem_cma_dumb_map_offset,
+	.dumb_destroy           = drm_gem_dumb_destroy,
 	.prime_handle_to_fd	= drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle	= drm_gem_prime_fd_to_handle,
-	.gem_prime_export	= rockchip_dmabuf_prime_export,
-	.gem_prime_import	= rockchip_dmabuf_prime_import,
+	.gem_prime_import       = drm_gem_prime_import,
+	.gem_prime_export       = drm_gem_prime_export,
+	.gem_prime_get_sg_table = drm_gem_cma_prime_get_sg_table,
+	.gem_prime_import_sg_table = drm_gem_cma_prime_import_sg_table,
+	.gem_prime_vmap         = drm_gem_cma_prime_vmap,
+	.gem_prime_vunmap       = drm_gem_cma_prime_vunmap,
+	.gem_prime_mmap         = drm_gem_cma_prime_mmap,
 	.ioctls			= rockchip_ioctls,
 	.num_ioctls		= ARRAY_SIZE(rockchip_ioctls),
 	.fops			= &rockchip_drm_driver_fops,
@@ -331,11 +284,73 @@ static const struct dev_pm_ops rockchip_drm_pm_ops = {
 				rockchip_drm_sys_resume)
 };
 
+int rockchip_drm_pipe_get(struct device *dev)
+{
+	struct component_dev *cdev, *next;
+	int pipe = -1;
+
+	mutex_lock(&drm_component_lock);
+
+	list_for_each_entry_safe(cdev, next, &drm_component_list, list) {
+		if ((cdev->crtc_dev == dev) || (cdev->conn_dev == dev)) {
+			pipe = cdev->pipe;
+			break;
+		}
+	}
+
+	mutex_unlock(&drm_component_lock);
+
+	return pipe;
+}
+
+int rockchip_drm_out_type_get(struct device *dev)
+{
+	struct component_dev *cdev, *next;
+	int type = -1;
+
+	mutex_lock(&drm_component_lock);
+
+	list_for_each_entry_safe(cdev, next, &drm_component_list, list) {
+		if ((cdev->crtc_dev == dev) || (cdev->conn_dev == dev)) {
+			type = cdev->out_type;
+			break;
+		}
+	}
+
+	mutex_unlock(&drm_component_lock);
+
+	return type;
+}
+
+void *rockchip_drm_component_data_get(struct device *dev,
+				  enum rockchip_drm_device_type dev_type)
+{
+	struct component_dev *cdev, *next;
+	void *data = NULL;
+
+	mutex_lock(&drm_component_lock);
+
+	list_for_each_entry_safe(cdev, next, &drm_component_list, list) {
+		if ((cdev->crtc_dev == dev) || (cdev->conn_dev == dev)) {
+			if (dev_type == ROCKCHIP_DEVICE_TYPE_CRTC)
+				data = cdev->crtc_data;
+			else if (dev_type == ROCKCHIP_DEVICE_TYPE_CONNECTOR)
+				data = cdev->conn_data;
+			break;
+		}
+	}
+
+	mutex_unlock(&drm_component_lock);
+
+	return data;
+}
+
 int rockchip_drm_component_add(struct device *dev,
 			       enum rockchip_drm_device_type dev_type,
-			       enum rockchip_drm_output_type out_type)
+			       int out_type, void *data)
 {
 	struct component_dev *cdev;
+	int pipe = -1;
 
 	if (dev_type != ROCKCHIP_DEVICE_TYPE_CRTC &&
 	    dev_type != ROCKCHIP_DEVICE_TYPE_CONNECTOR) {
@@ -352,25 +367,27 @@ int rockchip_drm_component_add(struct device *dev,
 	 * ready before rockchip drm core binds them.
 	 */
 	list_for_each_entry(cdev, &drm_component_list, list) {
-		if (cdev->out_type == out_type) {
-			/*
-			 * If crtc and encoder/connector device objects are
-			 * added already just return.
-			 */
-			if (cdev->dev_type_flag == (ROCKCHIP_DEVICE_TYPE_CRTC |
-					ROCKCHIP_DEVICE_TYPE_CONNECTOR)) {
-				mutex_unlock(&drm_component_lock);
-				return 0;
+		pipe++;
+		/*
+		 * out_type from crtc and display port, crtc set possible
+		 * out_type maskbit at out_type, and display posr set out_type
+		 * directly. and if crtc and display port all register, set
+		 * out_type not maskbit;
+		 */
+		if (cdev->out_type & out_type) {
+			if (cdev->crtc_dev && cdev->conn_dev) {
+				DRM_ERROR("already register, not allow");
+				return -EINVAL;
 			}
 
 			if (dev_type == ROCKCHIP_DEVICE_TYPE_CRTC) {
+				cdev->pipe = pipe;
 				cdev->crtc_dev = dev;
-				cdev->dev_type_flag |= dev_type;
-			}
-
-			if (dev_type == ROCKCHIP_DEVICE_TYPE_CONNECTOR) {
+				cdev->crtc_data = data;
+			} else if (dev_type == ROCKCHIP_DEVICE_TYPE_CONNECTOR) {
 				cdev->conn_dev = dev;
-				cdev->dev_type_flag |= dev_type;
+				cdev->conn_data = data;
+				cdev->out_type = out_type;
 			}
 
 			mutex_unlock(&drm_component_lock);
@@ -384,13 +401,15 @@ int rockchip_drm_component_add(struct device *dev,
 	if (!cdev)
 		return -ENOMEM;
 
-	if (dev_type == ROCKCHIP_DEVICE_TYPE_CRTC)
+	if (dev_type == ROCKCHIP_DEVICE_TYPE_CRTC) {
 		cdev->crtc_dev = dev;
-	if (dev_type == ROCKCHIP_DEVICE_TYPE_CONNECTOR)
+		cdev->crtc_data = data;
+	} else if (dev_type == ROCKCHIP_DEVICE_TYPE_CONNECTOR) {
 		cdev->conn_dev = dev;
+		cdev->conn_data = data;
+	}
 
 	cdev->out_type = out_type;
-	cdev->dev_type_flag = dev_type;
 
 	mutex_lock(&drm_component_lock);
 	list_add_tail(&cdev->list, &drm_component_list);
@@ -408,17 +427,13 @@ void rockchip_drm_component_del(struct device *dev,
 
 	list_for_each_entry_safe(cdev, next, &drm_component_list, list) {
 		if (dev_type == ROCKCHIP_DEVICE_TYPE_CRTC) {
-			if (cdev->crtc_dev == dev) {
+			if (cdev->crtc_dev == dev)
 				cdev->crtc_dev = NULL;
-				cdev->dev_type_flag &= ~dev_type;
-			}
 		}
 
 		if (dev_type == ROCKCHIP_DEVICE_TYPE_CONNECTOR) {
-			if (cdev->conn_dev == dev) {
+			if (cdev->conn_dev == dev)
 				cdev->conn_dev = NULL;
-				cdev->dev_type_flag &= ~dev_type;
-			}
 		}
 
 		/*
@@ -463,22 +478,6 @@ static int rockchip_drm_add_components(struct device *dev, struct master *m)
 		mutex_unlock(&drm_component_lock);
 
 		/*
-		 * lcdc and dp modules have same device object so add
-		 * only crtc device object in this case.
-		 *
-		 * TODO. if dp module follows driver-model driver then
-		 * below codes can be removed.
-		 */
-		if (cdev->crtc_dev == cdev->conn_dev) {
-			ret = component_master_add_child(m, compare_of,
-							 cdev->crtc_dev);
-			if (ret < 0)
-				return ret;
-
-			goto out_lock;
-		}
-
-		/*
 		 * Do not chage below call order.
 		 * crtc device first should be added to master because
 		 * connector/encoder need pipe number of crtc when they
@@ -490,7 +489,6 @@ static int rockchip_drm_add_components(struct device *dev, struct master *m)
 		if (ret < 0)
 			return ret;
 
-out_lock:
 		mutex_lock(&drm_component_lock);
 	}
 
@@ -550,20 +548,53 @@ static int rockchip_drm_init(void)
 {
 	int ret;
 
+	ret = platform_driver_register(&rockchip_panel_platform_driver);
+	if (ret < 0)
+		return -ENOMEM;
+
+#ifdef CONFIG_DRM_ROCKCHIP_LCDC
+	ret = platform_driver_register(&rockchip_lcdc_platform_driver);
+	if (ret < 0)
+		goto out_lcdc;
+#endif
+
+#ifdef CONFIG_RK3288_LVDS
+	ret = platform_driver_register(&rk3288_lvds_driver);
+	if (ret)
+		goto out_lvds;
+#endif
+
+#ifdef CONFIG_RK3288_DP
+	ret = platform_driver_register(&rk3288_edp_driver);
+	if (ret)
+		goto out_edp;
+#endif
+
 	rockchip_drm_pdev = platform_device_register_simple("rockchip-drm", -1,
 							    NULL, 0);
-	if (IS_ERR(rockchip_drm_pdev))
-		return PTR_ERR(rockchip_drm_pdev);
+	if (IS_ERR(rockchip_drm_pdev)) {
+		ret = PTR_ERR(rockchip_drm_pdev);
+		goto out_drm_pdev;
+	}
 
 	ret = platform_driver_register(&rockchip_drm_platform_driver);
 	if (ret)
-		goto err_unregister_pd;
+		goto out_drm_driver;
 
 	return 0;
 
-err_unregister_pd:
+out_drm_driver:
 	platform_device_unregister(rockchip_drm_pdev);
-
+out_drm_pdev:
+#ifdef CONFIG_RK3288_LVDS
+	platform_driver_unregister(&rk3288_lvds_driver);
+out_lvds:
+#endif
+#ifdef CONFIG_DRM_ROCKCHIP_LCDC
+	platform_driver_unregister(&rockchip_lcdc_platform_driver);
+out_lcdc:
+#endif
+	platform_driver_unregister(&rockchip_panel_platform_driver);
 	return ret;
 }
 
@@ -571,7 +602,18 @@ static void rockchip_drm_exit(void)
 {
 	platform_device_unregister(rockchip_drm_pdev);
 	platform_driver_unregister(&rockchip_drm_platform_driver);
+#ifdef CONFIG_RK3288_LVDS
+	platform_driver_unregister(&rk3288_lvds_driver);
+#endif
+#ifdef CONFIG_DRM_ROCKCHIP_LCDC
+	platform_driver_unregister(&rockchip_lcdc_platform_driver);
+#endif
+	platform_driver_unregister(&rockchip_panel_platform_driver);
 }
 
 module_init(rockchip_drm_init);
 module_exit(rockchip_drm_exit);
+
+MODULE_AUTHOR("mark yao <mark.yao@rock-chips.com>");
+MODULE_DESCRIPTION("ROCKCHIP DRM Driver");
+MODULE_LICENSE("GPL v2");

@@ -4,12 +4,10 @@
 
 ccflags-y := -Iinclude/drm -Idrivers/gpu/drm/rockchip
 
+rockchipdrm-y := rockchip_drm_drv.o rockchip_drm_gem.o \
+		rockchip_drm_fb.o rockchip_drm_fbdev.o \
+		rockchip_panel.o
+
+obj-$(CONFIG_DRM_ROCKCHIP_CONNECTOR) += rockchip_drm_connector.o connector/
 obj-$(CONFIG_DRM_ROCKCHIP_LCDC) += rockchip_drm_lcdc.o lcdc/
-obj-$(CONFIG_DRM_ROCKCHIP_DP) += rockchip_drm_dp.o dp/
-
-rockchipdrm-y := rockchip_drm_drv.o rockchip_drm_encoder.o \
-		rockchip_drm_crtc.o rockchip_drm_fbdev.o rockchip_drm_fb.o \
-		rockchip_drm_buf.o rockchip_drm_gem.o rockchip_drm_core.o \
-		rockchip_drm_plane.o rockchip_drm_dmabuf.o
-
 obj-$(CONFIG_DRM_ROCKCHIP) += rockchipdrm.o

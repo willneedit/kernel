@@ -62,6 +62,10 @@
 #define SCLK_MAC_RX		102
 #define SCLK_MAC_TX		103
 
+#define SCLK_EDP_24M     104//temp set cym                                                                                                  
+#define SCLK_EDP                 105//temp set cym                               
+#define SCLK_HDMI_HDCP     106//temp set cym 
+
 #define DCLK_VOP0		190
 #define DCLK_VOP1		191
 
@@ -113,9 +117,9 @@
 #define PCLK_TIMER		353
 #define PCLK_TZPC		354
 
-#define PCLK_LVDS_PHY           353 //temp set cym
-#define PCLK_EDP_CTRL              354//temp set cym
-#define PCLK_HDMI_CTRL        355//temp set cym
+#define PCLK_LVDS_PHY           355 //temp set cym
+#define PCLK_EDP_CTRL              356//temp set cym
+#define PCLK_HDMI_CTRL        357//temp set cym
 
 /* hclk gates */
 #define HCLK_GPS		448

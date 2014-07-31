@@ -1,4 +1,4 @@
-/* rockchip_drm.h
+/*
  *
  * Copyright (c) Fuzhou Rockchip Electronics Co.Ltd
  * Authors:
@@ -81,18 +81,13 @@ struct drm_rockchip_gem_info {
 
 /* memory type definitions. */
 enum e_drm_rockchip_gem_mem_type {
-	/* Physically Continuous memory and used as default. */
-	ROCKCHIP_BO_CONTIG = 0 << 0,
-	/* Physically Non-Continuous memory. */
-	ROCKCHIP_BO_NONCONTIG = 1 << 0,
 	/* non-cachable mapping and used as default. */
-	ROCKCHIP_BO_NONCACHABLE = 0 << 1,
+	ROCKCHIP_BO_NONCACHABLE = 0 << 0,
 	/* cachable mapping. */
-	ROCKCHIP_BO_CACHABLE = 1 << 1,
+	ROCKCHIP_BO_CACHABLE = 1 << 0,
 	/* write-combine mapping. */
-	ROCKCHIP_BO_WC = 1 << 2,
-	ROCKCHIP_BO_MASK = ROCKCHIP_BO_NONCONTIG | ROCKCHIP_BO_CACHABLE |
-				ROCKCHIP_BO_WC
+	ROCKCHIP_BO_WC = 1 << 1,
+	ROCKCHIP_BO_MASK = ROCKCHIP_BO_CACHABLE | ROCKCHIP_BO_WC
 };
 
 #define DRM_ROCKCHIP_GEM_CREATE		0x00

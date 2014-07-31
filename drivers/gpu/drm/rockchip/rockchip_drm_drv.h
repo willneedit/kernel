@@ -1,5 +1,4 @@
-/* rockchip_drm_drv.h
- *
+/*
  * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
  * Author:mark yao <mark.yao@rock-chips.com>
  *
@@ -25,26 +24,39 @@
 #define MAX_FB_BUFFER	4
 #define DEFAULT_ZPOS	-1
 
-#define _wait_for(COND, MS) ({ \
-	unsigned long timeout__ = jiffies + msecs_to_jiffies(MS);	\
-	int ret__ = 0;							\
-	while (!(COND)) {						\
-		if (time_after(jiffies, timeout__)) {			\
-			ret__ = -ETIMEDOUT;				\
-			break;						\
-		}							\
-	}								\
-	ret__;								\
-})
-
-#define wait_for(COND, MS) _wait_for(COND, MS)
-
 struct drm_device;
 struct drm_connector;
-struct rockchip_drm_overlay;
-struct rockchip_drm_manager;
 
-extern unsigned int drm_vblank_offdelay;
+/*
+ * display output interface supported by rockchip lcdc
+ */
+#define ROCKCHIP_OUTFACE_P888	0
+#define ROCKCHIP_OUTFACE_P666	1
+#define ROCKCHIP_OUTFACE_P565	2
+/* for use special outface */
+#define ROCKCHIP_OUTFACE_AAAA	15
+
+#define ROCKCHIP_COLOR_SWAP_RG	0x1
+#define ROCKCHIP_COLOR_SWAP_RB	0x2
+#define ROCKCHIP_COLOR_SWAP_GB	0x4
+/*
+ * Special panel info for rockchip
+ *
+ * @out_type: lcd controller need to know the sceen type.
+ * @out_face: the output pin interface.
+ * @color_swap: if want to swap color at output, use this.
+ * @pwr18: choice the power supply 1.8 or 3.3 mode for lcdc
+ * @dither: use dither func at lcd output
+ * @flags: the display flags, now just for pin sync level.
+ */
+struct rockchip_panel_special {
+	int out_type;
+	int out_face;
+	u32 color_swap;
+	bool pwr18;
+	bool dither;
+	u32 flags;
+};
 
 /* This enumerates device type. */
 enum rockchip_drm_device_type {
@@ -55,200 +67,28 @@ enum rockchip_drm_device_type {
 
 /* this enumerates display type. */
 enum rockchip_drm_output_type {
-	ROCKCHIP_DISPLAY_TYPE_NONE,
-	/* RGB or CPU Interface. */
-	ROCKCHIP_DISPLAY_TYPE_LCD,
+	ROCKCHIP_DISPLAY_TYPE_NONE = 0,
+	/* RGB Interface. */
+	ROCKCHIP_DISPLAY_TYPE_RGB = (1 << 0),
+	/* LVDS Interface. */
+	ROCKCHIP_DISPLAY_TYPE_LVDS = (1 << 1),
+	/* DUAL LVDS Interface. */
+	ROCKCHIP_DISPLAY_TYPE_DUAL_LVDS = (1 << 2),
+	/* EDP Interface. */
+	ROCKCHIP_DISPLAY_TYPE_EDP = (1 << 3),
+	/* MIPI Interface. */
+	ROCKCHIP_DISPLAY_TYPE_MIPI = (1 << 4),
 	/* HDMI Interface. */
-	ROCKCHIP_DISPLAY_TYPE_HDMI,
-	/* Virtual Display Interface. */
-	ROCKCHIP_DISPLAY_TYPE_VIDI,
-};
-
-/*
- * Rockchip drm common overlay structure.
- *
- * @fb_x: offset x on a framebuffer to be displayed.
- *      - the unit is screen coordinates.
- * @fb_y: offset y on a framebuffer to be displayed.
- *      - the unit is screen coordinates.
- * @fb_width: width of a framebuffer.
- * @fb_height: height of a framebuffer.
- * @src_width: width of a partial image to be displayed from framebuffer.
- * @src_height: height of a partial image to be displayed from framebuffer.
- * @crtc_x: offset x on hardware screen.
- * @crtc_y: offset y on hardware screen.
- * @crtc_width: window width to be displayed (hardware screen).
- * @crtc_height: window height to be displayed (hardware screen).
- * @mode_width: width of screen mode.
- * @mode_height: height of screen mode.
- * @refresh: refresh rate.
- * @scan_flag: interlace or progressive way.
- *      (it could be DRM_MODE_FLAG_*)
- * @bpp: pixel size.(in bit)
- * @pixel_format: fourcc pixel format of this overlay
- * @dma_addr: array of bus(accessed by dma) address to the memory region
- *          allocated for a overlay.
- * @zpos: order of overlay layer(z position).
- * @default_win: a window to be enabled.
- * @color_key: color key on or off.
- * @index_color: if using color key feature then this value would be used
- *             as index color.
- * @local_path: in case of lcd type, local path mode on or off.
- * @transparency: transparency on or off.
- * @activated: activated or not.
- *
- * this structure is common to rockchip SoC and its contents would be copied
- * to hardware specific overlay info.
- */
-struct rockchip_drm_overlay {
-	unsigned int fb_x;
-	unsigned int fb_y;
-	unsigned int fb_width;
-	unsigned int fb_height;
-	unsigned int src_width;
-	unsigned int src_height;
-	unsigned int crtc_x;
-	unsigned int crtc_y;
-	unsigned int crtc_width;
-	unsigned int crtc_height;
-	unsigned int mode_width;
-	unsigned int mode_height;
-	unsigned int refresh;
-	unsigned int scan_flag;
-	unsigned int bpp;
-	unsigned int pitch;
-	uint32_t pixel_format;
-	dma_addr_t dma_addr[MAX_FB_BUFFER];
-	int zpos;
-
-	bool default_win;
-	bool color_key;
-	unsigned int index_color;
-	bool local_path;
-	bool transparency;
-	bool activated;
-};
-
-/*
- * Rockchip DRM Display Structure.
- *     - this structure is common to analog tv, digital tv and lcd panel.
- *
- * @remove: cleans up the display for removal
- * @mode_fixup: fix mode data comparing to hw specific display mode.
- * @mode_set: convert drm_display_mode to hw specific display mode and
- *            would be called by encoder->mode_set().
- * @check_mode: check if mode is valid or not.
- * @dpms: display device on or off.
- * @commit: apply changes to hw
- */
-struct rockchip_drm_display;
-struct rockchip_drm_display_ops {
-	int (*create_connector)(struct rockchip_drm_display *display,
-				struct drm_encoder *encoder);
-	void (*remove)(struct rockchip_drm_display *display);
-	void (*mode_fixup)(struct rockchip_drm_display *display,
-			   struct drm_connector *connector,
-			   const struct drm_display_mode *mode,
-			   struct drm_display_mode *adjusted_mode);
-	void (*mode_set)(struct rockchip_drm_display *display,
-			 struct drm_display_mode *mode);
-	int (*check_mode)(struct rockchip_drm_display *display,
-			  struct drm_display_mode *mode);
-	void (*dpms)(struct rockchip_drm_display *display, int mode);
-	void (*commit)(struct rockchip_drm_display *display);
-};
-
-/*
- * Rockchip drm display structure, maps 1:1 with an encoder/connector
- *
- * @list: the list entry for this manager
- * @type: one of ROCKCHIP_DISPLAY_TYPE_LCD and HDMI.
- * @encoder: encoder object this display maps to
- * @connector: connector object this display maps to
- * @ops: pointer to callbacks for rockchip drm specific functionality
- * @ctx: A pointer to the display's implementation specific context
- */
-struct rockchip_drm_display {
-	struct list_head list;
-	enum rockchip_drm_output_type type;
-	struct drm_encoder *encoder;
-	struct drm_connector *connector;
-	struct rockchip_drm_display_ops *ops;
-	void *ctx;
-};
-
-/*
- * Rockchip drm manager ops
- *
- * @dpms: control device power.
- * @mode_fixup: fix mode data before applying it
- * @mode_set: set the given mode to the manager
- * @commit: set current hw specific display mode to hw.
- * @enable_vblank: specific driver callback for enabling vblank interrupt.
- * @disable_vblank: specific driver callback for disabling vblank interrupt.
- * @wait_for_vblank: wait for vblank interrupt to make sure that
- *      hardware overlay is updated.
- * @win_mode_set: copy drm overlay info to hw specific overlay info.
- * @win_commit: apply hardware specific overlay data to registers.
- * @win_enable: enable hardware specific overlay.
- * @win_disable: disable hardware specific overlay.
- */
-struct rockchip_drm_manager_ops {
-	void (*dpms)(struct rockchip_drm_manager *mgr, int mode);
-	bool (*mode_fixup)(struct rockchip_drm_manager *mgr,
-			   const struct drm_display_mode *mode,
-			   struct drm_display_mode *adjusted_mode);
-	void (*mode_set)(struct rockchip_drm_manager *mgr,
-			 const struct drm_display_mode *mode);
-	void (*commit)(struct rockchip_drm_manager *mgr);
-	int (*enable_vblank)(struct rockchip_drm_manager *mgr);
-	void (*disable_vblank)(struct rockchip_drm_manager *mgr);
-	void (*wait_for_vblank)(struct rockchip_drm_manager *mgr);
-	void (*win_mode_set)(struct rockchip_drm_manager *mgr,
-			     struct rockchip_drm_overlay *overlay);
-	void (*win_commit)(struct rockchip_drm_manager *mgr, int zpos);
-	void (*win_enable)(struct rockchip_drm_manager *mgr, int zpos);
-	void (*win_disable)(struct rockchip_drm_manager *mgr, int zpos);
-};
-
-/*
- * Rockchip drm common manager structure, maps 1:1 with a crtc
- *
- * @list: the list entry for this manager
- * @type: one of ROCKCHIP_DISPLAY_TYPE_LCD and HDMI.
- * @drm_dev: pointer to the drm device
- * @crtc: crtc object.
- * @pipe: the pipe number for this crtc/manager
- * @ops: pointer to callbacks for rockchip drm specific functionality
- * @ctx: A pointer to the manager's implementation specific context
- */
-struct rockchip_drm_manager {
-	struct list_head list;
-	enum rockchip_drm_output_type type;
-	struct drm_device *drm_dev;
-	struct drm_crtc *crtc;
-	int pipe;
-	struct rockchip_drm_manager_ops *ops;
-	void *ctx;
-};
-
-struct drm_rockchip_file_private {
-	struct file *anon_filp;
+	ROCKCHIP_DISPLAY_TYPE_HDMI = (1 << 5),
 };
 
 /*
  * Rockchip drm private structure.
  *
- * @da_start: start address to device address space.
- *      device address space starts from this address
- *      otherwise default one.
- * @da_space_size: size of device address space.
- *      if 0 then default value is used for it.
  * @pipe: the pipe number for this crtc/manager.
  */
 struct rockchip_drm_private {
-	struct drm_fb_helper *fb_helper;
-
+	struct drm_fbdev_cma *fbdev_cma;
 	/*
 	 * created crtc object would be contained at this array and
 	 * this array is used to be aware of which crtc did it request vblank.
@@ -257,20 +97,35 @@ struct rockchip_drm_private {
 	struct drm_property *plane_zpos_property;
 	struct drm_property *crtc_mode_property;
 
-	unsigned long da_start;
-	unsigned long da_space_size;
-
 	unsigned int pipe;
 };
 
-/* This function creates a encoder and a connector, and initializes them. */
-int rockchip_drm_create_enc_conn(struct drm_device *dev,
-				 struct rockchip_drm_display *display);
+
+void rockchip_drm_crtc_finish_pageflip(struct drm_device *dev, int pipe);
+void rockchip_drm_crtc_cancel_pending_flip(struct drm_device *dev);
+int rockchip_drm_crtc_enable_vblank(struct drm_device *dev, int pipe);
+void rockchip_drm_crtc_disable_vblank(struct drm_device *dev, int pipe);
+
+struct drm_plane *rockchip_plane_init(struct drm_device *dev,
+				      unsigned long possible_crtcs, bool priv);
+
+void rockchip_drm_encoder_setup(struct drm_device *dev);
+
+void *rockchip_drm_component_data_get(struct device *dev,
+				      enum rockchip_drm_device_type dev_type);
+int rockchip_drm_pipe_get(struct device *dev);
 
 int rockchip_drm_component_add(struct device *dev,
 			       enum rockchip_drm_device_type dev_type,
-			       enum rockchip_drm_output_type out_type);
-
+			       int out_type, void *data);
 void rockchip_drm_component_del(struct device *dev,
 				enum rockchip_drm_device_type dev_type);
+
+extern struct platform_driver rockchip_panel_platform_driver;
+#ifdef CONFIG_DRM_ROCKCHIP_LCDC
+extern struct platform_driver rockchip_lcdc_platform_driver;
+#endif
+#ifdef CONFIG_RK3288_LVDS
+extern struct platform_driver rk3288_lvds_driver;
+#endif
 #endif /* _ROCKCHIP_DRM_DRV_H_ */

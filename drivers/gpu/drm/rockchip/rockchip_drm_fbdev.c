@@ -1,5 +1,4 @@
-/* rockchip_drm_fbdev.c
- *
+/*
  * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
  * Author:mark yao <mark.yao@rock-chips.com>
  *
@@ -16,342 +15,49 @@
  */
 
 #include <drm/drmP.h>
-#include <drm/drm_crtc.h>
-#include <drm/drm_fb_helper.h>
-#include <drm/drm_crtc_helper.h>
+#include <drm/drm_fb_cma_helper.h>
+
 #include <drm/rockchip_drm.h>
 
 #include "rockchip_drm_drv.h"
-#include "rockchip_drm_fb.h"
-#include "rockchip_drm_fbdev.h"
-#include "rockchip_drm_gem.h"
 
 #define MAX_CONNECTOR		4
 #define PREFERRED_BPP		32
 
-#define to_rockchip_fbdev(x)	container_of(x, struct rockchip_drm_fbdev,\
-				drm_fb_helper)
-
-struct rockchip_drm_fbdev {
-	struct drm_fb_helper drm_fb_helper;
-	struct rockchip_drm_gem_obj *rockchip_gem_obj;
-};
-
-static int rockchip_drm_fb_mmap(struct fb_info *info,
-				struct vm_area_struct *vma)
-{
-	struct drm_fb_helper *helper = info->par;
-	struct rockchip_drm_fbdev *rockchip_fbd = to_rockchip_fbdev(helper);
-	struct rockchip_drm_gem_obj *rockchip_gem_obj =
-					rockchip_fbd->rockchip_gem_obj;
-	struct rockchip_drm_gem_buf *buffer = rockchip_gem_obj->buffer;
-	unsigned long vm_size;
-	int ret;
-
-	vma->vm_flags |= VM_IO | VM_DONTEXPAND | VM_DONTDUMP;
-
-	vm_size = vma->vm_end - vma->vm_start;
-
-	if (vm_size > buffer->size)
-		return -EINVAL;
-
-	ret = dma_mmap_attrs(helper->dev->dev, vma, buffer->pages,
-			     buffer->dma_addr, buffer->size,
-			     &buffer->dma_attrs);
-	if (ret < 0) {
-		DRM_ERROR("failed to mmap.\n");
-		return ret;
-	}
-
-	return 0;
-}
-
-static struct fb_ops rockchip_drm_fb_ops = {
-	.owner = THIS_MODULE,
-	.fb_mmap = rockchip_drm_fb_mmap,
-	.fb_fillrect = cfb_fillrect,
-	.fb_copyarea = cfb_copyarea,
-	.fb_imageblit = cfb_imageblit,
-	.fb_check_var = drm_fb_helper_check_var,
-	.fb_set_par = drm_fb_helper_set_par,
-	.fb_blank = drm_fb_helper_blank,
-	.fb_pan_display = drm_fb_helper_pan_display,
-	.fb_setcmap = drm_fb_helper_setcmap,
-};
-
-static int rockchip_drm_fbdev_update(struct drm_fb_helper *helper,
-				     struct drm_framebuffer *fb)
-{
-	struct fb_info *fbi = helper->fbdev;
-	struct rockchip_drm_gem_buf *buffer;
-	unsigned int size = fb->width * fb->height * (fb->bits_per_pixel >> 3);
-	unsigned long offset;
-
-	drm_fb_helper_fill_fix(fbi, fb->pitches[0], fb->depth);
-	drm_fb_helper_fill_var(fbi, helper, fb->width, fb->height);
-
-	/* RGB formats use only one buffer */
-	buffer = rockchip_drm_fb_buffer(fb, 0);
-	if (!buffer) {
-		DRM_DEBUG_KMS("buffer is null.\n");
-		return -EFAULT;
-	}
-
-	/* map pages with kernel virtual space. */
-	if (!buffer->kvaddr) {
-		phys_addr_t dma_addr = buffer->dma_addr;
-
-		if (dma_addr)
-			buffer->kvaddr =
-				(void __iomem *)phys_to_virt(dma_addr);
-		else
-			buffer->kvaddr = (void __iomem *)NULL;
-		if (!buffer->kvaddr) {
-			DRM_ERROR("failed to map pages to kernel space.\n");
-			return -EIO;
-		}
-	}
-
-	/* buffer count to framebuffer always is 1 at booting time. */
-	rockchip_drm_fb_set_buf_cnt(fb, 1);
-
-	offset = fbi->var.xoffset * (fb->bits_per_pixel >> 3);
-	offset += fbi->var.yoffset * fb->pitches[0];
-
-	fbi->screen_base = buffer->kvaddr + offset;
-	fbi->screen_size = size;
-	fbi->fix.smem_len = size;
-
-	return 0;
-}
-
-static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
-				     struct drm_fb_helper_surface_size *sizes)
-{
-	struct rockchip_drm_fbdev *rockchip_fbdev = to_rockchip_fbdev(helper);
-	struct rockchip_drm_gem_obj *rockchip_gem_obj;
-	struct drm_device *dev = helper->dev;
-	struct fb_info *fbi;
-	struct drm_mode_fb_cmd2 mode_cmd = { 0 };
-	struct platform_device *pdev = dev->platformdev;
-	unsigned long size;
-	int ret;
-
-	DRM_DEBUG_KMS("surface width(%d), height(%d) and bpp(%d\n",
-		      sizes->surface_width, sizes->surface_height,
-		      sizes->surface_bpp);
-
-	mode_cmd.width = sizes->surface_width;
-	mode_cmd.height = sizes->surface_height;
-	mode_cmd.pitches[0] = sizes->surface_width * (sizes->surface_bpp >> 3);
-	mode_cmd.pixel_format = drm_mode_legacy_fb_format(sizes->surface_bpp,
-							  sizes->surface_depth);
-
-	mutex_lock(&dev->struct_mutex);
-
-	fbi = framebuffer_alloc(0, &pdev->dev);
-	if (!fbi) {
-		DRM_ERROR("failed to allocate fb info.\n");
-		ret = -ENOMEM;
-		goto out;
-	}
-
-	size = mode_cmd.pitches[0] * mode_cmd.height;
-
-	rockchip_gem_obj = rockchip_drm_gem_create(dev,
-						   ROCKCHIP_BO_CONTIG, size);
-
-	if (IS_ERR(rockchip_gem_obj)) {
-		ret = PTR_ERR(rockchip_gem_obj);
-		goto err_release_framebuffer;
-	}
-
-	rockchip_fbdev->rockchip_gem_obj = rockchip_gem_obj;
-
-	helper->fb = rockchip_drm_framebuffer_init(dev, &mode_cmd,
-			&rockchip_gem_obj->base);
-	if (IS_ERR(helper->fb)) {
-		DRM_ERROR("failed to create drm framebuffer.\n");
-		ret = PTR_ERR(helper->fb);
-		goto err_destroy_gem;
-	}
-
-	helper->fbdev = fbi;
-
-	fbi->par = helper;
-	fbi->flags = FBINFO_FLAG_DEFAULT;
-	fbi->fbops = &rockchip_drm_fb_ops;
-
-	ret = fb_alloc_cmap(&fbi->cmap, 256, 0);
-	if (ret) {
-		DRM_ERROR("failed to allocate cmap.\n");
-		goto err_destroy_framebuffer;
-	}
-
-	ret = rockchip_drm_fbdev_update(helper, helper->fb);
-	if (ret < 0)
-		goto err_dealloc_cmap;
-
-	mutex_unlock(&dev->struct_mutex);
-	return ret;
-
-err_dealloc_cmap:
-	fb_dealloc_cmap(&fbi->cmap);
-err_destroy_framebuffer:
-	drm_framebuffer_cleanup(helper->fb);
-err_destroy_gem:
-	rockchip_drm_gem_destroy(rockchip_gem_obj);
-err_release_framebuffer:
-	framebuffer_release(fbi);
-
-/*
- * if failed, all resources allocated above would be released by
- * drm_mode_config_cleanup() when drm_load() had been called prior
- * to any specific driver such as lcdc or hdmi driver.
- */
-out:
-	mutex_unlock(&dev->struct_mutex);
-	return ret;
-}
-
-static struct drm_fb_helper_funcs rockchip_drm_fb_helper_funcs = {
-	.fb_probe = rockchip_drm_fbdev_create,
-};
-
-static bool rockchip_drm_fbdev_is_anything_connected(struct drm_device *dev)
-{
-	struct drm_connector *connector;
-	bool ret = false;
-
-	mutex_lock(&dev->mode_config.mutex);
-	list_for_each_entry(connector,
-			    &dev->mode_config.connector_list, head) {
-		if (connector->status != connector_status_connected)
-			continue;
-
-		ret = true;
-		break;
-	}
-	mutex_unlock(&dev->mode_config.mutex);
-
-	return ret;
-}
-
 int rockchip_drm_fbdev_init(struct drm_device *dev)
 {
-	struct rockchip_drm_fbdev *fbdev;
 	struct rockchip_drm_private *private = dev->dev_private;
-	struct drm_fb_helper *helper;
+	struct drm_fbdev_cma *fbdev_cma;
 	unsigned int num_crtc;
-	int ret;
 
 	if (!dev->mode_config.num_crtc || !dev->mode_config.num_connector)
 		return 0;
 
-	if (!rockchip_drm_fbdev_is_anything_connected(dev))
-		return 0;
-
-	fbdev = kzalloc(sizeof(*fbdev), GFP_KERNEL);
-	if (!fbdev)
-		return -ENOMEM;
-	helper = &fbdev->drm_fb_helper;
-	private->fb_helper = helper;
-	helper->funcs = &rockchip_drm_fb_helper_funcs;
+	if (private->fbdev_cma) {
+		DRM_ERROR("no allow to reinit cma fbdev\n");
+		return -EINVAL;
+	}
 
 	num_crtc = dev->mode_config.num_crtc;
 
-	ret = drm_fb_helper_init(dev, helper, num_crtc, MAX_CONNECTOR);
-	if (ret < 0) {
-		DRM_ERROR("failed to initialize drm fb helper.\n");
-		goto err_init;
+	fbdev_cma = drm_fbdev_cma_init(dev, PREFERRED_BPP, num_crtc,
+				       MAX_CONNECTOR);
+	if (!fbdev_cma) {
+		DRM_ERROR("failed to init cma fbdev\n");
+		return -ENOMEM;
 	}
 
-	ret = drm_fb_helper_single_add_all_connectors(helper);
-	if (ret < 0) {
-		DRM_ERROR("failed to register drm_fb_helper_connector.\n");
-		goto err_setup;
-	}
-
-	/* disable all the possible outputs/crtcs before entering KMS mode */
-	drm_helper_disable_unused_functions(dev);
-
-	ret = drm_fb_helper_initial_config(helper, PREFERRED_BPP);
-	if (ret < 0) {
-		DRM_ERROR("failed to set up hw configuration.\n");
-		goto err_setup;
-	}
+	private->fbdev_cma = fbdev_cma;
 
 	return 0;
-
-err_setup:
-	drm_fb_helper_fini(helper);
-
-err_init:
-	private->fb_helper = NULL;
-	kfree(fbdev);
-
-	return ret;
-}
-
-static void rockchip_drm_fbdev_destroy(struct drm_device *dev,
-				       struct drm_fb_helper *fb_helper)
-{
-	struct drm_framebuffer *fb;
-
-	/* release drm framebuffer and real buffer */
-	if (fb_helper->fb && fb_helper->fb->funcs) {
-		fb = fb_helper->fb;
-		if (fb) {
-			drm_framebuffer_unregister_private(fb);
-			drm_framebuffer_remove(fb);
-		}
-	}
-
-	/* release linux framebuffer */
-	if (fb_helper->fbdev) {
-		struct fb_info *info;
-		int ret;
-
-		info = fb_helper->fbdev;
-		ret = unregister_framebuffer(info);
-		if (ret < 0)
-			DRM_DEBUG_KMS("failed unregister_framebuffer()\n");
-
-		if (info->cmap.len)
-			fb_dealloc_cmap(&info->cmap);
-
-		framebuffer_release(info);
-	}
-
-	drm_fb_helper_fini(fb_helper);
 }
 
 void rockchip_drm_fbdev_fini(struct drm_device *dev)
 {
 	struct rockchip_drm_private *private = dev->dev_private;
-	struct rockchip_drm_fbdev *fbdev;
 
-	if (!private || !private->fb_helper)
+	if (!private || !private->fbdev_cma)
 		return;
 
-	fbdev = to_rockchip_fbdev(private->fb_helper);
-
-	if (fbdev->rockchip_gem_obj)
-		rockchip_drm_gem_destroy(fbdev->rockchip_gem_obj);
-
-	rockchip_drm_fbdev_destroy(dev, private->fb_helper);
-	kfree(fbdev);
-	private->fb_helper = NULL;
-}
-
-void rockchip_drm_fbdev_restore_mode(struct drm_device *dev)
-{
-	struct rockchip_drm_private *private = dev->dev_private;
-
-	if (!private || !private->fb_helper)
-		return;
-
-	drm_modeset_lock_all(dev);                                                                                                         
-	drm_fb_helper_restore_fbdev_mode(private->fb_helper);                   
-	drm_modeset_unlock_all(dev); 
+	drm_fbdev_cma_fini(private->fbdev_cma);
 }

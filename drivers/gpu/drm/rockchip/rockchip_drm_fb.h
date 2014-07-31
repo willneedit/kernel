@@ -1,4 +1,4 @@
-/* rockchip_drm_fb.h
+/*
  *
  * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
  * Author:mark yao <mark.yao@rock-chips.com>
@@ -23,17 +23,6 @@ rockchip_drm_framebuffer_init(struct drm_device *dev,
 			      struct drm_mode_fb_cmd2 *mode_cmd,
 			      struct drm_gem_object *obj);
 
-/* get memory information of a drm framebuffer */
-struct rockchip_drm_gem_buf *rockchip_drm_fb_buffer(struct drm_framebuffer *fb,
-						    int index);
-
 void rockchip_drm_mode_config_init(struct drm_device *dev);
-
-/* set a buffer count to drm framebuffer. */
-void rockchip_drm_fb_set_buf_cnt(struct drm_framebuffer *fb,
-				 unsigned int cnt);
-
-/* get a buffer count to drm framebuffer. */
-unsigned int rockchip_drm_fb_get_buf_cnt(struct drm_framebuffer *fb);
 
 #endif /* _ROCKCHIP_DRM_FB_H_ */

@@ -625,6 +625,18 @@
 			clock-names = "pclk_lvds";
 		};
 
+		edp: edp@ff970000 {                                                                                                        
+                        compatible = "rockchip,rk32xx-edp";
+                        rockchip,grf = <&grf>;
+                        rockchip,cru = <&cru>;
+                        reg = <0xff970000 0x4000>;
+                        interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
+                        clocks = <&cru SCLK_EDP>, <&cru SCLK_EDP_24M>, <&cru PCLK_EDP_CTRL>, <&xin24m>;
+                        clock-names = "clk_edp", "clk_edp_24m", "pclk_edp", "clk_edp_24m_parent";
+                        resets = <&cru 111>;
+                        reset-names = "edp";
+		};
+
 		lcdc1: lcdc@ff940000 {
 			compatible = "rockchip,rk3288-lcdc";
 			rockchip,prop = <0>;

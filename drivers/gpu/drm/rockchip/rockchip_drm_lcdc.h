@@ -1,4 +1,4 @@
-/* rockchip_drm_lcdc.h
+/*
  * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
  * Author:mark yao <mark.yao@rock-chips.com>
  *
@@ -16,45 +16,8 @@
 #define _ROCKCHIP_DRM_LCDC_H_
 #include <linux/platform_device.h>
 #include <drm/drm_crtc.h>
-/*
- * display output interface supported by rockchip lcdc
- */
-enum {
-/* 24bit screen,connect to lcdc D0~D23 */
-	OUT_P888 = 0,
-/* 18bit screen,connect to lcdc D0~D17 */
-	OUT_P666,
-	OUT_P565,
-	OUT_S888x,
-	OUT_CCIR656,
-	OUT_S888,
-	OUT_S888DUMY,
-	OUT_RGB_AAA,
-	OUT_P16BPP4,
-/* 18bit screen,connect to lcdc D2~D7, D10~D15, D18~D23 */
-	OUT_D888_P666 = 0x21,
-	OUT_D888_P565
-};
 
-enum {
-	SCREEN_NULL = 0,
-	SCREEN_RGB,
-	SCREEN_LVDS,
-	SCREEN_DUAL_LVDS,
-	SCREEN_MCU,
-	SCREEN_TVOUT,
-	SCREEN_HDMI,
-	SCREEN_MIPI,
-	SCREEN_DUAL_MIPI,
-	SCREEN_EDP
-};
-
-enum {
-	LVDS_8BIT_1 = 0,
-	LVDS_8BIT_2,
-	LVDS_8BIT_3,
-	LVDS_6BIT
-};
+#include "rockchip_drm_drv.h"
 
 enum {
 	ZPOS_DEFAULT_WIN = 0,
@@ -140,37 +103,26 @@ struct lcdc_win_data {
 	u32 color_key_val;
 };
 
-struct lcdc_driver_ops {
-	struct lcdc_driver *(*init)(struct platform_device *pdev);
+struct lcdc_driver_data {
+	int num_win;
+	struct lcdc_driver * (*init)(struct platform_device *pdev);
 	void (*deinit)(struct lcdc_driver *drv);
 	void (*dpms)(struct lcdc_driver *drv, int mode);
 	void (*mode_set)(struct lcdc_driver *drv,
 			 struct drm_display_mode *mode);
 	void (*enable_vblank)(struct lcdc_driver *drv);
 	void (*disable_vblank)(struct lcdc_driver *drv);
-	struct lcdc_win_data *(*get_win)(struct lcdc_driver *drv, int zpos);
+	struct lcdc_win_data * (*get_win)(struct lcdc_driver *drv, int zpos);
 	void (*win_commit)(struct lcdc_driver *drv,
 			   struct lcdc_win_data *win);
 };
 
-struct lcdc_driver_data {
-	int num_win;
-	struct lcdc_driver_ops *ops;
-};
-
 struct lcdc_driver {
-	int prop;
+	int id;
+
 	struct lcdc_driver_data *data;
 };
 
-struct rockchip_mode_priv {
-	int lcdc_id;
-	int type;
-	int lvds_format;
-	int face;
-	int color_swap;
-	unsigned int flags;
-};
 
 void lcdc_vsync_event_handler(struct device *dev);
 #ifdef CONFIG_LCDC_RK3288

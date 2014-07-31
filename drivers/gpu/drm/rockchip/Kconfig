@@ -3,6 +3,9 @@ config DRM_ROCKCHIP
 	depends on DRM
 	select DRM_KMS_HELPER
 	select DRM_KMS_FB_HELPER
+	select DRM_KMS_CMA_HELPER
+	select DRM_GEM_CMA_HELPER
+	select DRM_PANEL
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT
@@ -11,9 +14,10 @@ config DRM_ROCKCHIP
 	select OF
 	help
 	  Choose this option if you have a Rockchip soc chipset.
-	  The driver provides an abstraction for the graphics hardware,
-	  such as lcd controller and display interface. alloc dma buffer
-	  for graphics devices, set devices display mode.
+	  This driver provides kernel mode setting and buffer
+	  management to userspace. This driver does not provides
+	  2D or 3D acceleration; acceleration is performed by other
+	  IP found on the SoC.
 
 config DRM_ROCKCHIP_LCDC
 	bool "ROCKCHIP DRM LCDC"
@@ -25,8 +29,8 @@ config DRM_ROCKCHIP_LCDC
 	  lcd controller is the display interface from memory frame buffer
 	  to display device.
 
-config DRM_ROCKCHIP_DP
-	bool "RK LCD DISPLAY"
+config DRM_ROCKCHIP_CONNECTOR
+	bool "ROCKCHIP DRM CONNECTOR"
 	depends on OF && DRM_ROCKCHIP && DRM_ROCKCHIP_LCDC
 	select FB_MODE_HELPERS
 	select VIDEOMODE_HELPERS
@@ -36,4 +40,4 @@ config DRM_ROCKCHIP_DP
 	  such as lcd plane, lvds, edp , mipi, etc.
 
 source "drivers/gpu/drm/rockchip/lcdc/Kconfig"
-source "drivers/gpu/drm/rockchip/dp/Kconfig"
+source "drivers/gpu/drm/rockchip/connector/Kconfig"

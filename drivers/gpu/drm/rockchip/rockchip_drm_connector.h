@@ -1,9 +1,6 @@
-/* rockchip_drm_connector.h
- *
+/*
  * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
  * Author:mark yao <mark.yao@rock-chips.com>
- *
- * based on exynos_drm_connector.h
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -18,8 +15,22 @@
 #ifndef _ROCKCHIP_DRM_CONNECTOR_H_
 #define _ROCKCHIP_DRM_CONNECTOR_H_
 
-struct drm_connector *
-	rockchip_drm_connector_create(struct drm_device *dev,
-				      struct drm_encoder *encoder);
+#include <drm/drm_crtc.h>
 
-#endif /* _ROCKCHIP_DRM_CONNECTOR_H_ */
+#include "rockchip_drm_drv.h"
+
+struct rockchip_connector {
+	struct device *dev;
+	int type;
+	void *priv;
+	u32 flags;
+
+	void (*enable)(struct rockchip_connector *conn);
+	void (*disable)(struct rockchip_connector *conn);
+	int (*setmode)(struct rockchip_connector *conn,
+		       struct drm_display_mode *mode);
+};
+
+void *rockchip_connector_register(struct rockchip_connector *conn);
+void rockchip_connector_unregister(void *data);
+#endif
