@@ -629,7 +629,6 @@
 		edp: edp@ff970000 {                                                                                                        
                         compatible = "rockchip,rk3288-edp";
                         rockchip,grf = <&grf>;
-                        rockchip,cru = <&cru>;
                         reg = <0xff970000 0x4000>;
                         interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
                         clocks = <&cru SCLK_EDP>, <&cru SCLK_EDP_24M>, <&cru PCLK_EDP_CTRL>, <&xin24m>;
