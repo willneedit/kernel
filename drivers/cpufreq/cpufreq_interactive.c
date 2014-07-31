@@ -1182,9 +1182,9 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 				tunables->hispeed_freq = freq_table[index].frequency;
 			tunables->timer_slack_val = 20 * USEC_PER_MSEC;
 			tunables->min_sample_time = 40 * USEC_PER_MSEC;
-			tunables->above_hispeed_delay[0] = 20 * USEC_PER_MSEC;
-			store_target_loads(tunables, "85 1600000:99", 0);
-			tunables->boostpulse_duration_val = 500 * USEC_PER_MSEC;
+			store_above_hispeed_delay(tunables, "20000 1000000:80000 1200000:100000 1700000:20000", 0);
+			store_target_loads(tunables, "70 600000:70 800000:75 1500000:80 1700000:90", 0);
+			tunables->boostpulse_duration_val = 40 * USEC_PER_MSEC;
 		}
 #endif
 
