@@ -20,10 +20,10 @@
 #include <linux/i2c.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
-#include <linux/regulator/driver.h>
 #include <linux/mfd/rk808.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/regulator/driver.h>
 #include <linux/regulator/of_regulator.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>
@@ -33,20 +33,25 @@
 #define RK808_BUCK_VSEL_MASK	0x3f
 #define RK808_BUCK4_VSEL_MASK	0xf
 #define RK808_LDO_VSEL_MASK	0x1f
+
 static const int buck_set_vol_base_addr[] = {
 	RK808_BUCK1_ON_VSEL_REG,
 	RK808_BUCK2_ON_VSEL_REG,
 	RK808_BUCK3_CONFIG_REG,
 	RK808_BUCK4_ON_VSEL_REG,
 };
+
 static const int buck_contr_base_addr[] = {
 	RK808_BUCK1_CONFIG_REG,
 	RK808_BUCK2_CONFIG_REG,
 	RK808_BUCK3_CONFIG_REG,
 	RK808_BUCK4_CONFIG_REG,
 };
+
 #define rk808_BUCK_SET_VOL_REG(x) (buck_set_vol_base_addr[x])
 #define rk808_BUCK_CONTR_REG(x) (buck_contr_base_addr[x])
+#define rk808_LDO_SET_VOL_REG(x) (ldo_set_vol_base_addr[x])
+
 static const int ldo_set_vol_base_addr[] = {
 	RK808_LDO1_ON_VSEL_REG,
 	RK808_LDO2_ON_VSEL_REG,
@@ -58,12 +63,9 @@ static const int ldo_set_vol_base_addr[] = {
 	RK808_LDO8_ON_VSEL_REG,
 };
 
-#define rk808_LDO_SET_VOL_REG(x) (ldo_set_vol_base_addr[x])
-
 /*
  * rk808 voltage number
  */
-
 static const struct regulator_linear_range rk808_buck_voltage_ranges[] = {
 	REGULATOR_LINEAR_RANGE(700000, 0, 63, 12500),
 };
@@ -100,7 +102,6 @@ static struct regulator_ops rk808_switch_ops = {
 	.disable = regulator_disable_regmap,
 	.is_enabled = regulator_is_enabled_regmap,
 };
-
 
 static const struct regulator_desc rk808_reg[] = {
 	{
@@ -291,33 +292,29 @@ static struct of_regulator_match rk808_reg_matches[] = {
 	[RK808_ID_LDO8]		= { .name = "LDO_REG8" },
 	[RK808_ID_SWITCH1]	= { .name = "SWITCH_REG1" },
 	[RK808_ID_SWITCH2]	= { .name = "SWITCH_REG2" },
-
 };
-static struct rk808_board *rk808_regulator_dts(struct rk808 *rk808)
+
+static int rk808_regulator_dts(struct rk808 *rk808)
 {
-	struct rk808_board *pdata;
+	struct rk808_board *pdata = rk808->pdata;
 	struct device_node *np, *reg_np;
 	int i, count;
 
 	np = of_node_get(rk808->dev->of_node);
 	if (!np) {
 		dev_err(rk808->dev, "could not find pmic sub-node\n");
-		return NULL;
+		return -ENXIO;
 	}
 
 	reg_np = of_find_node_by_name(np, "regulators");
 	if (!reg_np)
-		return NULL;
+		return -ENXIO;
 
 	count = of_regulator_match(rk808->dev, reg_np, rk808_reg_matches,
-				   rk808_NUM_REGULATORS);
+				rk808_NUM_REGULATORS);
 	of_node_put(reg_np);
 	if ((count < 0) || (count > rk808_NUM_REGULATORS))
-		return NULL;
-
-	pdata = devm_kzalloc(rk808->dev, sizeof(*pdata), GFP_KERNEL);
-	if (!pdata)
-		return NULL;
+		return -E2BIG;
 
 	for (i = 0; i < count; i++) {
 		if (!rk808_reg_matches[i].init_data
@@ -328,7 +325,7 @@ static struct rk808_board *rk808_regulator_dts(struct rk808 *rk808)
 		pdata->of_node[i] = rk808_reg_matches[i].of_node;
 	}
 
-	return pdata;
+	return 0;
 }
 #else
 static struct rk808_board rk808_regulator_dts(struct rk808 *rk808)
@@ -340,51 +337,65 @@ static struct rk808_board rk808_regulator_dts(struct rk808 *rk808)
 static int rk808_regulator_probe(struct platform_device *pdev)
 {
 	struct rk808 *rk808 = dev_get_drvdata(pdev->dev.parent);
-	struct rk808_board *regulator_pdev;
+	struct rk808_board *pdata;
 	struct regulator_config config = { };
 	struct regulator_dev *rk808_rdev;
 	struct regulator_init_data *reg_data;
 	const char *rail_name = NULL;
 	int i = 0;
+	int ret = 0;
 
-	dev_info(rk808->dev, "%s,line=%d\n", __func__, __LINE__);
-	regulator_pdev = dev_get_platdata(rk808->dev);
-	if (rk808->dev->of_node)
-		regulator_pdev = rk808_regulator_dts(rk808);
-	if (regulator_pdev) {
-		rk808->num_regulators = rk808_NUM_REGULATORS;
-		rk808->rdev = kcalloc(rk808_NUM_REGULATORS,
-			sizeof(struct regulator_dev *), GFP_KERNEL);
-		if (!rk808->rdev)
-			return -ENOMEM;
-		/* Instantiate the regulators */
-		for (i = 0; i < rk808_NUM_REGULATORS; i++) {
-			reg_data = regulator_pdev->rk808_init_data[i];
-			if (!reg_data)
-				continue;
-			config.dev = rk808->dev;
-			config.driver_data = rk808;
-			config.regmap = rk808->regmap;
-			if (rk808->dev->of_node)
-				config.of_node = regulator_pdev->of_node[i];
-			if (reg_data && reg_data->constraints.name)
-				rail_name = reg_data->constraints.name;
-			else
-				rail_name = rk808_reg[i].name;
-			reg_data->supply_regulator = rail_name;
-			config.init_data = reg_data;
-			rk808_rdev = regulator_register(&rk808_reg[i], &config);
-			if (IS_ERR(rk808_rdev)) {
-				dev_err(rk808->dev,
-					"failed to register %d regulator\n", i);
-				return PTR_ERR(rk808_rdev);
-				}
-			rk808->rdev[i] = rk808_rdev;
-			}
+	dev_info(rk808->dev, "%s\n", __func__);
+
+	if (rk808 == NULL) {
+		dev_err(rk808->dev, "%s no rk808\n", __func__);
+		return -ENXIO;
+	}
+
+	pdata = rk808->pdata;
+	if (!pdata) {
+		dev_err(rk808->dev, "%s no pdata\n", __func__);
+		return -ENXIO;
+	}
+
+	if (IS_ENABLED(CONFIG_OF) && rk808->dev->of_node) {
+		ret = rk808_regulator_dts(rk808);
+		if (ret)
+			return ret;
+	}
+
+	rk808->num_regulators = rk808_NUM_REGULATORS;
+	rk808->rdev = kcalloc(rk808_NUM_REGULATORS,
+		sizeof(struct regulator_dev *), GFP_KERNEL);
+	if (!rk808->rdev)
+		return -ENOMEM;
+
+	/* Instantiate the regulators */
+	for (i = 0; i < rk808_NUM_REGULATORS; i++) {
+		reg_data = pdata->rk808_init_data[i];
+		if (!reg_data)
+			continue;
+		config.dev = rk808->dev;
+		config.driver_data = rk808;
+		config.regmap = rk808->regmap;
+		if (rk808->dev->of_node)
+			config.of_node = pdata->of_node[i];
+		if (reg_data && reg_data->constraints.name)
+			rail_name = reg_data->constraints.name;
+		else
+			rail_name = rk808_reg[i].name;
+		reg_data->supply_regulator = rail_name;
+		config.init_data = reg_data;
+		rk808_rdev = regulator_register(&rk808_reg[i], &config);
+		if (IS_ERR(rk808_rdev)) {
+			dev_err(rk808->dev,
+				"failed to register %d regulator\n", i);
+			return PTR_ERR(rk808_rdev);
 		}
+		rk808->rdev[i] = rk808_rdev;
+	}
 	return 0;
 }
-
 
 static struct platform_driver rk808_regulator_driver = {
 	.probe = rk808_regulator_probe,
@@ -400,4 +411,3 @@ MODULE_DESCRIPTION("regulator driver for the rk808 series PMICs");
 MODULE_AUTHOR("ZHANGQING <zhanqging@rock-chips.com>");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:rk808-regulator");
-
