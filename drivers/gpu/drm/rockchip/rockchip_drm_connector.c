@@ -296,16 +296,18 @@ static int rockchip_conn_bind(struct device *dev, struct device *master,
 	}
 
 	panel_node = of_parse_phandle(dev->of_node, "rockchip,panel", 0);
-	if (panel_node) {
-		ctx->panel = of_drm_find_panel(panel_node);
-		if (!ctx->panel) {
-			DRM_ERROR("failed to find diaplay panel\n");
-			ret = -ENODEV;
-			goto err_detach_connector;
-		}
-
-		of_node_put(panel_node);
+	if (!panel_node) {
+		DRM_ERROR("failed to find diaplay panel\n");
+		goto err_detach_connector;
 	}
+	ctx->panel = of_drm_find_panel(panel_node);
+	if (!ctx->panel) {
+		DRM_ERROR("failed to find diaplay panel\n");
+		ret = -ENODEV;
+		goto err_detach_connector;
+	}
+
+	of_node_put(panel_node);
 
 	ret = drm_panel_attach(ctx->panel, connector);
 	if (ret) {
