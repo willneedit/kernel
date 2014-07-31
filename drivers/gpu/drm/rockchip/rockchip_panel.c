@@ -31,6 +31,12 @@
 /* TODO: convert to gpiod_*() API once it's been merged */
 #define GPIO_ACTIVE_LOW	(1 << 0)
 
+struct pwr_gpio {
+	struct list_head head;
+	unsigned long enable_gpio_flags;
+	int enable_gpio;
+};
+
 struct rockchip_panel {
 	struct drm_panel base;
 	bool enabled;
@@ -38,8 +44,7 @@ struct rockchip_panel {
 	struct drm_display_mode mode;
 	struct rockchip_panel_special priv;
 
-	unsigned long enable_gpio_flags;
-	int enable_gpio;
+	struct list_head pwrlist;
 };
 
 static inline struct rockchip_panel *to_rockchip_panel(struct drm_panel *panel)
@@ -50,15 +55,20 @@ static inline struct rockchip_panel *to_rockchip_panel(struct drm_panel *panel)
 static int rockchip_panel_disable(struct drm_panel *panel)
 {
 	struct rockchip_panel *p = to_rockchip_panel(panel);
+	struct pwr_gpio *pwr;
+	struct list_head *pos;
 
 	if (!p->enabled)
 		return 0;
 
-	if (gpio_is_valid(p->enable_gpio)) {
-		if (p->enable_gpio_flags & GPIO_ACTIVE_LOW)
-			gpio_set_value(p->enable_gpio, 1);
-		else
-			gpio_set_value(p->enable_gpio, 0);
+	list_for_each(pos, &p->pwrlist) {
+		pwr = list_entry(pos, struct pwr_gpio, head);
+		if (gpio_is_valid(pwr->enable_gpio)) {
+			if (pwr->enable_gpio_flags & GPIO_ACTIVE_LOW)
+				gpio_set_value(pwr->enable_gpio, 1);
+			else
+				gpio_set_value(pwr->enable_gpio, 0);
+		}
 	}
 
 	p->enabled = false;
@@ -69,15 +79,20 @@ static int rockchip_panel_disable(struct drm_panel *panel)
 static int rockchip_panel_enable(struct drm_panel *panel)
 {
 	struct rockchip_panel *p = to_rockchip_panel(panel);
+	struct pwr_gpio *pwr;
+	struct list_head *pos;
 
 	if (p->enabled)
 		return 0;
 
-	if (gpio_is_valid(p->enable_gpio)) {
-		if (p->enable_gpio_flags & GPIO_ACTIVE_LOW)
-			gpio_set_value(p->enable_gpio, 0);
-		else
-			gpio_set_value(p->enable_gpio, 1);
+	list_for_each(pos, &p->pwrlist) {
+		pwr = list_entry(pos, struct pwr_gpio, head);
+		if (gpio_is_valid(pwr->enable_gpio)) {
+			if (pwr->enable_gpio_flags & GPIO_ACTIVE_LOW)
+				gpio_set_value(pwr->enable_gpio, 0);
+			else
+				gpio_set_value(pwr->enable_gpio, 1);
+		}
 	}
 
 	p->enabled = true;
@@ -139,41 +154,51 @@ static int rockchip_panel_probe(struct platform_device *pdev)
 	enum of_gpio_flags flags;
 	struct videomode vm;
 	const char *name;
-	int err;
+	struct pwr_gpio *pwr; 
+	struct list_head *pos;
+	int value;
+	int err, i;
+	int num_gpio;
 
 	panel = devm_kzalloc(dev, sizeof(*panel), GFP_KERNEL);
 	if (!panel)
 		return -ENOMEM;
 
 	priv = &panel->priv;
-	panel->enabled = false;
 
-	panel->enable_gpio = of_get_named_gpio_flags(dev->of_node,
-						     "enable-gpios", 0,
-						     &flags);
-	if (gpio_is_valid(panel->enable_gpio)) {
-		unsigned int value;
-
+	INIT_LIST_HEAD(&panel->pwrlist);
+	num_gpio = of_gpio_named_count(dn, "enable-gpios");
+	for (i = 0;i < num_gpio;i++) {
+		pwr = kmalloc(sizeof(*pwr), GFP_KERNEL);
+		pwr->enable_gpio = of_get_named_gpio_flags(dn,
+							   "enable-gpios", i,
+							   &flags);
 		if (flags & OF_GPIO_ACTIVE_LOW)
-			panel->enable_gpio_flags |= GPIO_ACTIVE_LOW;
+			pwr->enable_gpio_flags |= GPIO_ACTIVE_LOW;
+		
+		if (gpio_is_valid(pwr->enable_gpio)) {
+			err = gpio_request(pwr->enable_gpio, NULL);
+			if (err < 0) {
+				dev_err(dev, "failed to request GPIO#%u: %d\n",
+						pwr->enable_gpio, err);
+				gpio_free(pwr->enable_gpio);
+				kfree(pwr);
+				continue;
+			}
+			value = (pwr->enable_gpio_flags & GPIO_ACTIVE_LOW) != 0;
+			err = gpio_direction_output(pwr->enable_gpio, value);
+			if (err < 0) {
+				dev_err(dev, "failed to setup GPIO%u: %d\n",
+						pwr->enable_gpio, err);
+				gpio_free(pwr->enable_gpio);
+				kfree(pwr);
+				continue;
+			}
 
-		err = gpio_request(panel->enable_gpio, "enable");
-		if (err < 0) {
-			dev_err(dev, "failed to request GPIO#%u: %d\n",
-				panel->enable_gpio, err);
-			return err;
-		}
-
-		value = (panel->enable_gpio_flags & GPIO_ACTIVE_LOW) != 0;
-
-		err = gpio_direction_output(panel->enable_gpio, value);
-		if (err < 0) {
-			dev_err(dev, "failed to setup GPIO%u: %d\n",
-				panel->enable_gpio, err);
-			goto free_gpio;
+			list_add_tail(&pwr->head, &panel->pwrlist);
 		}
 	}
-
+	
 	if (of_property_read_bool(dn, "color-swap-rb"))
 		priv->color_swap = ROCKCHIP_COLOR_SWAP_RB;
 
@@ -224,9 +249,12 @@ static int rockchip_panel_probe(struct platform_device *pdev)
 	return 0;
 
 free_gpio:
-	if (gpio_is_valid(panel->enable_gpio))
-		gpio_free(panel->enable_gpio);
-
+	list_for_each(pos, &panel->pwrlist) {
+		pwr = list_entry(pos, struct pwr_gpio, head);
+		if (gpio_is_valid(pwr->enable_gpio))
+			gpio_free(pwr->enable_gpio);
+		kfree(pwr);
+	}
 	return err;
 }
 
@@ -242,12 +270,18 @@ MODULE_DEVICE_TABLE(of, platform_of_match);
 static int rockchip_panel_remove(struct platform_device *pdev)
 {
 	struct rockchip_panel *panel = dev_get_drvdata(&pdev->dev);
+	struct pwr_gpio *pwr; 
+	struct list_head *pos;
 
 	drm_panel_detach(&panel->base);
 	drm_panel_remove(&panel->base);
-
-	if (gpio_is_valid(panel->enable_gpio))
-		gpio_free(panel->enable_gpio);
+	
+	list_for_each(pos, &panel->pwrlist) {
+		pwr = list_entry(pos, struct pwr_gpio, head);
+		if (gpio_is_valid(pwr->enable_gpio))
+			gpio_free(pwr->enable_gpio);
+		kfree(pwr);
+	}
 
 	return 0;
 }

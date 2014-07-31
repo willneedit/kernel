@@ -26,18 +26,20 @@
 		reg = <0x0 0x80000000>;
 	};
 	
-panel:panel {
-	      compatible = "rockchip,panel";
-	      status = "okay";
-	      rockchip,output-face = "r6g6b6";
+	panel:panel {
+		      compatible = "rockchip,panel";
+		      status = "okay";
+		      rockchip,output-face = "r6g6b6";
 
-	      enable-gpios = <&gpio7 3
-		      GPIO_ACTIVE_HIGH>;
-	      output-dither;
+		      enable-gpios = <&gpio7 3 GPIO_ACTIVE_HIGH
+			      &gpio7 4 GPIO_ACTIVE_HIGH
+			      &gpio7 0 GPIO_ACTIVE_HIGH
+			      &gpio7 2 GPIO_ACTIVE_HIGH>;
+		      output-dither;
 
-	      display-timings {
-		      	native-mode = <&timing0>;
-			timing0: 1280x800 {
+		      display-timings {
+			      	native-mode = <&timing0>;
+				timing0: 1280x800 {
 					 clock-frequency = <71000000>;
 					 hactive = <1280>;
 					 vactive = <800>;
@@ -51,9 +53,9 @@ panel:panel {
 					 vsync-active = <0>;
 					 de-active = <0>;
 					 pixelclk-active = <0>;
-				 };
-	      };
-      };
+				};
+		      };
+	};
 
 	soc {
 		gpio-keys {
