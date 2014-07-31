@@ -532,9 +532,15 @@ static int rk3288_edp_probe(struct platform_device *pdev)
 		return PTR_ERR(edp->rst);
 	}
 
-	rk3288_edp_clk_enable(edp);
+	ret = rk3288_edp_clk_enable(edp);
 	if (ret < 0) {
 		dev_err(edp->dev, "cannot enable edp clk %d\n", ret);
+		return ret;
+	}
+
+	ret = rk3288_edp_pre_init(edp);
+	if (ret < 0) {
+		dev_err(edp->dev, "failed to pre init %d\n", ret);
 		return ret;
 	}
 

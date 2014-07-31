@@ -627,7 +627,7 @@
 		};
 
 		edp: edp@ff970000 {                                                                                                        
-                        compatible = "rockchip,rk32xx-edp";
+                        compatible = "rockchip,rk3288-edp";
                         rockchip,grf = <&grf>;
                         rockchip,cru = <&cru>;
                         reg = <0xff970000 0x4000>;

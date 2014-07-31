@@ -427,6 +427,7 @@ static int rockchip_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 
 static void rockchip_drm_crtc_commit(struct drm_crtc *crtc)
 {
+	rockchip_drm_crtc_mode_set_base(crtc, crtc->x, crtc->y, crtc->fb);
 }
 
 static struct drm_crtc_helper_funcs rockchip_crtc_helper_funcs = {
