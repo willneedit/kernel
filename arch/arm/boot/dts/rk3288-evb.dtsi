@@ -252,8 +252,4 @@
 &usb_host0_ehci {
 	status = "okay";
 };
-<<<<<<< HEAD
 #include "cros-ec-keyboard.dtsi"
-=======
-
->>>>>>> 8f49769... drm display: add lvds lcdc panel at the rk3288-evb
