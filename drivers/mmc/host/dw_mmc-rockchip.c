@@ -14,11 +14,80 @@
 #include <linux/mmc/host.h>
 #include <linux/mmc/dw_mmc.h>
 #include <linux/of_address.h>
+#include <linux/mmc/host.h>
+#include <linux/regmap.h>
+#include <linux/mfd/syscon.h>
 
 #include "dw_mmc.h"
 #include "dw_mmc-pltfm.h"
 
 #define RK3288_CLKGEN_DIV       2
+
+#define GRF_IO_VSEL		0x380
+
+#define IO_DOMAIN_VOLTAGE_330	0
+#define IO_DOMAIN_VOLTAGE_180	1
+
+/* bit[2]: flash0/emmc voltage selection bit
+ * bit[7]: sdcard voltage selection bit
+ * bit[4]: wifi/sdio0 voltage selection bit
+ * bit[3]: flash1/sdio1 voltage selection bit
+ */
+static u32 io_vsel_bt[4] = {2, 7, 4, 3};
+
+struct dw_mci_rk3288_priv_data {
+	int ctrl_id;
+	struct regmap *cru;
+	struct regmap *grf;
+};
+
+static void dw_mci_rk3288_set_io_domain_voltage(struct dw_mci *host,
+						int voltage)
+{
+	struct dw_mci_rk3288_priv_data *priv = host->priv;
+	u32 bit = io_vsel_bt[priv->ctrl_id];
+	u32 val = (voltage << bit) | (1 << (bit + 16));
+
+	regmap_write(priv->grf, GRF_IO_VSEL, val);
+}
+
+static int dw_mci_rk3288_parse_dt(struct dw_mci *host)
+{
+	struct dw_mci_rk3288_priv_data *priv;
+	struct device_node *np = host->dev->of_node;
+	int default_voltage;
+
+	priv = devm_kzalloc(host->dev, sizeof(*priv), GFP_KERNEL);
+	if (!priv) {
+		dev_err(host->dev, "mem alloc failed for private data\n");
+		return -ENOMEM;
+	}
+
+	priv->ctrl_id = of_alias_get_id(np, "mshc");
+	if(priv->ctrl_id < 0) {
+		dev_err(host->dev, "dwmmc needs 'mshc' property\n");
+		return -EINVAL;
+	}
+
+	priv->cru = syscon_regmap_lookup_by_phandle(np, "rockchip,cru");
+	if (IS_ERR(priv->cru)) {
+		dev_err(host->dev, "dwmmc needs 'rockchip,cru' property\n");
+		return PTR_ERR(priv->cru);
+	}
+
+	priv->grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
+	if (IS_ERR(priv->grf)) {
+		dev_err(host->dev, "dwmmc needs 'rockchip,grf' property\n");
+		return PTR_ERR(priv->grf);
+	}
+
+	host->priv = priv;
+
+	if (!of_property_read_u32(np, "default_voltage", &default_voltage))
+		dw_mci_rk3288_set_io_domain_voltage(host, default_voltage);
+
+	return 0;
+}
 
 static void dw_mci_rockchip_prepare_command(struct dw_mci *host, u32 *cmdr)
 {
@@ -66,14 +135,24 @@ static void dw_mci_rk3288_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	}
 }
 
+static unsigned long rockchip_dwmmc_caps[] = {
+	MMC_CAP_CMD23,
+	MMC_CAP_CMD23,
+	MMC_CAP_CMD23,
+	MMC_CAP_CMD23,
+};
+
 static const struct dw_mci_drv_data rk2928_drv_data = {
+	.caps			= rockchip_dwmmc_caps,
 	.prepare_command        = dw_mci_rockchip_prepare_command,
 };
 
 static const struct dw_mci_drv_data rk3288_drv_data = {
+	.caps			= rockchip_dwmmc_caps,
+	.parse_dt		= dw_mci_rk3288_parse_dt,
 	.prepare_command        = dw_mci_rockchip_prepare_command,
 	.set_ios		= dw_mci_rk3288_set_ios,
-	.setup_clock    = dw_mci_rk3288_setup_clock,
+	.setup_clock		= dw_mci_rk3288_setup_clock,
 };
 
 static const struct of_device_id dw_mci_rockchip_match[] = {

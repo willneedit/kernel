@@ -75,19 +75,6 @@
 		compatible = "simple-bus";
 		ranges;
 
-		sdmmc: dwmmc@ff0c0000 {
-			compatible = "rockchip,rk3288-dw-mshc";
-			reg = <0xff0c0000 0x4000>;
-			interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			clocks = <&cru HCLK_SDMMC>, <&cru SCLK_SDMMC>;
-			clock-names = "biu", "ciu";
-
-			fifo-depth = <0x100>;
-		};
-
 		emmc: dwmmc@ff0f0000 {
 			compatible = "rockchip,rk3288-dw-mshc";
 			reg = <0xff0f0000 0x4000>;
@@ -95,7 +82,42 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
+			rockchip,grf = <&grf>;
+			rockchip,cru = <&cru>;
+
 			clocks = <&cru HCLK_EMMC>, <&cru SCLK_EMMC>;
+			clock-names = "biu", "ciu";
+
+			fifo-depth = <0x100>;
+		};
+
+		sdmmc: dwmmc@ff0c0000 {
+			compatible = "rockchip,rk3288-dw-mshc";
+			reg = <0xff0c0000 0x4000>;
+			interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			rockchip,grf = <&grf>;
+			rockchip,cru = <&cru>;
+
+			clocks = <&cru HCLK_SDMMC>, <&cru SCLK_SDMMC>;
+			clock-names = "biu", "ciu";
+
+			fifo-depth = <0x100>;
+		};
+
+		sdio0: dwmmc@ff0d0000 {
+			compatible = "rockchip,rk3288-dw-mshc";
+			reg = <0xff0d0000 0x4000>;
+			interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			rockchip,grf = <&grf>;
+			rockchip,cru = <&cru>;
+
+			clocks = <&cru HCLK_SDIO0>, <&cru SCLK_SDIO0>;
 			clock-names = "biu", "ciu";
 
 			fifo-depth = <0x100>;
@@ -140,7 +162,7 @@
 		};
 
 		cru: cru@ff760000 {
-			compatible = "rockchip,rk3288-cru";
+			compatible = "rockchip,rk3288-cru", "syscon";
 			reg = <0xff760000 0x1000>;
 			rockchip,grf = <&grf>;
 
@@ -341,31 +363,6 @@
 				};
 			};
 
-			sdmmc {
-				sdmmc_clk: sdmmc-clk {
-					rockchip,pins = <6 20 RK_FUNC_1 &pcfg_pull_none>;
-				};
-
-				sdmmc_cmd: sdmmc-cmd {
-					rockchip,pins = <6 21 RK_FUNC_1 &pcfg_pull_up>;
-				};
-
-				sdmmc_cd: sdmcc-cd {
-					rockchip,pins = <6 22 RK_FUNC_1 &pcfg_pull_up>;
-				};
-
-				sdmmc_bus1: sdmmc-bus1 {
-					rockchip,pins = <6 16 RK_FUNC_1 &pcfg_pull_up>;
-				};
-
-				sdmmc_bus4: sdmmc-bus4 {
-					rockchip,pins = <6 16 RK_FUNC_1 &pcfg_pull_up>,
-							<6 17 RK_FUNC_1 &pcfg_pull_up>,
-							<6 18 RK_FUNC_1 &pcfg_pull_up>,
-							<6 19 RK_FUNC_1 &pcfg_pull_up>;
-				};
-			};
-
 			emmc {
 				emmc_clk: emmc-clk {
 					rockchip,pins = <3 18 RK_FUNC_2 &pcfg_pull_none>;
@@ -399,6 +396,64 @@
 							<3 5 RK_FUNC_2 &pcfg_pull_up>,
 							<3 6 RK_FUNC_2 &pcfg_pull_up>,
 							<3 7 RK_FUNC_2 &pcfg_pull_up>;
+				};
+			};
+
+			sdmmc {
+				sdmmc_clk: sdmmc-clk {
+					rockchip,pins = <6 20 RK_FUNC_1 &pcfg_pull_none>;
+				};
+
+				sdmmc_cmd: sdmmc-cmd {
+					rockchip,pins = <6 21 RK_FUNC_1 &pcfg_pull_up>;
+				};
+
+				sdmmc_cd: sdmcc-cd {
+					rockchip,pins = <6 22 RK_FUNC_1 &pcfg_pull_up>;
+				};
+
+				sdmmc_bus1: sdmmc-bus1 {
+					rockchip,pins = <6 16 RK_FUNC_1 &pcfg_pull_up>;
+				};
+
+				sdmmc_bus4: sdmmc-bus4 {
+					rockchip,pins = <6 16 RK_FUNC_1 &pcfg_pull_up>,
+							<6 17 RK_FUNC_1 &pcfg_pull_up>,
+							<6 18 RK_FUNC_1 &pcfg_pull_up>,
+							<6 19 RK_FUNC_1 &pcfg_pull_up>;
+				};
+			};
+
+			sdio0 {
+				sdio0_clk: sdio0_clk {
+					rockchip,pins = <4 25 RK_FUNC_1 &pcfg_pull_up>;
+				};
+
+				sdio0_cmd: sdio0_cmd {
+					rockchip,pins = <4 24 RK_FUNC_1 &pcfg_pull_up>;
+				};
+
+				sdio0_cd: sdio0_cd {
+					rockchip,pins = <4 26 RK_FUNC_1 &pcfg_pull_up>;
+				};
+
+				sdio0_pwr: sdio0-pwr {
+					rockchip,pins = <4 28 RK_FUNC_1 &pcfg_pull_up>;
+				};
+
+				sdio0_bkpwr: sdio0-bkpwr {
+					rockchip,pins = <4 29 RK_FUNC_1 &pcfg_pull_up>;
+				};
+
+				sdio0_bus1: sdio0_bus1 {
+					rockchip,pins = <4 20 RK_FUNC_1 &pcfg_pull_up>;
+				};
+
+				sdio0_bus4: sdio0-bus4 {
+					rockchip,pins = <4 20 RK_FUNC_1 &pcfg_pull_up>,
+							<4 21 RK_FUNC_1 &pcfg_pull_up>,
+							<4 22 RK_FUNC_1 &pcfg_pull_up>,
+							<4 23 RK_FUNC_1 &pcfg_pull_up>;
 				};
 			};
 

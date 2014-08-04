@@ -15,6 +15,10 @@
 
 / {
 	aliases {
+		mshc0 = &emmc;
+		mshc1 = &sdmmc;
+		mshc2 = &sdio0;
+
 		serial0 = &uart0;
 		serial1 = &uart1;
 		serial2 = &uart2;
@@ -175,6 +179,10 @@
 	num-slots = <1>;
 	status = "okay";
 
+	clock-frequency = <50000000>;
+	clock-freq-min-max = <400000 50000000>;
+
+
 	broken-cd;
 	non-removable;
 	supports-highspeed;
@@ -193,8 +201,41 @@
 	num-slots = <1>;
 	status = "okay";
 
+	clock-frequency = <50000000>;
+	clock-freq-min-max = <400000 50000000>;
+
+	supports-highspeed;
+
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd &sdmmc_bus4>;
+
+	slot@0 {
+		reg = <0>;
+		bus-width = <4>;
+		disable-wp;
+	};
+};
+
+&sdio0 {
+	num-slots = <1>;
+	status = "okay";
+
+	clock-frequency = <50000000>;
+	clock-freq-min-max = <400000 50000000>;
+
+	default_voltage = <1>; //1.8v
+
+	broken-cd;
+	non-removable;
+	cap-sdio-irq;
+	supports-highspeed;
+	ignore-pm-notify;
+	keep-power-in-suspend;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdio0_clk &sdio0_cmd &sdio0_cd &sdio0_pwr &sdio0_bkpwr &sdio0_bus4>;
+
+	rockchip,grf = <&grf>;
 
 	slot@0 {
 		reg = <0>;
