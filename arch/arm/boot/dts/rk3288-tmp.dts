@@ -49,6 +49,65 @@
 //			vin-supply = <&vcc_io>;
 		};
 	};
+	//for lvds 
+	panel:panel {
+		compatible = "rockchip,panel";
+		status = "okay";
+		rockchip,output-face = "r6g6b6";
+
+		enable-gpios = <&gpio7 3 GPIO_ACTIVE_HIGH
+				&gpio7 4 GPIO_ACTIVE_HIGH
+				&gpio7 0 GPIO_ACTIVE_HIGH
+				&gpio7 2 GPIO_ACTIVE_HIGH>;
+		output-dither;
+
+		display-timings {
+			native-mode = <&timing0>;
+			timing0: 1280x800 {
+				clock-frequency = <71000000>;
+				hactive = <1280>;
+				vactive = <800>;
+				hback-porch = <100>;
+				hfront-porch = <18>;
+				vback-porch = <8>;
+				vfront-porch = <6>;
+				hsync-len = <10>;
+				vsync-len = <2>;
+				hsync-active = <0>;
+				vsync-active = <0>;
+				de-active = <0>;
+				pixelclk-active = <0>;
+			};
+		};
+	};
+	/* for 1536x2048 edp
+	panel:panel {
+		compatible = "rockchip,panel";
+		status = "okay";
+		rockchip,output-face = "r6g6b6";
+
+		enable-gpios = <&gpio7 3 GPIO_ACTIVE_HIGH>;
+		output-dither;
+
+		display-timings {
+			native-mode = <&timing1>;
+			timing1: timing@1 {
+				clock-frequency = <205000000>;
+				hactive = <1536>;
+				vactive = <2048>;
+				hback-porch = <48>;
+				hfront-porch = <12>;
+				vback-porch = <8>;
+				vfront-porch = <8>;
+				hsync-len = <16>;
+				vsync-len = <4>;
+				hsync-active = <0>;
+				vsync-active = <0>;
+				de-active = <0>;
+				pixelclk-active = <1>;
+			};
+		};
+	};*/
 
 	soc {
 		gpio-keys {
@@ -152,56 +211,22 @@
 			};
 		};
 	
+		edp: edp@ff970000 {                                                                                                        
+			status = "disabled";
+			rockchip,panel = <&panel>;
+		};
+
+		lvds: lvds@ff96c000 {
+			status = "okay";
+			rockchip,data-mapping = "jeida";
+			rockchip,data-width = <24>;
+			rockchip,panel = <&panel>;
+		};
+
 		lcdc1: lcdc@ff940000 {
 			status = "okay";
-			rockchip,type = <SCREEN_EDP>;
-			rockchip,face = <OUT_D888_P666>;
-			rockchip,lvds-format = <LVDS_8BIT_2>;
-			rockchip,color-swap = <0>;
-			power_ctr: power_ctr {
-				rockchip,debug = <0>;
-				lcd_en:lcd_en {
-				rockchip,power_type = <0>;
-				gpios = <&gpio7 3 GPIO_ACTIVE_HIGH>;
-				rockchip,delay = <10>;
-				};
-				lcd_cs:lcd_cs {
-					rockchip,power_type = <0>;
-					gpios = <&gpio7 4 GPIO_ACTIVE_HIGH>;
-					rockchip,delay = <10>;
-				};
-				lcd_bl:lcd_bl {
-					rockchip,power_type = <0>;
-					gpios = <&gpio7 0 GPIO_ACTIVE_HIGH>;
-					rockchip,delay = <10>;
-				};
-				bl_en:bl_en {
-					rockchip,power_type = <0>;
-					gpios = <&gpio7 2 GPIO_ACTIVE_HIGH>;
-					rockchip,delay = <10>;
-				};
-
-			};
-			display-timings {
-				native-mode = <&timing1>;
-
-				timing1: timing@1 {
-					clock-frequency = <205000000>;
-                                	hactive = <1536>;
-                                	vactive = <2048>;
-                                	hback-porch = <48>;
-                                	hfront-porch = <12>;
-                                	vback-porch = <8>;
-                                	vfront-porch = <8>;
-                                	hsync-len = <16>;
-                                	vsync-len = <4>;
-                                	hsync-active = <0>;
-                                	vsync-active = <0>;
-                                	de-active = <0>;
-                                	pixelclk-active = <1>;
-					};
-				};
 		};
+	
 		watchdog@ff800000 {
 			status = "okay";
 		};
