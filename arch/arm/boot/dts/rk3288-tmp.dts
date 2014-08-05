@@ -17,6 +17,10 @@
 	compatible = "rockchip,rk3288-tmp", "rockchip,rk3288";
 
 	aliases {
+		mshc0 = &sdmmc;
+		mshc1 = &sdio0;
+		mshc3 = &emmc;
+
 		serial0 = &uart0;
 		serial1 = &uart1;
 		serial2 = &uart2;
@@ -77,14 +81,41 @@
 				gpios = <&gpio0 4 GPIO_ACTIVE_HIGH>,<&gpio0 11 GPIO_ACTIVE_LOW>;
 			};
 		};
+		emmc: dwmmc@ff0f0000 {
+			num-slots = <1>;
+			status = "okay";
+		
+			clock-frequency = <150000000>;
+			clock-freq-min-max = <400000 150000000>;
 
-		dwmmc@ff0c0000 {
+			default_voltage = <1>; //1.8v
+	
+			broken-cd;
+			non-removable;
+			supports-highspeed;
+			caps2-mmc-hs200-1_8v;
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_rst &emmc_pwr &emmc_bus8>;
+
+			slot@0 {
+				reg = <0>;
+				bus-width = <8>;
+				disable-wp;
+			};
+}		;
+
+		sdmmc: dwmmc@ff0c0000 {
 			num-slots = <1>;
 			status = "okay";
 
+			clock-frequency = <50000000>;
+			clock-freq-min-max = <400000 50000000>;
+
+			supports-highspeed;
+
 			pinctrl-names = "default";
-			pinctrl-0 = <&sd0_clk &sd0_cmd &sd0_cd &sd0_bus4>;
-//			vmmc-supply = <&vcc_sd0>;
+			pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd &sdmmc_bus4>;
 
 			slot@0 {
 				reg = <0>;
@@ -93,20 +124,34 @@
 			};
 		};
 
-		dwmmc@ff0f0000 {
+		sdio0: dwmmc@ff0d0000 {
 			num-slots = <1>;
 			status = "okay";
 
+			clock-frequency = <50000000>;
+			clock-freq-min-max = <400000 50000000>;
+
+			default_voltage = <1>; //1.8v
+
+			broken-cd;
+			non-removable;
+			cap-sdio-irq;
+			supports-highspeed;
+			ignore-pm-notify;
+			keep-power-in-suspend;
+
 			pinctrl-names = "default";
-			pinctrl-0 = <&emmc_clk &emmc_cmd  &emmc_pwr &emmc_rst &emmc_bus8>;
-//			vmmc-supply = <&vcc_emmc0>;
+			pinctrl-0 = <&sdio0_clk &sdio0_cmd &sdio0_cd &sdio0_pwr &sdio0_bkpwr &sdio0_bus4>;
+
+			rockchip,grf = <&grf>;
 
 			slot@0 {
 				reg = <0>;
-				bus-width = <8>;
+				bus-width = <4>;
 				disable-wp;
 			};
 		};
+	
 		lcdc1: lcdc@ff940000 {
 			status = "okay";
 			rockchip,type = <SCREEN_EDP>;
