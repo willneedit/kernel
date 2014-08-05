@@ -17,26 +17,48 @@
 #include <linux/mmc/host.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
+#include <linux/mmc/mmc.h>
+#include <linux/slab.h>
 
 #include "dw_mmc.h"
 #include "dw_mmc-pltfm.h"
 
-#define RK3288_CLKGEN_DIV       2
+#define RK3288_CLKGEN_DIV	2
 
 #define GRF_IO_VSEL		0x380
 
 #define IO_DOMAIN_VOLTAGE_330	0
 #define IO_DOMAIN_VOLTAGE_180	1
 
-/* bit[2]: flash0/emmc voltage selection bit
- * bit[7]: sdcard voltage selection bit
+/* bit[7]: sdcard voltage selection bit
  * bit[4]: wifi/sdio0 voltage selection bit
  * bit[3]: flash1/sdio1 voltage selection bit
+ * bit[2]: flash0/emmc voltage selection bit
  */
-static u32 io_vsel_bt[4] = {2, 7, 4, 3};
+static u32 io_vsel_bt[4] = {7, 4, 3, 2};
+
+enum tuning_type {
+	TUNING_DRIVE = 0,
+	TUNING_SAMPLE,
+};
+
+#define CRU_TUNING_REG(id, type)	(0x200 + 4 * ((id) * 2 + (type)))
+
+#define TUNING_TYPE_OFF(type)		(((type) == TUNING_SAMPLE) ? 10 : 11)
+#define TUNING_TYPE_MASK		0x01
+
+#define TUNING_DEGREE_OFF(type)		(((type) == TUNING_SAMPLE) ? 0 : 1)
+#define TUNING_DEGREE_MASK		0x03
+
+#define TUNING_DELAYNUM_OFF(type)	(((type) == TUNING_SAMPLE) ? 2 : 3)
+#define TUNING_DELAYNUM_MASK		0xff
+
+#define MIN_STEP			2
+#define MAX_STEP			((TUNING_DELAYNUM_MASK + 1) / 8)
 
 struct dw_mci_rk3288_priv_data {
 	int ctrl_id;
+	enum tuning_type type;
 	struct regmap *cru;
 	struct regmap *grf;
 };
@@ -55,7 +77,7 @@ static int dw_mci_rk3288_parse_dt(struct dw_mci *host)
 {
 	struct dw_mci_rk3288_priv_data *priv;
 	struct device_node *np = host->dev->of_node;
-	int default_voltage;
+	int default_voltage = 0;
 
 	priv = devm_kzalloc(host->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv) {
@@ -81,10 +103,18 @@ static int dw_mci_rk3288_parse_dt(struct dw_mci *host)
 		return PTR_ERR(priv->grf);
 	}
 
+	if(of_property_read_u32(np, "tuning_type", &priv->type)) {
+		dev_err(host->dev, "dwmmc needs 'tuning_type' property\n");
+		return -EINVAL;
+	}
+
 	host->priv = priv;
 
 	if (!of_property_read_u32(np, "default_voltage", &default_voltage))
 		dw_mci_rk3288_set_io_domain_voltage(host, default_voltage);
+
+	dev_dbg(host->dev, "ctrl_id %d, tuninig_type %d, default_voltage %d\n",
+				priv->ctrl_id, priv->type, default_voltage);
 
 	return 0;
 }
@@ -135,6 +165,326 @@ static void dw_mci_rk3288_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 	}
 }
 
+static u8 dw_mci_rk3288_tuning_test(struct dw_mci_slot *slot, u32 opcode,
+				    struct dw_mci_tuning_data *tuning_data)
+{
+	struct dw_mci *host = slot->host;
+	struct mmc_host *mmc = slot->mmc;
+	const u8 *blk_pattern = tuning_data->blk_pattern;
+	u8 *blk_test;
+	unsigned int blksz = tuning_data->blksz;
+	u8 ret = 0;
+
+	struct mmc_request mrq = {NULL};
+	struct mmc_command cmd = {0};
+	struct mmc_command stop = {0};
+	struct mmc_data data = {0};
+	struct scatterlist sg;
+
+	blk_test = kzalloc(blksz, GFP_KERNEL);
+	if (!blk_test)
+		return -ENOMEM;
+	
+	cmd.opcode = opcode;
+	cmd.arg = 0;
+	cmd.flags = MMC_RSP_R1 | MMC_CMD_ADTC;
+	stop.opcode = MMC_STOP_TRANSMISSION;
+	stop.arg = 0;
+	stop.flags = MMC_RSP_R1B | MMC_CMD_AC;
+
+	data.blksz = blksz;
+	data.blocks = 1;
+	data.flags = MMC_DATA_READ;
+	data.sg = &sg;
+	data.sg_len = 1;
+
+	sg_init_one(&sg, blk_test, blksz);
+	mrq.cmd = &cmd;
+	mrq.stop = &stop;
+	mrq.data = &data;
+	host->mrq = &mrq;
+
+	mci_writel(host, TMOUT, ~0);
+
+	mmc_wait_for_req(mmc, &mrq);
+	if (!cmd.error && !data.error) {
+		if (!memcmp(blk_pattern, blk_test, blksz))
+			ret = 1;
+	} else {
+		dev_dbg(host->dev,
+			"Tuning error: cmd.error:%d, data.error:%d\n",
+			cmd.error, data.error);
+	}
+
+	kfree(blk_test);
+
+	return ret;
+}
+
+static void dw_mci_rk3288_set_degree(struct dw_mci *host, int degree)
+{
+	struct dw_mci_rk3288_priv_data *priv = host->priv;
+	unsigned int reg;
+	unsigned int val;
+	unsigned int off;
+
+	reg = CRU_TUNING_REG(priv->ctrl_id, priv->type);
+	off = TUNING_DEGREE_OFF(priv->type);
+	val = (degree << off) | (TUNING_DEGREE_MASK << (off + 16));
+
+	regmap_write(priv->cru, reg, val);
+}
+
+static void dw_mci_rk3288_set_delaynum(struct dw_mci *host, int delaynum)
+{
+	struct dw_mci_rk3288_priv_data *priv = host->priv;
+	unsigned int reg;
+	unsigned int val;
+	unsigned int off;
+
+	reg = CRU_TUNING_REG(priv->ctrl_id, priv->type);
+	off = TUNING_DELAYNUM_OFF(priv->type);
+	val = (delaynum << off) | (TUNING_DELAYNUM_MASK << (off + 16));
+
+	regmap_write(priv->cru, reg, val);
+}
+
+static void dw_mci_rk3288_tuning_drive_on(struct dw_mci *host, int on)
+{
+	struct dw_mci_rk3288_priv_data *priv = host->priv;
+	unsigned int reg;
+	unsigned int val;
+	unsigned int off;
+
+	reg = CRU_TUNING_REG(priv->ctrl_id, TUNING_DRIVE);
+	off = TUNING_TYPE_OFF(TUNING_DRIVE);
+	val = (on << off) | (TUNING_TYPE_MASK << (off + 16));
+
+	regmap_write(priv->cru, reg, val);
+}
+
+static void dw_mci_rk3288_tuning_sample_on(struct dw_mci *host, int on)
+{
+	struct dw_mci_rk3288_priv_data *priv = host->priv;
+	unsigned int reg;
+	unsigned int val;
+	unsigned int off;
+
+	reg = CRU_TUNING_REG(priv->ctrl_id, TUNING_SAMPLE);
+	off = TUNING_TYPE_OFF(TUNING_SAMPLE);
+	val = (on << off) | (TUNING_TYPE_MASK << (off + 16));
+
+	regmap_write(priv->cru, reg, val);
+}
+
+static void dw_mci_rk3288_set_tuning_type(struct dw_mci *host)
+{
+	struct dw_mci_rk3288_priv_data *priv = host->priv;
+	
+	if (priv->type == TUNING_SAMPLE) {
+		dw_mci_rk3288_tuning_sample_on(host, 1);
+		dw_mci_rk3288_tuning_drive_on(host, 0);
+	} else {
+		dw_mci_rk3288_tuning_sample_on(host, 0);
+		dw_mci_rk3288_tuning_drive_on(host, 1);
+	}
+}
+
+static u8 dw_mci_rk3288_get_degree_candiates(
+		struct dw_mci_slot *slot, u32 opcode,
+		struct dw_mci_tuning_data *tuning_data)
+{
+	struct dw_mci *host = slot->host;
+	const u8 iter = TUNING_DEGREE_MASK + 1;
+	u8 i;
+	u8 candiates = 0;
+	u8 ret;
+
+	for (i = 0; i < iter; i++) {
+		dw_mci_rk3288_set_degree(host, i);
+		ret = dw_mci_rk3288_tuning_test(slot, opcode, tuning_data);
+		candiates |= (ret << i);
+	}
+
+	return candiates;
+}
+
+static int dw_mci_rk3288_get_best_degree(
+		struct dw_mci_slot *slot, u32 opcode,
+		struct dw_mci_tuning_data *tuning_data,
+		bool *need_adjust_delaynum)
+{
+	u8 candiates = 0;
+	const u8 iter = TUNING_DEGREE_MASK + 1;
+	u8 __c;
+	int i;
+
+	candiates =
+		dw_mci_rk3288_get_degree_candiates(slot, opcode, tuning_data);
+	
+	/* If there are three consecutive degrees which pass the test,
+	 * then we take the middle degree and do not adjust delaynum.
+	 */
+	for (i = 0; i < iter; i++) {
+		__c = ror8(candiates, i);
+		if ((__c & 0x83) == 0x83) {
+			*need_adjust_delaynum = false;
+			return i;
+		}
+	}
+
+	/* If there are two consecutive degrees which pass the test,
+	 * then we take the low degree and must adjust delaynum.
+	 */
+	for (i = 0; i < iter; i++) {
+		__c = ror8(candiates, i);
+		if ((__c & 0x03) == 0x03) {
+			*need_adjust_delaynum = true;
+			return i;
+		}
+	}
+
+	/* If there is only one degree which pass the test,
+	 * then we take the degree before it and must adjust delaynum.
+	 */
+	for (i = 0; i < iter; i++) {
+		__c = ror8(candiates, i);
+		if ((__c & 0x01) == 0x01) {
+			*need_adjust_delaynum = true;
+			return i - 1;
+		}
+	}
+
+	return -1;
+}
+
+static int dw_mci_rk3288_get_start_delaynum(u8 candiates, u8 step)
+{
+	const u8 iter = 8;
+	u8 __c;
+	int i;
+	int num = 0;
+
+	/* take the first delaynum which pass the test */
+	for (i = 0; i < iter; i++) {
+		__c = ror8(candiates, i);
+		if ((__c & 0x01) == 0x01) {
+			num = (i == 0) ? 0 : (i - 1);
+			break;
+		}
+	}
+
+	return num * step;
+}
+
+static u8 dw_mci_rk3288_get_delaynum_candiates(
+		struct dw_mci_slot *slot, u32 opcode,
+		struct dw_mci_tuning_data *tuning_data,
+		u8 old_candiates,
+		int start_delaynum,
+		u8 step)
+{
+	struct dw_mci *host = slot->host;
+	const u8 iter = 8;
+	int i;
+	u8 candiates = 0;
+	u8 ret;
+
+	for (i = 0; i < iter; i++) {
+		dw_mci_rk3288_set_delaynum(host, i * step + start_delaynum);
+		ret = dw_mci_rk3288_tuning_test(slot, opcode, tuning_data);
+		candiates |= (ret << i);
+	}
+
+	return candiates;
+}
+
+static int dw_mci_rk3288_get_best_delaynum(
+		struct dw_mci_slot *slot,
+		u32 opcode,
+		struct dw_mci_tuning_data *tuning_data)
+{
+	u8 step = MAX_STEP;
+	u8 candiates = 0;
+	int start_delaynum = 0;
+	const u8 iter = 8;
+	u8 __c;
+	int i;
+
+	do {
+		start_delaynum =
+			dw_mci_rk3288_get_start_delaynum(candiates, step);
+		candiates = dw_mci_rk3288_get_delaynum_candiates(
+			slot, opcode, tuning_data,
+			candiates, start_delaynum, step);
+
+		/* If there are three or more consecutive delaynums
+		 * which pass the test, then we take the middle delaynum.
+		 */
+		if (candiates == 0xff)
+			return 3;
+		for (i = 0; i < iter; i++) {
+			__c = ror8(candiates, i);
+			if ((__c & 0xef) == 0xef)
+				return start_delaynum + i * step;
+		}
+		for (i = 0; i < iter; i++) {
+			__c = ror8(candiates, i);
+			if ((__c & 0xc7) == 0xc7)
+				return start_delaynum + i * step;
+		}
+		for (i = 0; i < iter; i++) {
+			__c = ror8(candiates, i);
+			if ((__c & 0x83) == 0x83)
+				return start_delaynum + i * step;
+		}
+		step = step >> 1;
+	} while (step >= MIN_STEP);
+
+	return -1;
+}
+
+static int dw_mci_rk3288_execute_tuning(struct dw_mci_slot *slot, u32 opcode,
+					struct dw_mci_tuning_data *tuning_data)
+{
+	struct dw_mci *host = slot->host;
+	int ret = -EIO;
+	int degree;
+	int delaynum = 0;
+	bool need_adjust_delaynum;
+
+	dw_mci_rk3288_set_tuning_type(host);
+	degree = dw_mci_rk3288_get_best_degree(
+				slot, opcode, tuning_data,
+				&need_adjust_delaynum);
+	if (degree < 0) {
+		ret = -EIO;
+		goto exit;
+	}
+
+	dw_mci_rk3288_set_degree(host, degree);
+	
+	if (!need_adjust_delaynum) {
+		ret =  0;
+		goto exit;
+	}
+
+	delaynum = dw_mci_rk3288_get_best_delaynum(
+			slot, opcode, tuning_data);
+	if (delaynum >= 0) {
+		dw_mci_rk3288_set_delaynum(host, delaynum);
+		ret = 0;
+		goto exit;
+	}
+	
+exit:
+	if (!ret)
+		dev_info(host->dev,
+			 "Tuning successfully: degree %d, delaynum %d\n",
+			 degree, delaynum);
+	return ret;
+}
+
 static unsigned long rockchip_dwmmc_caps[] = {
 	MMC_CAP_CMD23,
 	MMC_CAP_CMD23,
@@ -153,6 +503,7 @@ static const struct dw_mci_drv_data rk3288_drv_data = {
 	.prepare_command        = dw_mci_rockchip_prepare_command,
 	.set_ios		= dw_mci_rk3288_set_ios,
 	.setup_clock		= dw_mci_rk3288_setup_clock,
+	.execute_tuning = dw_mci_rk3288_execute_tuning,
 };
 
 static const struct of_device_id dw_mci_rockchip_match[] = {

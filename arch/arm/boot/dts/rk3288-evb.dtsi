@@ -15,9 +15,9 @@
 
 / {
 	aliases {
-		mshc0 = &emmc;
-		mshc1 = &sdmmc;
-		mshc2 = &sdio0;
+		mshc0 = &sdmmc;
+		mshc1 = &sdio0;
+		mshc3 = &emmc;
 
 		serial0 = &uart0;
 		serial1 = &uart1;
@@ -178,16 +178,18 @@
 	num-slots = <1>;
 	status = "okay";
 
-	clock-frequency = <50000000>;
-	clock-freq-min-max = <400000 50000000>;
+	clock-frequency = <150000000>;
+	clock-freq-min-max = <400000 150000000>;
 
+	default_voltage = <1>; //1.8v
 
 	broken-cd;
 	non-removable;
 	supports-highspeed;
+	caps2-mmc-hs200-1_8v;
 
 	pinctrl-names = "default";
-	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_pwr &emmc_bus8>;
+	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_rst &emmc_pwr &emmc_bus8>;
 
 	slot@0 {
 		reg = <0>;
