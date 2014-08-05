@@ -58,6 +58,8 @@ struct rockchip_panel_special {
 	u32 flags;
 };
 
+#define ROCKCHIP_EVENT_HOTPLUG	1
+
 /* This enumerates device type. */
 enum rockchip_drm_device_type {
 	ROCKCHIP_DEVICE_TYPE_NONE,
@@ -81,6 +83,10 @@ enum rockchip_drm_output_type {
 	/* HDMI Interface. */
 	ROCKCHIP_DISPLAY_TYPE_HDMI = (1 << 5),
 };
+
+#define ROCKCHIP_DISPLAY_TYPE_LCD (ROCKCHIP_DISPLAY_TYPE_RGB | \
+					ROCKCHIP_DISPLAY_TYPE_LVDS | \
+					ROCKCHIP_DISPLAY_TYPE_EDP)
 
 /*
  * Rockchip drm private structure.

@@ -591,6 +591,8 @@ static struct lcdc_driver *rk3288_lcdc_init(struct platform_device *pdev)
 
 	dev_info(dev, "lcdc%d probe ok\n", lcdc_dev->id);
 
+	lcdc_drv->id = lcdc_dev->id;
+
 	return lcdc_drv;
 }
 

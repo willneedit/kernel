@@ -38,10 +38,6 @@
 
 #define LCDC_DEFAULT_FRAMERATE 60
 
-#define ROCKCHIP_DISPLAY_TYPE_LCD (ROCKCHIP_DISPLAY_TYPE_RGB | \
-					ROCKCHIP_DISPLAY_TYPE_LVDS | \
-					ROCKCHIP_DISPLAY_TYPE_EDP)
-
 static const uint32_t formats[] = {
 	DRM_FORMAT_XRGB8888,
 	DRM_FORMAT_ARGB8888,
@@ -647,6 +643,7 @@ static int lcdc_probe(struct platform_device *pdev)
 	struct lcdc_context *ctx;
 	struct lcdc_driver *lcdc_drv;
 	struct lcdc_driver_data *lcdc_data = drm_lcdc_get_driver_data(pdev);
+	int type;
 	int ret = -EINVAL;
 
 	ctx = devm_kzalloc(dev, sizeof(*ctx), GFP_KERNEL);
@@ -666,8 +663,11 @@ static int lcdc_probe(struct platform_device *pdev)
 		return -EINVAL;
 
 	lcdc_drv->data = lcdc_data;
+
+	type = lcdc_drv->id ? ROCKCHIP_DISPLAY_TYPE_LCD :
+				ROCKCHIP_DISPLAY_TYPE_HDMI;
 	ret = rockchip_drm_component_add(&pdev->dev, ROCKCHIP_DEVICE_TYPE_CRTC,
-					 ROCKCHIP_DISPLAY_TYPE_LCD, ctx);
+					 type, ctx);
 	if (ret)
 		goto err_deinit_lcdc;
 

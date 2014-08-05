@@ -17,6 +17,7 @@
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_panel.h>
+#include <drm/drm_edid.h>
 
 #include <linux/component.h>
 
@@ -29,13 +30,13 @@
 
 struct rockchip_conn_context {
 	struct device *dev;
+	struct drm_device *drm_dev;
 
 	struct drm_panel *panel;
 	struct rockchip_connector *conn;
 	struct drm_connector connector;
 	struct drm_encoder encoder;
-
-	struct drm_display_mode mode;
+	struct rockchip_panel_special priv_mode;
 
 	u32 flags;
 	int type;
@@ -57,6 +58,8 @@ static inline int rockchip_convert_conn_type(int type)
 		return DRM_MODE_CONNECTOR_LVDS;
 	case ROCKCHIP_DISPLAY_TYPE_EDP:
 		return DRM_MODE_CONNECTOR_eDP;
+	case ROCKCHIP_DISPLAY_TYPE_HDMI:
+		return DRM_MODE_CONNECTOR_HDMIA;
 	}
 
 	return  DRM_MODE_CONNECTOR_Unknown;
@@ -77,7 +80,13 @@ static inline int rockchip_convert_encoder_type(int type)
 static enum drm_connector_status
 rockchip_conn_detect(struct drm_connector *connector, bool force)
 {
-	return true;
+	struct rockchip_conn_context *ctx = connector_to_ctx(connector);
+	struct rockchip_connector *conn = ctx->conn;
+
+	if (conn->is_detect)
+		return conn->is_detect(conn);
+	else
+		return true;
 }
 
 static void rockchip_connector_destroy(struct drm_connector *connector)
@@ -93,12 +102,128 @@ static struct drm_connector_funcs rockchip_connector_funcs = {
 	.destroy = rockchip_connector_destroy,
 };
 
+static u8 *rockchip_do_get_edid(struct drm_connector *connector)
+{
+	struct rockchip_conn_context *ctx = connector_to_ctx(connector);
+	struct rockchip_connector *conn = ctx->conn;
+	int i, j = 0, valid_ext = 0;
+	u8 *block, *new;
+	bool print_bad_edid = !connector->bad_edid_counter;
+
+	if ((block = kmalloc(EDID_LENGTH, GFP_KERNEL)) == NULL)
+		return NULL;
+
+	/* base block fetch */
+	for (i = 0; i < 4; i++) {
+		if(conn->getedid(conn, 0, block))
+			goto out;
+		if (drm_edid_block_valid(block, 0, print_bad_edid))
+			break;
+		if (i == 0 && memchr_inv(block, 0, EDID_LENGTH)) {
+			connector->null_edid_counter++;
+			goto carp;
+		}
+	}
+	if (i == 4)
+		goto carp;
+
+	/* if there's no extensions, we're done */
+	if (block[0x7e] == 0)
+		return block;
+
+	new = krealloc(block, (block[0x7e] + 1) * EDID_LENGTH, GFP_KERNEL);
+	if (!new)
+		goto out;
+	block = new;
+
+	for (j = 1; j <= block[0x7e]; j++) {
+		for (i = 0; i < 4; i++) {
+			if(conn->getedid(conn, j, block + (valid_ext + 1) *
+					  EDID_LENGTH))
+				goto out;
+			if (drm_edid_block_valid(block + (valid_ext + 1) *
+						 EDID_LENGTH, j,
+						 print_bad_edid)) {
+				valid_ext++;
+				break;
+			}
+		}
+
+		if (i == 4 && print_bad_edid) {
+			dev_warn(connector->dev->dev,
+				 "%s: Ignoring invalid EDID block %d.\n",
+				 drm_get_connector_name(connector), j);
+			connector->bad_edid_counter++;
+		}
+	}
+
+	if (valid_ext != block[0x7e]) {
+		block[EDID_LENGTH-1] += block[0x7e] - valid_ext;
+		block[0x7e] = valid_ext;
+		new = krealloc(block, (valid_ext + 1) * EDID_LENGTH,
+			       GFP_KERNEL);
+		if (!new)
+			goto out;
+		block = new;
+	}
+
+	return block;
+
+carp:
+	if (print_bad_edid) {
+		dev_warn(connector->dev->dev, "%s: EDID block %d invalid.\n",
+			 drm_get_connector_name(connector), j);
+	}
+	connector->bad_edid_counter++;
+
+out:
+	kfree(block);
+	return NULL;
+}
+
 static int rockchip_conn_get_modes(struct drm_connector *connector)
 {
 	struct rockchip_conn_context *ctx = connector_to_ctx(connector);
+	struct rockchip_connector *conn = ctx->conn;
 	struct drm_panel *panel = ctx->panel;
+	struct edid *edid;
+	int count = 0;
 
-	return panel->funcs->get_modes(panel);
+	if (conn->getedid) {
+		edid = (struct edid *)rockchip_do_get_edid(connector);
+		if (IS_ERR_OR_NULL(edid)) {
+			DRM_ERROR("operation get_edid failed\n");
+			return 0;
+		}
+
+		count = drm_add_edid_modes(connector, edid);
+		if (!count) {
+			DRM_ERROR("Add edid modes failed %d\n", count);
+			kfree(edid);
+			return 0;
+		}
+
+		drm_mode_connector_update_edid_property(connector, edid);
+	} else if (panel) {
+		count = panel->funcs->get_modes(panel);
+	} else {
+		DRM_ERROR("get connector modes fail\n");
+	}
+
+	return count;
+}
+
+static enum drm_mode_status
+	rockchip_conn_mode_valid(struct drm_connector *connector,
+				 struct drm_display_mode *mode)
+{
+	struct rockchip_conn_context *ctx = connector_to_ctx(connector);
+	struct rockchip_connector *conn = ctx->conn;
+
+	if (conn->checkmode)
+		return conn->checkmode(conn, mode);
+	else
+		return MODE_OK;	
 }
 
 static struct drm_encoder *
@@ -111,6 +236,7 @@ static struct drm_encoder *
 
 static struct drm_connector_helper_funcs rockchip_connector_helper_funcs = {
 	.get_modes = rockchip_conn_get_modes,
+	.mode_valid = rockchip_conn_mode_valid,
 	.best_encoder = rockchip_conn_best_encoder,
 };
 
@@ -123,14 +249,16 @@ static void rockchip_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
 	case DRM_MODE_DPMS_ON:
 		if (ctx->dpms_mode != DRM_MODE_DPMS_ON) {
 			conn->enable(conn);
-			ctx->panel->funcs->enable(ctx->panel);
+			if (ctx->panel)
+				ctx->panel->funcs->enable(ctx->panel);
 		}
 		break;
 	case DRM_MODE_DPMS_STANDBY:
 	case DRM_MODE_DPMS_SUSPEND:
 	case DRM_MODE_DPMS_OFF:
 		if (ctx->dpms_mode == DRM_MODE_DPMS_ON) {
-			ctx->panel->funcs->disable(ctx->panel);
+			if (ctx->panel)
+				ctx->panel->funcs->disable(ctx->panel);
 			conn->disable(conn);
 		}
 		break;
@@ -150,6 +278,14 @@ rockchip_drm_encoder_mode_fixup(struct drm_encoder *encoder,
 					(void *)adjusted_mode->private;
 	struct rockchip_conn_context *ctx = encoder_to_ctx(encoder);
 
+	if (!priv_mode) {
+		/*
+		 * if special panel info no define, set it as default;
+		 */
+		priv_mode = &ctx->priv_mode;
+		adjusted_mode->private = (void *)priv_mode;
+	}
+	
 	priv_mode->out_type = ctx->conn->type;
 
 	return true;
@@ -228,6 +364,14 @@ static unsigned int rockchip_drm_encoder_clones(struct drm_encoder *encoder)
 	return clone_mask;
 }
 
+void rockchip_connector_hotplug_handler(void *data)
+{
+	struct rockchip_conn_context *ctx = data;
+	
+	if (ctx->drm_dev)
+		drm_helper_hpd_irq_event(ctx->drm_dev);
+}
+
 static int rockchip_conn_bind(struct device *dev, struct device *master,
 			    void *data)
 {
@@ -245,7 +389,8 @@ static int rockchip_conn_bind(struct device *dev, struct device *master,
 		DRM_ERROR("can't find dp content form component\n");
 		return -EINVAL;
 	}
-
+	
+	ctx->drm_dev = drm_dev;
 	ret = rockchip_drm_pipe_get(dev);
 	if (ret < 0) {
 		DRM_ERROR("failed to bind display port\n");
@@ -295,24 +440,35 @@ static int rockchip_conn_bind(struct device *dev, struct device *master,
 		goto err_free_connector_sysfs;
 	}
 
-	panel_node = of_parse_phandle(dev->of_node, "rockchip,panel", 0);
-	if (!panel_node) {
-		DRM_ERROR("failed to find diaplay panel\n");
-		goto err_detach_connector;
-	}
-	ctx->panel = of_drm_find_panel(panel_node);
-	if (!ctx->panel) {
-		DRM_ERROR("failed to find diaplay panel\n");
-		ret = -ENODEV;
-		goto err_detach_connector;
-	}
+	if (ctx->type & ROCKCHIP_DISPLAY_TYPE_LCD) {
+		panel_node = of_parse_phandle(dev->of_node,
+					      "rockchip,panel", 0);
+		if (!panel_node) {
+			DRM_ERROR("failed to find diaplay panel\n");
+			goto err_detach_connector;
+		}
+		ctx->panel = of_drm_find_panel(panel_node);
+		if (!ctx->panel) {
+			DRM_ERROR("failed to find diaplay panel\n");
+			ret = -ENODEV;
+			goto err_detach_connector;
+		}
 
-	of_node_put(panel_node);
+		of_node_put(panel_node);
 
-	ret = drm_panel_attach(ctx->panel, connector);
-	if (ret) {
-		DRM_ERROR("failed to attach connector and encoder\n");
-		goto err_detach_connector;
+		ret = drm_panel_attach(ctx->panel, connector);
+		if (ret) {
+			DRM_ERROR("failed to attach connector and encoder\n");
+			goto err_detach_connector;
+		}
+	} else {
+		struct rockchip_panel_special *priv_mode = &ctx->priv_mode;
+
+		priv_mode->out_face = ROCKCHIP_OUTFACE_P888;
+		priv_mode->color_swap = 0;
+		priv_mode->pwr18 = false;	
+		priv_mode->dither = false;
+		priv_mode->flags = DISPLAY_FLAGS_PIXDATA_NEGEDGE;
 	}
 
 	return 0;
@@ -338,7 +494,8 @@ static void rockchip_conn_unbind(struct device *dev, struct device *master,
 					      ROCKCHIP_DEVICE_TYPE_CONNECTOR);
 	encoder = &ctx->encoder;
 
-	drm_panel_detach(ctx->panel);
+	if (ctx->panel)
+		drm_panel_detach(ctx->panel);
 
 	rockchip_drm_encoder_dpms(encoder, DRM_MODE_DPMS_OFF);
 	encoder->funcs->destroy(encoder);

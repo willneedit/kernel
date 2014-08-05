@@ -29,8 +29,14 @@ struct rockchip_connector {
 	void (*disable)(struct rockchip_connector *conn);
 	int (*setmode)(struct rockchip_connector *conn,
 		       struct drm_display_mode *mode);
+	int (*checkmode)(struct rockchip_connector *conn,
+		       struct drm_display_mode *mode);
+	int (*getedid)(struct rockchip_connector *conn,
+		       int block, unsigned char *buff);
+	int (*is_detect)(struct rockchip_connector *conn);
 };
 
 void *rockchip_connector_register(struct rockchip_connector *conn);
 void rockchip_connector_unregister(void *data);
+void rockchip_connector_hotplug_handler(void *data);
 #endif
