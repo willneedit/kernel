@@ -58,18 +58,18 @@ static struct mfd_cell rk808s[] = {
 };
 
 static struct rk808_reg_data pre_init_reg[] = {
-	{RK808_BUCK3_CONFIG_REG,	~(0x7 << 0),	(0x2 << 0)},
-	{RK808_BUCK4_CONFIG_REG,	~(0x7 << 0),	(0x3 << 0)},
-	{RK808_BOOST_CONFIG_REG,	~(0x7 << 0),	(0x1 << 0)},
-	{RK808_BUCK1_CONFIG_REG,	~(0x3 << 3),	(0x3 << 0)},
-	{RK808_BUCK2_CONFIG_REG,	~(0x3 << 3),	(0x3 << 0)},
-	{RK808_DCDC_EN_REG,		0xff,		(0x7 << 4)},
-	{RK808_VB_MON_REG,		~0x17,		0x17},
-	{RK808_INT_STS_MSK_REG1,	0,		1},
-	{RK808_CLK32OUT_REG,		0,		1},
-	{RK808_INT_STS_REG1,		0xff,		0},
-	{RK808_INT_STS_REG2,		0xff,		0},
-	{RK808_RTC_STATUS_REG,		0xff,		0},
+	{RK808_BUCK3_CONFIG_REG, BUCK_ILMIN_MASK, BUCK_ILMIN_150MA},
+	{RK808_BUCK4_CONFIG_REG, BUCK_ILMIN_MASK, BUCK_ILMIN_200MA},
+	{RK808_BOOST_CONFIG_REG, BOOST_ILMIN_MASK, BOOST_ILMIN_100MA},
+	{RK808_BUCK1_CONFIG_REG, BUCK1_RATE_MASK,  BUCK_ILMIN_200MA},
+	{RK808_BUCK2_CONFIG_REG, BUCK2_RATE_MASK,  BUCK_ILMIN_200MA},
+	{RK808_DCDC_EN_REG,      MASK_NONE, SWITCH2_EN | SWITCH1_EN},
+	{RK808_VB_MON_REG,       MASK_ALL,  VB_LO_ACT | VB_LO_SEL_3500MV},
+	{RK808_INT_STS_MSK_REG1, MASK_ALL,  VOUT_LO_INT},
+	{RK808_CLK32OUT_REG,     MASK_ALL,  CLK32KOUT2_EN},
+	{RK808_INT_STS_REG1,     MASK_NONE, 0},
+	{RK808_INT_STS_REG2,     MASK_NONE, 0},
+	{RK808_RTC_STATUS_REG,   MASK_NONE, 0},
 };
 
 static const struct regmap_irq rk808_irqs[] = {
@@ -133,7 +133,7 @@ static int rk808_irq_init(struct rk808 *rk808)
 	}
 
 	ret = regmap_add_irq_chip(rk808->regmap, pdata->irq,
-		IRQF_TRIGGER_LOW | IRQF_ONESHOT, pdata->irq_base,
+		IRQF_ONESHOT, pdata->irq_base,
 		&rk808_irq_chip, &rk808->irq_data);
 	if (ret < 0)
 		dev_err(rk808->dev, "Failed to add irq_chip %d\n", ret);
@@ -143,6 +143,7 @@ static int rk808_irq_init(struct rk808 *rk808)
 static int rk808_irq_exit(struct rk808 *rk808)
 {
 	struct rk808_board *pdata = rk808->pdata;
+
 	if (pdata->irq > 0)
 		regmap_del_irq_chip(pdata->irq, rk808->irq_data);
 	return 0;
@@ -241,10 +242,11 @@ static int rk808_probe(struct i2c_client *client,
 	uint32_t val;
 	struct rk808 *rk808;
 	struct rk808_board *pdata = dev_get_platdata(&client->dev);
+
 	rk808 = devm_kzalloc(&client->dev, sizeof(struct rk808), GFP_KERNEL);
-	if (rk808 == NULL) {
+	if (rk808 == NULL)
 		return -ENOMEM;
-	}
+
 	rk808->i2c = client;
 	rk808->dev = &client->dev;
 	i2c_set_clientdata(client, rk808);
@@ -259,25 +261,25 @@ static int rk808_probe(struct i2c_client *client,
 	ret = regmap_read(rk808->regmap, 0x2f, &val);
 	if (ret < 0) {
 		dev_err(rk808->dev, "The device is not rk808 %d\n", ret);
-		goto err_regmap;
+		return ret;
 	}
 
 	ret = rk808_pre_init(rk808);
 	if (ret < 0) {
 		dev_err(rk808->dev, "The rk808_pre_init failed %d\n", ret);
-		goto err_regmap;
+		return ret;
 	}
 
 	if (IS_ENABLED(CONFIG_OF) && rk808->dev->of_node) {
 		pdata = rk808_parse_dt(rk808);
 		if (IS_ERR(pdata)) {
 			ret = IS_ERR(pdata);
-			goto err_regmap;
+			return ret;
 		}
 	}
 
 	if (!pdata)
-		goto err_regmap;
+		return -EINVAL;
 
 	pdata->irq = client->irq;
 	pdata->irq_base = -1;
@@ -286,15 +288,14 @@ static int rk808_probe(struct i2c_client *client,
 
 	ret = rk808_irq_init(rk808);
 	if (ret < 0)
-		goto err_irq;
-
+		return ret;
 
 	ret = mfd_add_devices(rk808->dev, -1,
 			      rk808s, ARRAY_SIZE(rk808s),
-			      NULL, 0, NULL);
+			      NULL, 0, regmap_irq_get_domain(rk808->irq_data));
 	if (ret < 0) {
 		dev_err(rk808->dev, "failed to add MFD devices %d\n", ret);
-		goto err_mfd;
+		return ret;
 	}
 
 	g_rk808 = rk808;
@@ -302,17 +303,6 @@ static int rk808_probe(struct i2c_client *client,
 		pm_power_off = rk808_device_shutdown;
 
 	return 0;
-err_mfd:
-	mfd_remove_devices(rk808->dev);
-err_irq:
-	if (pdata)
-		devm_kfree(&client->dev, pdata);
-	pdata = NULL;
-err_regmap:
-	if (rk808)
-		devm_kfree(&client->dev, rk808);
-	rk808 = NULL;
-	return ret;
 }
 
 static int rk808_remove(struct i2c_client *i2c)
