@@ -12,6 +12,7 @@ config DRM_ROCKCHIP
 	select VT_HW_CONSOLE_BINDING if FRAMEBUFFER_CONSOLE
 	select VIDEOMODE_HELPERS
 	select OF
+        select CMA
 	help
 	  Choose this option if you have a Rockchip soc chipset.
 	  This driver provides kernel mode setting and buffer
