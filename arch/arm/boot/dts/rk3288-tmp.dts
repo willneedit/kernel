@@ -231,6 +231,10 @@
 			status = "okay";
 		};
 
+		pwm0: pwm@ff680000 {
+			status = "okay";
+		};
+		
 		/* uart_bt */
 		serial@ff180000 {
 			status = "okay";

@@ -150,6 +150,10 @@
 			status = "okay";
 		};
 
+		pwm0: pwm@ff680000 {
+			status = "okay";
+		};
+		
 		serial@ff180000 {
 			status = "okay";
 		};

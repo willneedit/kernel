@@ -474,6 +474,42 @@
 				};
 			};
 
+			vop0pwm {
+				vop0_pwm_pin: pwm0-pin {
+					rockchip,pins = <7 0 RK_FUNC_2 &pcfg_pull_none>;
+				};
+			};
+
+			vop1pwm {
+				vop1_pwm_pin: pwm1-pin {
+					rockchip,pins = <7 0 RK_FUNC_3 &pcfg_pull_none>;
+				};
+			};
+			
+			pwm0 {
+				pwm0_pin: pwm0-pin {
+					rockchip,pins = <7 0 RK_FUNC_1 &pcfg_pull_none>;
+				};
+			};
+
+			pwm1 {
+				pwm1_pin: pwm1-pin {
+					rockchip,pins = <7 1 RK_FUNC_1 &pcfg_pull_none>;
+				};
+			};
+
+			pwm2 {
+				pwm2_pin: pwm2-pin {
+					rockchip,pins = <7 22 RK_FUNC_3 &pcfg_pull_none>;
+				};
+			};
+
+			pwm3 {
+				pwm3_pin: pwm3-pin {
+					rockchip,pins = <7 23 RK_FUNC_3 &pcfg_pull_none>;
+				};
+			};
+			
 			uart0 {
 				uart0_xfer: uart0-xfer {
 					rockchip,pins = <4 16 RK_FUNC_1 &pcfg_pull_up>,
@@ -678,6 +714,72 @@
 			status = "disabled";
 		};
 
+		vop0pwm: pwm@ff9301a0 {
+			compatible = "rockchip,vop-pwm";
+			reg = <0xff9301a0 0x10>;
+			#pwm-cells = <2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&vop0_pwm_pin>;
+			clocks = <&cru PCLK_PWM>;
+			clock-names = "pwm";
+			status = "disabled";
+		};
+
+		vop1pwm: pwm@ff9401a0 {
+			compatible = "rockchip,vop-pwm";
+			reg = <0xff9401a0 0x10>;
+			#pwm-cells = <2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&vop1_pwm_pin>;
+			clocks = <&cru PCLK_PWM>;
+			clock-names = "pwm";
+			status = "disabled";
+		};
+		
+		pwm0: pwm@ff680000 {
+			compatible = "rockchip,rk3288-pwm";
+			reg = <0xff680000 0x10>;
+			#pwm-cells = <2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm0_pin>;
+			clocks = <&cru PCLK_PWM>;
+			clock-names = "pwm";
+			status = "disabled";
+		};
+
+		pwm1: pwm@ff680010 {
+			compatible = "rockchip,rk3288-pwm";
+			reg = <0xff680010 0x10>;
+			#pwm-cells = <2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm1_pin>;
+			clocks = <&cru PCLK_PWM>;
+			clock-names = "pwm";
+			status = "disabled";
+		};
+
+		pwm2: pwm@ff680020 {
+			compatible = "rockchip,rk3288-pwm";
+			reg = <0xff680020 0x10>;
+			#pwm-cells = <2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm2_pin>;
+			clocks = <&cru PCLK_PWM>;
+			clock-names = "pwm";
+			status = "disabled";
+		};
+
+		pwm3: pwm@ff680030 {
+			compatible = "rockchip,rk3288-pwm";
+			reg = <0xff680030 0x10>;
+			#pwm-cells = <2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm3_pin>;
+			clocks = <&cru PCLK_PWM>;
+			clock-names = "pwm";
+			status = "disabled";
+		};
+		
 		uart0: serial@ff180000 {
 			compatible = "snps,dw-apb-uart";
 			reg = <0xff180000 0x100>;
