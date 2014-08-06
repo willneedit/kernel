@@ -30,7 +30,7 @@
 		reg = <0x0 0x80000000>;
 	};
 
-	//for lvds 
+	/*for lvds 
 	panel:panel {
 		compatible = "rockchip,panel";
 		status = "okay";
@@ -60,8 +60,8 @@
 				pixelclk-active = <0>;
 			};
 		};
-	};
-	/* for 1536x2048 edp
+	};*/
+	// for 1536x2048 edp
 	panel:panel {
 		compatible = "rockchip,panel";
 		status = "okay";
@@ -88,7 +88,7 @@
 				pixelclk-active = <1>;
 			};
 		};
-	};*/
+	};
 
 	soc {
 		gpio-keys {
@@ -131,12 +131,12 @@
 		};
 
 		edp: edp@ff970000 {                                                                                                        
-			status = "disabled";
+			status = "okay";
 			rockchip,panel = <&panel>;
 		};
 
 		lvds: lvds@ff96c000 {
-			status = "okay";
+			status = "disabled";
 			rockchip,data-mapping = "jeida";
 			rockchip,data-width = <24>;
 		      rockchip,panel = <&panel>;
@@ -186,7 +186,7 @@
 	broken-cd;
 	non-removable;
 	supports-highspeed;
-	caps2-mmc-hs200-1_8v;
+	//caps2-mmc-hs200-1_8v;
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_rst &emmc_pwr &emmc_bus8>;
