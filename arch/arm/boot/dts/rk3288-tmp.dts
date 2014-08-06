@@ -49,7 +49,7 @@
 //			vin-supply = <&vcc_io>;
 		};
 	};
-	//for lvds 
+	/*for lvds 
 	panel:panel {
 		compatible = "rockchip,panel";
 		status = "okay";
@@ -79,8 +79,8 @@
 				pixelclk-active = <0>;
 			};
 		};
-	};
-	/* for 1536x2048 edp
+	};*/
+	// for 1536x2048 edp
 	panel:panel {
 		compatible = "rockchip,panel";
 		status = "okay";
@@ -107,7 +107,7 @@
 				pixelclk-active = <1>;
 			};
 		};
-	};*/
+	};
 
 	soc {
 		gpio-keys {
