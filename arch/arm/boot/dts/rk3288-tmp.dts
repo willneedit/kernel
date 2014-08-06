@@ -212,12 +212,12 @@
 		};
 	
 		edp: edp@ff970000 {                                                                                                        
-			status = "disabled";
+			status = "okay";
 			rockchip,panel = <&panel>;
 		};
 
 		lvds: lvds@ff96c000 {
-			status = "okay";
+			status = "disabled";
 			rockchip,data-mapping = "jeida";
 			rockchip,data-width = <24>;
 			rockchip,panel = <&panel>;
