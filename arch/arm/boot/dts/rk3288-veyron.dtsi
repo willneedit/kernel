@@ -29,7 +29,7 @@
 	memory {
 		reg = <0x0 0x80000000>;
 	};
-    
+
         backlight {
                 compatible = "pwm-backlight";
                 pwms = <&pwm0 0 25000>;
@@ -38,7 +38,7 @@
                 enable-gpios = <&gpio7 0 GPIO_ACTIVE_HIGH>;
         };
 
-	/*for lvds 
+	/*for lvds
 	panel:panel {
 		compatible = "rockchip,panel";
 		status = "okay";
@@ -69,33 +69,36 @@
 			};
 		};
 	};*/
+
 	// for 1536x2048 edp
 	panel:panel {
 		compatible = "rockchip,panel";
 		status = "okay";
 		rockchip,output-face = "r6g6b6";
 
-		enable-gpios = <&gpio7 3 GPIO_ACTIVE_HIGH>;
+		enable-gpios = <&gpio7 15 GPIO_ACTIVE_HIGH
+				&gpio7 0 GPIO_ACTIVE_HIGH
+				&gpio7 2 GPIO_ACTIVE_HIGH>;
 		output-dither;
 
-		display-timings {
-			native-mode = <&timing1>;
-			timing1: timing@1 {
-				clock-frequency = <205000000>;
-				hactive = <1536>;
-				vactive = <2048>;
-				hback-porch = <48>;
-				hfront-porch = <12>;
-				vback-porch = <8>;
-				vfront-porch = <8>;
-				hsync-len = <16>;
-				vsync-len = <4>;
-				hsync-active = <0>;
-				vsync-active = <0>;
-				de-active = <0>;
-				pixelclk-active = <1>;
-			};
-		};
+	        disp_timings: display-timings {
+	                        native-mode = <&timing0>;
+	                        timing0: timing0 {
+						 clock-frequency = <76000000>;
+						 hactive = <1366>;
+						 vactive = <768>;
+						 hback-porch = <100>;
+						 hfront-porch = <100>;
+						 vback-porch = <18>;
+						 vfront-porch = <10>;
+						 hsync-len = <26>;
+						 vsync-len = <4>;
+						 hsync-active = <0>;
+						 vsync-active = <0>;
+						 de-active = <0>;
+						 pixelclk-active = <1>;
+	                        };
+	               };
 	};
 
 	soc {
@@ -138,7 +141,7 @@
 			};
 		};
 
-		edp: edp@ff970000 {                                                                                                        
+		edp: edp@ff970000 {
 			status = "okay";
 			rockchip,panel = <&panel>;
 		};
