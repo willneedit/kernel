@@ -834,6 +834,15 @@
 			
 			clocks = <&cru SCLK_GPU>, <&cru ACLK_GPU>;
 			clock-names = "sclk_gpu", "aclk_gpu";
+			//regulator-name = "vdd_gpu";
+			operating-points = <
+				/* KHz uV */
+				100000 850000
+				200000 900000
+				300000 1000000
+				400000 1050000
+				500000 1150000
+				600000 1200000>;
 		};
 
 		iep_mmu {

@@ -47,27 +47,22 @@
 
 
 static int mali_clk_status = 0;
-static int mali_aclk_status = 0;
+static int mali_pd_status = 0;
 
-#if 0
-int mali_dvfs_clk_set(struct dvfs_node *node,unsigned long rate)
+int mali_dvfs_clk_set(struct clk *node,unsigned long rate)
 {
 	int ret = 0;
-#if 0
-	if(!node)
-	{
+
+	if (!node) {
 		printk("clk_get_dvfs_node error \r\n");
 		ret = -1;
 	}
-	ret = dvfs_clk_set_rate(node,rate * MALI_KHZ);
-	if(ret)
-	{
+	ret = clk_set_rate(node, rate * MALI_KHZ);
+	if (ret) 
 		printk("dvfs_clk_set_rate error \r\n");
-	}
-#endif
+
 	return ret;
 }
-#endif
 static int kbase_platform_power_clock_init(kbase_device *kbdev)
 {
 	struct device *dev = kbdev->dev;
@@ -76,43 +71,52 @@ static int kbase_platform_power_clock_init(kbase_device *kbdev)
 	platform = (struct rk_context *)kbdev->platform_context;
 	if (NULL == platform)
 		panic("oops");
-	
+#if 0	
 	/* enable mali t760 powerdomain*/	
-	platform->mali_aclk = clk_get(dev,"aclk_gpu");
-	if(IS_ERR_OR_NULL(platform->mali_aclk))
-	{
-		platform->mali_aclk = NULL;
-		printk(KERN_ERR "%s, %s(): failed to get [platform->mali_aclk]\n", __FILE__, __func__);
+	platform->mali_pd = clk_get(NULL,"pd_gpu");
+	if (IS_ERR_OR_NULL(platform->mali_pd)) {
+		platform->mali_pd = NULL;
+		printk(KERN_ERR "%s, %s(): failed to get [platform->mali_pd]\n",
+			__FILE__, __func__);
 		goto out;
-	}
-	else
-	{
-		clk_prepare_enable(platform->mali_aclk);
+	} else {
+		clk_prepare_enable(platform->mali_pd);
 		printk("mali pd enabled\n");
 	}
-	mali_aclk_status = 1;
+#endif
+	mali_pd_status = 1;
 	
 	/* enable mali t760 clock */
-	platform->mali_sclk = clk_get(dev,"sclk_gpu");
-	if (IS_ERR_OR_NULL(platform->mali_sclk)) 
-	{
+	platform->mali_sclk = devm_clk_get(dev, "sclk_gpu");
+	if (IS_ERR_OR_NULL(platform->mali_sclk)) {
 		platform->mali_sclk = NULL;
-		printk(KERN_ERR "%s, %s(): failed to get [platform->mali_sclk]\n", __FILE__, __func__);
+		printk(KERN_ERR "%s, %s(): failed to get [platform->mali_sclk]\n",
+			__FILE__, __func__);
 		goto out;
-	} 
-	else 
-	{
+	} else {
 		clk_prepare_enable(platform->mali_sclk);
-		printk("clk enabled\n");
+		printk("mali sclk enabled\n");
 	}
-	//mali_dvfs_clk_set(platform->mali_sclk,MALI_T7XX_DEFAULT_CLOCK);
-	
+	platform->mali_aclk = devm_clk_get(dev, "aclk_gpu");
+	if (IS_ERR_OR_NULL(platform->mali_aclk)) {
+		platform->mali_aclk = NULL;
+		printk(KERN_ERR "%s, %s(): failed to get [platform->mali_aclk]\n",
+			__FILE__, __func__);
+		goto out;
+	} else {
+		clk_prepare_enable(platform->mali_aclk);
+		printk("mali aclk enabled\n");
+	}
+	mali_dvfs_clk_set(platform->mali_sclk,MALI_T7XX_DEFAULT_CLOCK);
 	mali_clk_status = 1;
+
 	return 0;
 	
 out:
-	if(platform->mali_aclk)
+	if (platform->mali_aclk)
 		clk_put(platform->mali_aclk);
+	if (platform->mali_sclk)
+		clk_put(platform->mali_sclk);
 	
 	return -EPERM;
 
@@ -120,6 +124,7 @@ out:
 int kbase_platform_clock_off(struct kbase_device *kbdev)
 {
 	struct rk_context *platform;
+	
 	if (!kbdev)
 		return -ENODEV;
 
@@ -132,7 +137,8 @@ int kbase_platform_clock_off(struct kbase_device *kbdev)
 	
 	if((platform->mali_sclk))
 		clk_disable_unprepare(platform->mali_sclk);
-	
+	if((platform->mali_aclk))
+		clk_disable_unprepare(platform->mali_aclk);	
 	mali_clk_status = 0;
 
 	return 0;
@@ -141,6 +147,7 @@ int kbase_platform_clock_off(struct kbase_device *kbdev)
 int kbase_platform_clock_on(struct kbase_device *kbdev)
 {
 	struct rk_context *platform;
+	
 	if (!kbdev)
 		return -ENODEV;
 
@@ -153,20 +160,21 @@ int kbase_platform_clock_on(struct kbase_device *kbdev)
 	
 	if(platform->mali_sclk)
 		clk_prepare_enable(platform->mali_sclk);
-
+	if(platform->mali_aclk)
+		clk_prepare_enable(platform->mali_aclk);
 	mali_clk_status = 1;
 
 	return 0;
 }
 int kbase_platform_is_power_on(void)
 {
-	return mali_aclk_status;
+	return mali_pd_status;
 }
 
-/*turn on power domain*/
 int kbase_platform_power_on(struct kbase_device *kbdev)
 {
 	struct rk_context *platform;
+	
 	if (!kbdev)
 		return -ENODEV;
 
@@ -174,22 +182,22 @@ int kbase_platform_power_on(struct kbase_device *kbdev)
 	if (!platform)
 		return -ENODEV;
 
-	if (mali_aclk_status == 1)
+	if (mali_pd_status == 1)
 		return 0;
-#if 1	
-	if(platform->mali_aclk)
-		clk_prepare_enable(platform->mali_aclk);
+#if 0
+	if(platform->mali_pd)
+		clk_prepare_enable(platform->mali_pd);
 #endif
-	mali_aclk_status = 1;
+	mali_pd_status = 1;
 	KBASE_TIMELINE_GPU_POWER(kbdev, 1);
 
 	return 0;
 }
 
-/*turn off power domain*/
 int kbase_platform_power_off(struct kbase_device *kbdev)
 {
 	struct rk_context *platform;
+	
 	if (!kbdev)
 		return -ENODEV;
 
@@ -197,13 +205,13 @@ int kbase_platform_power_off(struct kbase_device *kbdev)
 	if (!platform)
 		return -ENODEV;
 
-	if (mali_aclk_status== 0)
+	if (mali_pd_status== 0)
 		return 0;
-#if 1
-	if(platform->mali_aclk)
-		clk_disable_unprepare(platform->mali_aclk);
+#if 0
+	if(platform->mali_pd)
+		clk_disable_unprepare(platform->mali_pd);
 #endif
-	mali_aclk_status = 0;
+	mali_pd_status = 0;
 	KBASE_TIMELINE_GPU_POWER(kbdev, 0);
 
 	return 0;
@@ -213,6 +221,7 @@ int kbase_platform_cmu_pmu_control(struct kbase_device *kbdev, int control)
 {
 	unsigned long flags;
 	struct rk_context *platform;
+	
 	if (!kbdev)
 		return -ENODEV;
 
@@ -223,10 +232,8 @@ int kbase_platform_cmu_pmu_control(struct kbase_device *kbdev, int control)
 	spin_lock_irqsave(&platform->cmu_pmu_lock, flags);
 
 	/* off */
-	if (control == 0) 
-	{
-		if (platform->cmu_pmu_status == 0) 
-		{
+	if (control == 0) {
+		if (platform->cmu_pmu_status == 0) {
 			spin_unlock_irqrestore(&platform->cmu_pmu_lock, flags);
 			return 0;
 		}
@@ -238,12 +245,9 @@ int kbase_platform_cmu_pmu_control(struct kbase_device *kbdev, int control)
 
 		platform->cmu_pmu_status = 0;
 		printk("turn off mali power \n");
-	} 
-	else 
-	{
+	} else {
 		/* on */
-		if (platform->cmu_pmu_status == 1) 
-		{
+		if (platform->cmu_pmu_status == 1) {
 			spin_unlock_irqrestore(&platform->cmu_pmu_lock, flags);
 			return 0;
 		}
@@ -270,6 +274,7 @@ static ssize_t show_clock(struct device *dev, struct device_attribute *attr, cha
 	ssize_t ret = 0;
 	unsigned int clkrate;
 	int i ;
+
 	kbdev = dev_get_drvdata(dev);
 
 	if (!kbdev)
@@ -279,8 +284,7 @@ static ssize_t show_clock(struct device *dev, struct device_attribute *attr, cha
 	if (!platform)
 		return -ENODEV;
 
-	if (!platform->mali_sclk)
-	{
+	if (!platform->mali_sclk) {
 		printk("mali_sclk not init\n");
 		return -ENODEV;
 	}
@@ -304,11 +308,13 @@ static ssize_t show_clock(struct device *dev, struct device_attribute *attr, cha
 	return ret;
 }
 
-static ssize_t set_clock(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+static ssize_t set_clock(struct device *dev, struct device_attribute *attr,
+				const char *buf, size_t count)
 {
 	struct kbase_device *kbdev;
 	struct rk_context *platform;
 	unsigned int tmp = 0, freq = 0;
+
 	kbdev = dev_get_drvdata(dev);
 	tmp = 0;	
 	if (!kbdev)
@@ -573,6 +579,30 @@ static ssize_t set_dtlb(struct device *dev, struct device_attribute *attr, const
 
 	return count;
 }
+static ssize_t show_vol(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct kbase_device *kbdev;
+	ssize_t ret = 0;
+	int vol;
+
+	kbdev = dev_get_drvdata(dev);
+
+	if (!kbdev)
+		return -ENODEV;
+
+	kbase_platform_get_voltage(dev, &vol);
+	ret += snprintf(buf + ret, PAGE_SIZE - ret, "Current operating voltage for mali t76x = %d", vol);
+
+	if (ret < PAGE_SIZE - 1)
+		ret += snprintf(buf + ret, PAGE_SIZE - ret, "\n");
+	else {
+		buf[PAGE_SIZE - 2] = '\n';
+		buf[PAGE_SIZE - 1] = '\0';
+		ret = PAGE_SIZE - 1;
+	}
+
+	return ret;
+}
 
 static ssize_t show_dvfs(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -686,24 +716,18 @@ static ssize_t set_upper_lock_dvfs(struct device *dev, struct device_attribute *
 	if (!kbdev)
 		return -ENODEV;
 
-freq = simple_strtoul(buf, NULL, 10);
+	freq = simple_strtoul(buf, NULL, 10);
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
-	if (sysfs_streq("off", buf)) 
-	{
+	if (sysfs_streq("off", buf)) {
 		mali_dvfs_freq_unlock();
-	} 
-	else 
-	{
-		for(i=0;i<MALI_DVFS_STEP;i++)
-		{
-			if (p_mali_dvfs_infotbl[i].clock == freq) 
-			{
+	} else {
+		for (i=0; i<MALI_DVFS_STEP; i++) {
+			if (p_mali_dvfs_infotbl[i].clock == freq) {
 				mali_dvfs_freq_lock(i);
 				break;
 			}
-			if(i==MALI_DVFS_STEP)
-			{
+			if (i == MALI_DVFS_STEP) {
 				dev_err(dev, "set_clock: invalid value\n");
 				return -ENOENT;
 			}
@@ -716,7 +740,8 @@ freq = simple_strtoul(buf, NULL, 10);
 	return count;
 }
 
-static ssize_t show_under_lock_dvfs(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t show_under_lock_dvfs(struct device *dev,
+					struct device_attribute *attr, char *buf)
 {
 	struct kbase_device *kbdev;
 	ssize_t ret = 0;
@@ -770,21 +795,14 @@ static ssize_t set_under_lock_dvfs(struct device *dev, struct device_attribute *
 		return -ENODEV;
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
-	if (sysfs_streq("off", buf)) 
-	{
+	if (sysfs_streq("off", buf)) {
 		mali_dvfs_freq_unlock();
-	} 
-	else 
-	{
-		for(i=0;i<MALI_DVFS_STEP;i++)
-		{
-			if (p_mali_dvfs_infotbl[i].clock == freq) 
-			{
+	} else {
+		for (i=0; i<MALI_DVFS_STEP; i++) {
+			if (p_mali_dvfs_infotbl[i].clock == freq) {
 				mali_dvfs_freq_lock(i);
 				break;
-			}
-			if(i==MALI_DVFS_STEP)
-			{
+			} if(i==MALI_DVFS_STEP) {
 				dev_err(dev, "set_clock: invalid value\n");
 				return -ENOENT;
 			}
@@ -807,6 +825,8 @@ DEVICE_ATTR(dvfs, S_IRUGO | S_IWUSR, show_dvfs, set_dvfs);
 DEVICE_ATTR(dvfs_upper_lock, S_IRUGO | S_IWUSR, show_upper_lock_dvfs, set_upper_lock_dvfs);
 DEVICE_ATTR(dvfs_under_lock, S_IRUGO | S_IWUSR, show_under_lock_dvfs, set_under_lock_dvfs);
 DEVICE_ATTR(time_in_state, S_IRUGO | S_IWUSR, show_time_in_state, set_time_in_state);
+DEVICE_ATTR(vol, S_IRUGO, show_vol, NULL);
+
 
 int kbase_platform_create_sysfs_file(struct device *dev)
 {
@@ -842,6 +862,11 @@ int kbase_platform_create_sysfs_file(struct device *dev)
 
 	if (device_create_file(dev, &dev_attr_time_in_state)) {
 		dev_err(dev, "Couldn't create sysfs file [time_in_state]\n");
+		goto out;
+	}
+	
+	if (device_create_file(dev, &dev_attr_vol)) {
+		dev_err(dev, "Couldn't create sysfs file [vol]\n");
 		goto out;
 	}
 	return 0;
@@ -885,6 +910,11 @@ mali_error kbase_platform_init(struct kbase_device *kbdev)
 
 	if (kbase_platform_power_clock_init(kbdev))
 		goto clock_init_fail;
+	
+#ifdef CONFIG_REGULATOR
+	if (kbase_platform_regulator_init())
+		goto regulator_init_fail;
+#endif
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
 	kbase_platform_dvfs_init(kbdev);
@@ -893,7 +923,12 @@ mali_error kbase_platform_init(struct kbase_device *kbdev)
 	/* Enable power */
 	kbase_platform_cmu_pmu_control(kbdev, 1);
 	return MALI_ERROR_NONE;
+	
+#ifdef CONFIG_REGULATOR
+	kbase_platform_regulator_disable();
+#endif
 
+ regulator_init_fail:
  clock_init_fail:
 	kfree(platform);
 
@@ -912,6 +947,11 @@ void kbase_platform_term(kbase_device *kbdev)
 
 	/* Disable power */
 	kbase_platform_cmu_pmu_control(kbdev, 0);
+
+#ifdef CONFIG_REGULATOR
+	kbase_platform_regulator_disable();
+#endif
+
 	kfree(kbdev->platform_context);
 	kbdev->platform_context = 0;
 	return;

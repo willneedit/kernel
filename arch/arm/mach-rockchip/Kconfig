@@ -14,6 +14,8 @@ config ARCH_ROCKCHIP
 	select GENERIC_CLOCKEVENTS
 	select DW_APB_TIMER_OF
 	select ARM_GLOBAL_TIMER
+	select ARCH_HAS_OPP
+	select ARCH_HAS_CPUFREQ
 	select CLKSRC_ARM_GLOBAL_TIMER_SCHED_CLOCK
 	help
 	  Support for Rockchip's Cortex-A9 Single-to-Quad-Core-SoCs

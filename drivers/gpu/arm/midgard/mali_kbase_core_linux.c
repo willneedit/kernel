@@ -2609,7 +2609,6 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 	kbase_platform_config *config;
 	int attribute_count;
 
-#ifdef CONFIG_MALI_PLATFORM_FAKE
 	config = kbase_get_platform_config();
 	attribute_count = kbasep_get_config_attribute_count(config->attributes);
 
@@ -2617,7 +2616,7 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 			attribute_count * sizeof(config->attributes[0]));
 	if (err)
 		return err;
-#endif /* CONFIG_MALI_PLATFORM_FAKE */
+
 #endif /* CONFIG_OF */
 
 	kbdev = kbase_device_alloc();
