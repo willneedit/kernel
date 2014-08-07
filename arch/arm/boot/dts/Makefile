@@ -238,7 +238,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3066a-bqcurie2.dtb \
 	rk3188-radxarock.dtb \
 	rk3288-evb-rk808.dtb \
-	rk3288-veyron-rk808.dtb
+	rk3288-veyron.dtb
 dtb-$(CONFIG_ARCH_U8500) += ste-snowball.dtb \
 	ste-hrefprev60-stuib.dtb \
 	ste-hrefprev60-tvk.dtb \
