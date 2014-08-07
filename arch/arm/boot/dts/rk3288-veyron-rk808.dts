@@ -11,7 +11,7 @@
  */
 
 /dts-v1/;
-#include "rk3288-evb.dtsi"
+#include "rk3288-veyron.dtsi"
 
 / {
 	compatible = "rockchip,rk3288-evb-rk808", "rockchip,rk3288";

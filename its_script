@@ -16,7 +16,7 @@ entry = <0>;
 };
 fdt@1 {
 description = "dtb";
-data = /incbin/("arch/arm/boot/dts/rk3288-evb-rk808.dtb");
+data = /incbin/("arch/arm/boot/dts/rk3288-veyron-rk808.dtb");
 type = "flat_dt";
 arch = "arm";
 compression = "none";
