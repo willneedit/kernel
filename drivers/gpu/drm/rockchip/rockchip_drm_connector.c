@@ -248,18 +248,18 @@ static void rockchip_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
 	switch (mode) {
 	case DRM_MODE_DPMS_ON:
 		if (ctx->dpms_mode != DRM_MODE_DPMS_ON) {
-			conn->enable(conn);
 			if (ctx->panel)
 				ctx->panel->funcs->enable(ctx->panel);
+			conn->enable(conn);
 		}
 		break;
 	case DRM_MODE_DPMS_STANDBY:
 	case DRM_MODE_DPMS_SUSPEND:
 	case DRM_MODE_DPMS_OFF:
 		if (ctx->dpms_mode == DRM_MODE_DPMS_ON) {
+			conn->disable(conn);
 			if (ctx->panel)
 				ctx->panel->funcs->disable(ctx->panel);
-			conn->disable(conn);
 		}
 		break;
 	default:

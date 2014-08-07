@@ -313,8 +313,10 @@ static int rk808_regulator_dts(struct rk808 *rk808)
 	count = of_regulator_match(rk808->dev, reg_np, rk808_reg_matches,
 				rk808_NUM_REGULATORS);
 	of_node_put(reg_np);
-	if ((count < 0) || (count > rk808_NUM_REGULATORS))
-		return -E2BIG;
+	if ((count < 0) || (count > rk808_NUM_REGULATORS)) {
+		dev_err(rk808->dev, "unsupport regulators numbers %d\n", count);
+		return -EINVAL;
+	}
 
 	for (i = 0; i < count; i++) {
 		if (!rk808_reg_matches[i].init_data
@@ -345,7 +347,7 @@ static int rk808_regulator_probe(struct platform_device *pdev)
 	int i = 0;
 	int ret = 0;
 
-	dev_info(rk808->dev, "%s\n", __func__);
+	dev_dbg(rk808->dev, "%s\n", __func__);
 
 	if (rk808 == NULL) {
 		dev_err(rk808->dev, "%s no rk808\n", __func__);
@@ -380,7 +382,7 @@ static int rk808_regulator_probe(struct platform_device *pdev)
 		config.regmap = rk808->regmap;
 		if (rk808->dev->of_node)
 			config.of_node = pdata->of_node[i];
-		if (reg_data && reg_data->constraints.name)
+		if (reg_data->constraints.name)
 			rail_name = reg_data->constraints.name;
 		else
 			rail_name = rk808_reg[i].name;

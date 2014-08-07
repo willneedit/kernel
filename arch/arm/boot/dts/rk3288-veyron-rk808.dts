@@ -11,10 +11,10 @@
  */
 
 /dts-v1/;
-#include "rk3288-evb.dtsi"
+#include "rk3288-veyron.dtsi"
 
 / {
-	compatible = "rockchip,rk3288-evb-rk808", "rockchip,rk3288";
+	compatible = "rockchip,rk3288-veyron-rk808", "rockchip,veyron";
 	
 };
 &rk808 {
@@ -45,8 +45,8 @@
 				reg = <1>;
 				regulator-compatible = "DCDC_REG2";
 				regulator-name = "vdd_gpu";
-				regulator-min-microvolt = <1100000>;
-				regulator-max-microvolt = <1100000>;
+				regulator-min-microvolt = <850000>;
+				regulator-max-microvolt = <1250000>;
 				regulator-initial-mode = <0x2>;
 				regulator-always-on;
 				regulator-boot-on;

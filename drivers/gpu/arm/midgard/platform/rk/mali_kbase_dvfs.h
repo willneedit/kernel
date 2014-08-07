@@ -44,6 +44,11 @@ extern unsigned int MALI_DVFS_STEP;
 void kbase_platform_dvfs_set_clock(kbase_device *kbdev, int freq);
 void kbase_platform_dvfs_set_level(struct kbase_device *kbdev, int level);
 int kbase_platform_dvfs_get_level(int freq);
+int kbase_platform_regulator_init(void);
+int kbase_platform_regulator_disable(void);
+int kbase_platform_regulator_enable(void);
+int kbase_platform_set_voltage(struct device *dev, int vol);
+int kbase_platform_get_voltage(struct device *dev, int *vol);
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
 int kbase_platform_dvfs_init(struct kbase_device *dev);

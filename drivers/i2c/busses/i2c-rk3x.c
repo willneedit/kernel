@@ -565,7 +565,6 @@ static int rk3x_i2c_xfer(struct i2c_adapter *adap,
 		if (timeout == 0) {
 			dev_err(i2c->dev, "timeout, ipd: 0x%02x, state: %d\n",
 				i2c_readl(i2c, REG_IPD), i2c->state);
-
 			/* Force a STOP condition without interrupt */
 			i2c_writel(i2c, 0, REG_IEN);
 			i2c_writel(i2c, REG_CON_EN | REG_CON_STOP, REG_CON);

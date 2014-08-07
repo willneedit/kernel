@@ -21,6 +21,9 @@ struct rk_context {
 	spinlock_t cmu_pmu_lock;
 	struct clk *mali_aclk;
 	struct clk *mali_sclk;
+#if 0
+	struct clk *mali_pd;
+#endif
 #ifdef CONFIG_MALI_MIDGARD_DVFS
 	/*To calculate utilization for x sec */
 	int time_tick;
@@ -30,7 +33,7 @@ struct rk_context {
 	bool dvfs_enabled;
 #endif
 };
-//int mali_dvfs_clk_set(struct dvfs_node * node,unsigned long rate);
+int mali_dvfs_clk_set(struct clk * node,unsigned long rate);
 
 /* All things that are needed for the Linux port. */
 int kbase_platform_cmu_pmu_control(struct kbase_device *kbdev, int control);

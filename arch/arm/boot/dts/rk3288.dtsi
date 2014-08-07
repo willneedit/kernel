@@ -474,6 +474,42 @@
 				};
 			};
 
+			vop0pwm {
+				vop0_pwm_pin: pwm0-pin {
+					rockchip,pins = <7 0 RK_FUNC_2 &pcfg_pull_none>;
+				};
+			};
+
+			vop1pwm {
+				vop1_pwm_pin: pwm1-pin {
+					rockchip,pins = <7 0 RK_FUNC_3 &pcfg_pull_none>;
+				};
+			};
+			
+			pwm0 {
+				pwm0_pin: pwm0-pin {
+					rockchip,pins = <7 0 RK_FUNC_1 &pcfg_pull_none>;
+				};
+			};
+
+			pwm1 {
+				pwm1_pin: pwm1-pin {
+					rockchip,pins = <7 1 RK_FUNC_1 &pcfg_pull_none>;
+				};
+			};
+
+			pwm2 {
+				pwm2_pin: pwm2-pin {
+					rockchip,pins = <7 22 RK_FUNC_3 &pcfg_pull_none>;
+				};
+			};
+
+			pwm3 {
+				pwm3_pin: pwm3-pin {
+					rockchip,pins = <7 23 RK_FUNC_3 &pcfg_pull_none>;
+				};
+			};
+			
 			uart0 {
 				uart0_xfer: uart0-xfer {
 					rockchip,pins = <4 16 RK_FUNC_1 &pcfg_pull_up>,
@@ -678,6 +714,72 @@
 			status = "disabled";
 		};
 
+		vop0pwm: pwm@ff9301a0 {
+			compatible = "rockchip,vop-pwm";
+			reg = <0xff9301a0 0x10>;
+			#pwm-cells = <2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&vop0_pwm_pin>;
+			clocks = <&cru PCLK_PWM>;
+			clock-names = "pwm";
+			status = "disabled";
+		};
+
+		vop1pwm: pwm@ff9401a0 {
+			compatible = "rockchip,vop-pwm";
+			reg = <0xff9401a0 0x10>;
+			#pwm-cells = <2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&vop1_pwm_pin>;
+			clocks = <&cru PCLK_PWM>;
+			clock-names = "pwm";
+			status = "disabled";
+		};
+		
+		pwm0: pwm@ff680000 {
+			compatible = "rockchip,rk3288-pwm";
+			reg = <0xff680000 0x10>;
+			#pwm-cells = <2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm0_pin>;
+			clocks = <&cru PCLK_PWM>;
+			clock-names = "pwm";
+			status = "disabled";
+		};
+
+		pwm1: pwm@ff680010 {
+			compatible = "rockchip,rk3288-pwm";
+			reg = <0xff680010 0x10>;
+			#pwm-cells = <2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm1_pin>;
+			clocks = <&cru PCLK_PWM>;
+			clock-names = "pwm";
+			status = "disabled";
+		};
+
+		pwm2: pwm@ff680020 {
+			compatible = "rockchip,rk3288-pwm";
+			reg = <0xff680020 0x10>;
+			#pwm-cells = <2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm2_pin>;
+			clocks = <&cru PCLK_PWM>;
+			clock-names = "pwm";
+			status = "disabled";
+		};
+
+		pwm3: pwm@ff680030 {
+			compatible = "rockchip,rk3288-pwm";
+			reg = <0xff680030 0x10>;
+			#pwm-cells = <2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm3_pin>;
+			clocks = <&cru PCLK_PWM>;
+			clock-names = "pwm";
+			status = "disabled";
+		};
+		
 		uart0: serial@ff180000 {
 			compatible = "snps,dw-apb-uart";
 			reg = <0xff180000 0x100>;
@@ -732,6 +834,73 @@
 			
 			clocks = <&cru SCLK_GPU>, <&cru ACLK_GPU>;
 			clock-names = "sclk_gpu", "aclk_gpu";
+			//regulator-name = "vdd_gpu";
+			operating-points = <
+				/* KHz uV */
+				100000 850000
+				200000 900000
+				300000 1000000
+				400000 1050000
+				500000 1150000
+				600000 1200000>;
+		};
+
+		iep_mmu {
+			dbgname = "iep";
+			compatible = "iommu,iep_mmu";
+			reg = <0xff900800 0x100>;
+			interrupts = <GIC_SPI 17 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "iep_mmu";
+		};
+
+		vip_mmu {
+			dbgname = "vip";
+			compatible = "iommu,vip_mmu";
+			reg = <0xff950800 0x100>;
+			interrupts = <GIC_SPI 13 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "vip_mmu";
+		};
+
+		vopb_mmu {
+			dbgname = "vopb";
+			compatible = "iommu,vopb_mmu";
+			reg = <0xff930300 0x100>;
+			interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "vopb_mmu";
+		};
+
+		vopl_mmu {
+			dbgname = "vopl";
+			compatible = "iommu,vopl_mmu";
+			reg = <0xff940300 0x100>;
+			interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "vopl_mmu";
+		};
+
+		hevc_mmu {
+			dbgname = "hevc";
+			compatible = "iommu,hevc_mmu";
+			reg = <0xff9c0440 0x100>,
+			      <0xff9c0480 0x100>;
+			interrupts = <GIC_SPI 111 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "hevc_mmu";
+		};
+
+		vpu_mmu {
+			dbgname = "vpu";
+			compatible = "iommu,vpu_mmu";
+			reg = <0xff9a0800 0x100>;
+			interrupts = <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "vpu_mmu";
+		};
+
+		isp_mmu {
+			dbgname = "isp_mmu";
+			compatible = "iommu,isp_mmu";
+			reg = <0xff914000 0x100>,
+			      <0xff915000 0x100>;
+			interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "isp_mmu";
 		};
 
 		lcdc0: lcdc@ff930000 {
