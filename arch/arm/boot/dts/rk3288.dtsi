@@ -836,6 +836,64 @@
 			clock-names = "sclk_gpu", "aclk_gpu";
 		};
 
+		iep_mmu {
+			dbgname = "iep";
+			compatible = "iommu,iep_mmu";
+			reg = <0xff900800 0x100>;
+			interrupts = <GIC_SPI 17 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "iep_mmu";
+		};
+
+		vip_mmu {
+			dbgname = "vip";
+			compatible = "iommu,vip_mmu";
+			reg = <0xff950800 0x100>;
+			interrupts = <GIC_SPI 13 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "vip_mmu";
+		};
+
+		vopb_mmu {
+			dbgname = "vopb";
+			compatible = "iommu,vopb_mmu";
+			reg = <0xff930300 0x100>;
+			interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "vopb_mmu";
+		};
+
+		vopl_mmu {
+			dbgname = "vopl";
+			compatible = "iommu,vopl_mmu";
+			reg = <0xff940300 0x100>;
+			interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "vopl_mmu";
+		};
+
+		hevc_mmu {
+			dbgname = "hevc";
+			compatible = "iommu,hevc_mmu";
+			reg = <0xff9c0440 0x100>,
+			      <0xff9c0480 0x100>;
+			interrupts = <GIC_SPI 111 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "hevc_mmu";
+		};
+
+		vpu_mmu {
+			dbgname = "vpu";
+			compatible = "iommu,vpu_mmu";
+			reg = <0xff9a0800 0x100>;
+			interrupts = <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "vpu_mmu";
+		};
+
+		isp_mmu {
+			dbgname = "isp_mmu";
+			compatible = "iommu,isp_mmu";
+			reg = <0xff914000 0x100>,
+			      <0xff915000 0x100>;
+			interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "isp_mmu";
+		};
+
 		lcdc0: lcdc@ff930000 {
 			compatible = "rockchip,rk3288-lcdc";
 			rockchip,prop = <1>;
