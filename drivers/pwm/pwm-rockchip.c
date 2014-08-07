@@ -124,7 +124,7 @@ static int rockchip_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	writel(duty, pc->base + pc->data->regs.duty);
 	writel(0, pc->base + pc->data->regs.cntr);
 
-	clk_disable(pc->clk);
+	//clk_disable(pc->clk);
 
 	return 0;
 }
