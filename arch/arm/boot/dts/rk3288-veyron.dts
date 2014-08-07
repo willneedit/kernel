@@ -580,3 +580,4 @@
 	regulator-name = "vcc_sd";
 	};
 
+#include "cros-ec-keyboard.dtsi"
