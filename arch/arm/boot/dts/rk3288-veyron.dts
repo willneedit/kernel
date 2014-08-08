@@ -235,7 +235,7 @@
 	cros_ec: cros-ec@0 {
 		compatible = "google,cros-ec-spi";
 		spi-max-frequency = <1000000>;
-		gpios = <&gpio7 GPIO_A7 GPIO_ACTIVE_HIGH>;
+		irq_gpio = <&gpio7 GPIO_A7 GPIO_ACTIVE_HIGH>;
 		reg = <0>;
 		google,cros-ec-spi-msg-delay = <2000>;
 

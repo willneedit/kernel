@@ -22,6 +22,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/spi/spi.h>
+#include <linux/of_gpio.h>
 
 
 /* The header byte, which follows the preamble */
@@ -353,6 +354,8 @@ static int cros_ec_probe_spi(struct spi_device *spi)
 	struct cros_ec_device *ec_dev;
 	struct cros_ec_spi *ec_spi;
 	int err;
+    unsigned long irq_flags;
+    struct device_node *np = dev->of_node;
 
 	spi->bits_per_word = 8;
 	spi->mode = SPI_MODE_0;
@@ -371,6 +374,17 @@ static int cros_ec_probe_spi(struct spi_device *spi)
 	/* Check for any DT properties */
 	if (IS_ENABLED(CONFIG_OF) && dev->of_node)
 		cros_ec_probe_spi_dt(ec_spi, dev);
+
+    spi->irq = of_get_named_gpio_flags(np, "irq_gpio", 0,
+		(enum of_gpio_flags *)&irq_flags);
+
+	if (gpio_request(spi->irq, "ec irq") < 0)
+		dev_err(dev, "Failed to request gpio %d with\n",
+			spi->irq);
+	
+	gpio_direction_input(spi->irq);
+
+	spi->irq = gpio_to_irq(spi->irq);
 
 	spi_set_drvdata(spi, ec_dev);
 	ec_dev->dev = dev;
