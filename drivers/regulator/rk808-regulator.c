@@ -1,18 +1,20 @@
 /*
- * act8865-regulator.c - Voltage regulation for the active-semi ACT8865
- * http://www.active-semi.com/sheets/ACT8865_Datasheet.pdf
+ * Regulator driver for Rockchip RK808
  *
- * Copyright (C) 2013 Atmel Corporation
+ * Copyright (c) 2014, Fuzhou Rockchip Electronics Co., Ltd
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * Author: Chris Zhong <zyw@rock-chips.com>
+ * Author: Zhang Qing <zhangqing@rock-chips.com>
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
  */
 
 #include <linux/module.h>
@@ -313,8 +315,16 @@ static int rk808_regulator_dts(struct rk808 *rk808)
 	count = of_regulator_match(rk808->dev, reg_np, rk808_reg_matches,
 				rk808_NUM_REGULATORS);
 	of_node_put(reg_np);
-	if ((count < 0) || (count > rk808_NUM_REGULATORS)) {
-		dev_err(rk808->dev, "unsupport regulators numbers %d\n", count);
+
+	if (count < 0) {
+		dev_err(rk808->dev,
+			"failed to parse regulator data: %d\n", count);
+		return count;
+	}
+
+	if (count > rk808_NUM_REGULATORS) {
+		dev_err(rk808->dev, "Too many regulators defined (%d, max %d)\n",
+			count, rk808_NUM_REGULATORS);
 		return -EINVAL;
 	}
 
@@ -340,10 +350,10 @@ static int rk808_regulator_probe(struct platform_device *pdev)
 {
 	struct rk808 *rk808 = dev_get_drvdata(pdev->dev.parent);
 	struct rk808_board *pdata;
-	struct regulator_config config = { };
+	struct regulator_config config;
 	struct regulator_dev *rk808_rdev;
 	struct regulator_init_data *reg_data;
-	const char *rail_name = NULL;
+	const char *rail_name;
 	int i = 0;
 	int ret = 0;
 
@@ -410,6 +420,7 @@ static struct platform_driver rk808_regulator_driver = {
 module_platform_driver(rk808_regulator_driver);
 
 MODULE_DESCRIPTION("regulator driver for the rk808 series PMICs");
-MODULE_AUTHOR("ZHANGQING <zhanqging@rock-chips.com>");
+MODULE_AUTHOR("Chris Zhong<zyw@rock-chips.com>");
+MODULE_AUTHOR("Zhang Qing<zhanqging@rock-chips.com>");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:rk808-regulator");

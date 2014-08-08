@@ -1,11 +1,19 @@
 /*
- * Regulator driver for rk808 PMIC chip for rk31xx
+ * Mfd core driver for Rockchip RK808
  *
- * Based on rk808.c that is work by zhangqing<zhangqing@rock-chips.com>
+ * Copyright (c) 2014, Fuzhou Rockchip Electronics Co., Ltd
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Author: Chris Zhong <zyw@rock-chips.com>
+ * Author: Zhang Qing <zhangqing@rock-chips.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
  *
  */
 
@@ -335,5 +343,6 @@ static struct i2c_driver rk808_i2c_driver = {
 module_i2c_driver(rk808_i2c_driver);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("zhangqing <zhangqing@rock-chips.com>");
+MODULE_AUTHOR("Chris Zhong <zyw@rock-chips.com>");
+MODULE_AUTHOR("Zhang Qing<zhangqing@rock-chips.com>");
 MODULE_DESCRIPTION("rk808 PMIC driver");

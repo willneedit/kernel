@@ -1,12 +1,19 @@
 /*
  * RTC driver for Rockchip RK808
  *
- * Copyright (C) 2014 Rockchip Electronics Co.Ltd
+ * Copyright (c) 2014, Fuzhou Rockchip Electronics Co., Ltd
  *
- *  This program is free software; you can redistribute  it and/or modify it
- *  under  the terms of  the GNU General  Public License as published by the
- *  Free Software Foundation;  either version 2 of the  License, or (at your
- *  option) any later version.
+ * Author: Chris Zhong <zyw@rock-chips.com>
+ * Author: Zhang Qing <zhangqing@rock-chips.com>
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
  *
  */
 
@@ -382,7 +389,6 @@ static int rk808_rtc_resume(struct device *dev)
 #else
 #define rk808_rtc_suspend NULL
 #define rk808_rtc_resume NULL
-#define rk808_rtc_freeze NULL
 #endif
 
 static const struct dev_pm_ops rk808_rtc_pm_ops = {
@@ -458,7 +464,7 @@ static int rk808_rtc_probe(struct platform_device *pdev)
 		"rk808", &rk808_rtc_ops, THIS_MODULE);
 	if (IS_ERR(rk808_rtc->rtc)) {
 		ret = PTR_ERR(rk808_rtc->rtc);
-		goto err;
+		return ret;
 	}
 
 	alm_irq  = platform_get_irq(pdev, 0);
@@ -481,9 +487,6 @@ static int rk808_rtc_probe(struct platform_device *pdev)
 	dev_info(rk808->dev, "%s:ok\n", __func__);
 
 	return 0;
-err:
-	kfree(rk808_rtc);
-	return ret;
 }
 
 static struct platform_driver rk808_rtc_driver = {
@@ -497,6 +500,7 @@ static struct platform_driver rk808_rtc_driver = {
 module_platform_driver(rk808_rtc_driver);
 
 MODULE_DESCRIPTION("RTC driver for the rk808 series PMICs");
-MODULE_AUTHOR("ZHANGQING <zhanqging@rock-chips.com>");
+MODULE_AUTHOR("Chris Zhong <zyw@rock-chips.com>");
+MODULE_AUTHOR("Zhang Qing <zhanqging@rock-chips.com>");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:rk808-rtc");
