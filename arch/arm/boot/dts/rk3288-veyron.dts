@@ -14,7 +14,7 @@
 #include "rk3288.dtsi"
 
 / {
-	compatible = "rockchip,rk3288-veyron";
+	compatible = "rockchip,rk3288", "rockchip,rk3288-veyron";
 	aliases {
 		mshc0 = &sdmmc;
 		mshc1 = &sdio0;

@@ -14,7 +14,7 @@
 #include "rk3288-evb.dtsi"
 
 / {
-	compatible = "rockchip,rk3288-evb-rk808", "rockchip,evb";
+	compatible = "rockchip,rk3288", "rockchip,rk3288-evb-rk808", "rockchip,evb";
 	
 };
 &rk808 {
