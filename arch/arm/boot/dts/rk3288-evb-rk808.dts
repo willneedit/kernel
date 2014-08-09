@@ -14,7 +14,7 @@
 #include "rk3288-evb.dtsi"
 
 / {
-	compatible = "rockchip,rk3288-evb-rk808", "rockchip,evb";
+	compatible = "rockchip,rk3288-evb-rk808", "rockchip,evb", "rockchip,rk3288";
 	
 };
 &rk808 {
@@ -28,8 +28,8 @@
 				reg = <0>;
 				regulator-compatible = "DCDC_REG1";
 				regulator-name = "vdd_arm";
-				regulator-min-microvolt = <1200000>;
-				regulator-max-microvolt = <1200000>;
+				regulator-min-microvolt = <750000>;
+				regulator-max-microvolt = <1250000>;
 				regulator-initial-mode = <0x2>;
 				regulator-always-on;
 				regulator-boot-on;
@@ -224,3 +224,7 @@
 
 		};
 	};
+
+&cpu0 {
+	cpu0-supply = <&rk808_dcdc1_reg>;
+};

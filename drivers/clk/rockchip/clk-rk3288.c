@@ -166,7 +166,7 @@ static struct rockchip_clk_branch rk3288_clk_branches[] __initdata = {
 			RK3288_CLKGATE_CON(0), 1, GFLAGS),
 	GATE(0, "gpll_core", "gpll", 0,
 			RK3288_CLKGATE_CON(0), 2, GFLAGS),
-	COMPOSITE_NOGATE(0, "armclk", mux_armclk_p, 0,
+	COMPOSITE_NOGATE(SCLK_ARM, "armclk", mux_armclk_p, 0,
 			RK3288_CLKSEL_CON(0), 15, 1, MFLAGS, 8, 5, DFLAGS),
 
 	COMPOSITE_NOMUX(0, "armcore0", "armclk", 0,

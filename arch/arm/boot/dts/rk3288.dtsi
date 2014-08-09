@@ -27,10 +27,25 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		cpu@0 {
+		cpu0: cpu@0 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a12";
 			reg = <0x500>;
+                        operating-points = <
+			/* kHz    uV */
+			126000 850000
+			216000 850000
+			312000 850000
+			408000 850000
+			600000 900000
+			696000 950000
+			816000 1000000
+			1008000 1050000
+			1200000 1100000
+			1416000 1200000
+			>;
+			clock-latency = <40000>;
+			clocks = <&cru SCLK_ARM>;
 		};
 		cpu@1 {
 			device_type = "cpu";

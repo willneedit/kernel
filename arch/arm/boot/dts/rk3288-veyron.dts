@@ -14,7 +14,7 @@
 #include "rk3288.dtsi"
 
 / {
-	compatible = "rockchip,rk3288-veyron";
+	compatible = "rockchip,rk3288-veyron", "rockchip,rk3288";
 	aliases {
 		mshc0 = &sdmmc;
 		mshc1 = &sdio0;
@@ -322,8 +322,8 @@
 				reg = <0>;
 				regulator-compatible = "DCDC_REG1";
 				regulator-name = "vdd_arm";
-				regulator-min-microvolt = <1200000>;
-				regulator-max-microvolt = <1200000>;
+				regulator-min-microvolt = <750000>;
+				regulator-max-microvolt = <1250000>;
 				regulator-initial-mode = <0x2>;
 				regulator-always-on;
 				regulator-boot-on;
@@ -517,6 +517,10 @@
 			};
 
 		};
+};
+
+&cpu0 {
+	cpu0-supply = <&rk808_dcdc1_reg>;
 };
 
 #include "cros-ec-keyboard.dtsi"

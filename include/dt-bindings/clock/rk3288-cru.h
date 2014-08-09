@@ -21,6 +21,7 @@
 #define PLL_NPLL		5
 
 /* sclk gates (special clocks) */
+#define SCLK_ARM		63
 #define SCLK_GPU		64
 #define SCLK_SPI0		65
 #define SCLK_SPI1		66
