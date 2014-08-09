@@ -6,7 +6,7 @@ description = "Chrome OS kernel image with one or more FDT blobs";
 
 images {
 kernel@1 {
-data = /incbin/("arch/arm/boot/zImage");
+data = /incbin/("../arch/arm/boot/zImage");
 type = "kernel";
 arch = "arm";
 os = "linux";
@@ -16,7 +16,7 @@ entry = <0>;
 };
 fdt@1 {
 description = "dtb";
-data = /incbin/("rk3288.dtb");
+data = /incbin/("../rk3288.dtb");
 type = "flat_dt";
 arch = "arm";
 compression = "none";

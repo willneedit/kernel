@@ -1,0 +1,9 @@
+# Created by setup_board
+CHOST="armv7a-cros-linux-gnueabi"
+ROOT="/build/veyron/"
+BOARD_OVERLAY="/mnt/host/source/src/overlays/overlay-veyron"
+MAKEOPTS="-j4"
+PKG_CONFIG="pkg-config-veyron"
+BOARD_USE="veyron"
+
+LIBC_VERSION="2.15-r13"
