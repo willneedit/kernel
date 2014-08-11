@@ -1033,7 +1033,7 @@
 		spi0: spi@ff110000 {
 			compatible = "rockchip,rk3066-spi";
 			reg = <0xff110000 0x1000>;
-			dmas = <&pdma1 11>, <&pdma1 12>;
+			dmas = <&pdma2 11>, <&pdma2 12>;
 			dma-names = "tx", "rx";
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -1048,7 +1048,7 @@
 		spi1: spi@ff120000 {
 			compatible = "rockchip,rk3066-spi";
 			reg = <0xff120000 0x1000>;
-			dmas = <&pdma1 13>, <&pdma1 14>;
+			dmas = <&pdma2 13>, <&pdma2 14>;
 			dma-names = "tx", "rx";
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -1063,7 +1063,7 @@
 		spi2: spi@ff130000 {
 			compatible = "rockchip,rk3066-spi";
 			reg = <0xff130000 0x1000>;
-			dmas = <&pdma1 15>, <&pdma1 16>;
+			dmas = <&pdma2 15>, <&pdma2 16>;
 			dma-names = "tx", "rx";
 			#address-cells = <1>;
 			#size-cells = <0>;
