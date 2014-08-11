@@ -47,9 +47,9 @@ static int rk3288_edp_clk_enable(struct rk3288_edp *edp)
 			goto err_clk_edp;
 		}
 
-		ret = clk_set_parent(edp->clk_24m, edp->clk_24m_parent);
+		ret = clk_set_rate(edp->clk_24m, 24000000);
 		if (ret < 0) {
-			dev_err(edp->dev, "cannot set edp clk_24m parent %d\n",
+			dev_err(edp->dev, "cannot set edp clk_24m rate %d\n",
 				ret);
 			goto err_clk_24m;
 		}
@@ -506,12 +506,6 @@ static int rk3288_edp_probe(struct platform_device *pdev)
 	if (IS_ERR(edp->clk_edp)) {
 		dev_err(&pdev->dev, "cannot get clk_edp\n");
 		return PTR_ERR(edp->clk_edp);
-	}
-
-	edp->clk_24m_parent = devm_clk_get(&pdev->dev, "clk_edp_24m_parent");
-	if (IS_ERR(edp->clk_24m_parent)) {
-		dev_err(&pdev->dev, "cannot get clk_edp_24m_parent\n");
-		return PTR_ERR(edp->clk_24m_parent);
 	}
 
 	edp->clk_24m = devm_clk_get(&pdev->dev, "clk_edp_24m");
