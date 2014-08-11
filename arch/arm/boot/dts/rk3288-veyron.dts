@@ -312,12 +312,6 @@
 
 		google,cros-ec-spi-msg-delay = <2000>;
 
-		charger: gpio-charger@0 {
-			compatible = "gpio-charger";
-			charger-type = "usb-sdp";
-			gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
-		};
-
 		i2c-tunnel {
 			compatible = "google,cros-ec-i2c-tunnel";
 			#address-cells = <1>;
