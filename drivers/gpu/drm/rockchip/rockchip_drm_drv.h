@@ -94,7 +94,7 @@ enum rockchip_drm_output_type {
  * @pipe: the pipe number for this crtc/manager.
  */
 struct rockchip_drm_private {
-	struct drm_fbdev_cma *fbdev_cma;
+	struct drm_fb_helper *fb_helper;
 	/*
 	 * created crtc object would be contained at this array and
 	 * this array is used to be aware of which crtc did it request vblank.

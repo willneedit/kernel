@@ -16,8 +16,6 @@
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
-#include <drm/drm_fb_cma_helper.h>
-#include <drm/drm_gem_cma_helper.h>
 
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
@@ -27,6 +25,8 @@
 #include <linux/pm_runtime.h>
 #include <linux/component.h>
 
+#include <linux/iommu.h>
+#include <linux/rockchip-iovmm.h>
 #include <drm/rockchip_drm.h>
 
 #include <video/of_display_timing.h>
@@ -34,6 +34,8 @@
 
 #include "rockchip_drm_drv.h"
 #include "rockchip_drm_fbdev.h"
+#include "rockchip_drm_gem.h"
+#include "rockchip_drm_fb.h"
 #include "rockchip_drm_lcdc.h"
 
 #define LCDC_DEFAULT_FRAMERATE 60
@@ -75,6 +77,47 @@ const struct of_device_id lcdc_driver_dt_match[] = {
 	{},
 };
 
+/****
+1,success : pointer to the device inside of platform device 
+2,fail       : NULL
+****/
+struct device *rockchip_get_sysmmu_device_by_compatible(const char *compt)
+{
+	struct device_node *dn = NULL;
+	struct platform_device *pd = NULL;
+	struct device *ret = NULL ;
+
+	dn = of_find_compatible_node(NULL,NULL,compt);
+	if(!dn)
+	{
+		pr_err("can't find device node %s \r\n",compt);
+		return NULL;
+	}
+	
+	pd = of_find_device_by_node(dn);
+	if(!pd)
+	{	
+		pr_err("can't find platform device in device node %s \r\n",compt);
+		return  NULL;
+	}
+	ret = &pd->dev;
+	
+	return ret;
+
+}
+
+int lcdc_sysmmu_fault_handler(struct device *dev,
+		enum rk_iommu_inttype itype, unsigned long pgtable_base,
+		unsigned long fault_addr,unsigned int status)
+{
+	DRM_ERROR("Generating Kernel OOPS... because it is unrecoverable.\n");
+
+	return 0;
+}
+static inline void platform_set_sysmmu(struct device *sysmmu, struct device *dev)
+{
+	dev->archdata.iommu = sysmmu;
+}
 static inline struct lcdc_driver_data *drm_lcdc_get_driver_data(
 	struct platform_device *pdev)
 {
@@ -108,7 +151,8 @@ static int rockchip_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	struct rockchip_plane *rockchip_plane = to_rockchip_plane(plane);
 	struct lcdc_context *ctx = to_lcdc_ctx(crtc);
 	struct lcdc_driver_data *lcdc_data = to_lcdc_data(ctx);
-	struct drm_gem_cma_object *gem;
+	struct drm_gem_object *obj;
+	struct rockchip_gem_object *rk_obj;
 	struct lcdc_win_data *win_data;
 	unsigned long offset;
 	unsigned int actual_w;
@@ -116,12 +160,13 @@ static int rockchip_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	int win;
 
 	DRM_DEBUG_KMS("LINE[%d]\n", __LINE__);
-	gem = drm_fb_cma_get_gem_obj(fb, 0);
-	if (!gem) {
+	obj = rockchip_fb_get_gem_obj(fb, 0);
+	if (!obj) {
 		DRM_ERROR("fail to get cma object from framebuffer\n");
 		return -EINVAL;
 	}
 
+	rk_obj = to_rockchip_obj(obj);
 	actual_w = rockchip_plane_get_size(crtc_x,
 					   crtc_w, crtc->mode.hdisplay);
 	actual_h = rockchip_plane_get_size(crtc_y,
@@ -159,7 +204,7 @@ static int rockchip_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	win_data->xact = fb->width;
 	win_data->yact = fb->height;
 	win_data->y_vir_stride = fb->pitches[0] / (fb->bits_per_pixel >> 3);
-	win_data->yrgb_addr = gem->paddr + offset;
+	win_data->yrgb_addr = rk_obj->paddr + offset;
 	win_data->uv_addr = 0;
 	win_data->alpha_en = false;
 
@@ -617,6 +662,16 @@ static int lcdc_bind(struct device *dev, struct device *master, void *data)
 	 * vblank event.(after drm_vblank_put function is called)
 	 */
 	drm_dev->vblank_disable_allowed = true;
+#ifdef CONFIG_ROCKCHIP_IOVMM
+	if (iommu_present(&platform_bus_type)) {
+		struct device *mmu_dev = rockchip_get_sysmmu_device_by_compatible("rockchip,vopl_mmu");
+		if (mmu_dev) {
+			platform_set_sysmmu(mmu_dev, ctx->drm_dev->dev);
+			rockchip_iovmm_set_fault_handler(ctx->drm_dev->dev, lcdc_sysmmu_fault_handler);
+			rockchip_iovmm_activate(ctx->drm_dev->dev);
+		}
+	}
+#endif
 
 	return 0;
 }

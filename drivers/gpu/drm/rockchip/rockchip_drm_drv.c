@@ -17,7 +17,6 @@
 #include <linux/pm_runtime.h>
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
-#include <drm/drm_gem_cma_helper.h>
 
 #include <linux/anon_inodes.h>
 #include <linux/component.h>
@@ -69,7 +68,6 @@ static int rockchip_drm_load(struct drm_device *dev, unsigned long flags)
 
 	rockchip_drm_mode_config_init(dev);
 
-
 	/* Try to bind all sub drivers. */
 	ret = component_bind_all(dev->dev, dev);
 	if (ret)
@@ -109,7 +107,6 @@ err_cleanup_vblank:
 err_mode_config_cleanup:
 	drm_mode_config_cleanup(dev);
 	kfree(private);
-
 	return ret;
 }
 
@@ -209,7 +206,7 @@ static const struct drm_ioctl_desc rockchip_ioctls[] = {
 static const struct file_operations rockchip_drm_driver_fops = {
 	.owner = THIS_MODULE,
 	.open = drm_open,
-	.mmap = drm_gem_cma_mmap,
+	.mmap = rockchip_drm_gem_mmap,
 	.poll = drm_poll,
 	.read = drm_read,
 	.unlocked_ioctl = drm_ioctl,
@@ -217,6 +214,11 @@ static const struct file_operations rockchip_drm_driver_fops = {
 	.compat_ioctl = drm_compat_ioctl,
 #endif
 	.release = drm_release,
+};
+
+const struct vm_operations_struct rockchip_drm_vm_ops = {
+	.open = drm_gem_vm_open,
+	.close = drm_gem_vm_close,
 };
 
 static struct drm_driver rockchip_drm_driver = {
@@ -230,20 +232,20 @@ static struct drm_driver rockchip_drm_driver = {
 	.get_vblank_counter	= drm_vblank_count,
 	.enable_vblank		= rockchip_drm_crtc_enable_vblank,
 	.disable_vblank		= rockchip_drm_crtc_disable_vblank,
-	.gem_free_object        = drm_gem_cma_free_object,
-	.gem_vm_ops             = &drm_gem_cma_vm_ops,
-	.dumb_create            = drm_gem_cma_dumb_create,
-	.dumb_map_offset        = drm_gem_cma_dumb_map_offset,
-	.dumb_destroy           = drm_gem_dumb_destroy,
+	.gem_free_object	= rockchip_drm_free_object,
+	.gem_vm_ops		= &rockchip_drm_vm_ops,
+	.dumb_create		= rockchip_gem_dumb_create,
+	.dumb_map_offset	= rockchip_drm_gem_dumb_map_offset,
+	.dumb_destroy		= drm_gem_dumb_destroy,
 	.prime_handle_to_fd	= drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle	= drm_gem_prime_fd_to_handle,
-	.gem_prime_import       = drm_gem_prime_import,
-	.gem_prime_export       = drm_gem_prime_export,
-	.gem_prime_get_sg_table = drm_gem_cma_prime_get_sg_table,
-	.gem_prime_import_sg_table = drm_gem_cma_prime_import_sg_table,
-	.gem_prime_vmap         = drm_gem_cma_prime_vmap,
-	.gem_prime_vunmap       = drm_gem_cma_prime_vunmap,
-	.gem_prime_mmap         = drm_gem_cma_prime_mmap,
+	.gem_prime_import	= drm_gem_prime_import,
+	.gem_prime_export	= drm_gem_prime_export,
+	.gem_prime_get_sg_table	= rockchip_gem_prime_get_sg_table,
+	.gem_prime_import_sg_table	= rockchip_gem_prime_import_sg_table,
+	.gem_prime_vmap		= rockchip_gem_prime_vmap,
+	.gem_prime_vunmap	= rockchip_gem_prime_vunmap,
+	.gem_prime_mmap		= rockchip_gem_prime_mmap,
 	.ioctls			= rockchip_ioctls,
 	.num_ioctls		= ARRAY_SIZE(rockchip_ioctls),
 	.fops			= &rockchip_drm_driver_fops,
