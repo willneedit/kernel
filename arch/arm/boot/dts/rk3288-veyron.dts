@@ -381,8 +381,8 @@
 				reg = <1>;
 				regulator-compatible = "DCDC_REG2";
 				regulator-name = "vdd_gpu";
-				regulator-min-microvolt = <1100000>;
-				regulator-max-microvolt = <1100000>;
+				regulator-min-microvolt = <850000>;
+				regulator-max-microvolt = <1250000>;
 				regulator-initial-mode = <0x2>;
 				regulator-always-on;
 				regulator-boot-on;
