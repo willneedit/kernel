@@ -28,6 +28,12 @@
 			rockchip,pins = <0 14 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
+
+	gpio7_gpio {
+		gpio7_a3: gpio7-a3 {
+			rockchip,pins = <7 3 RK_FUNC_GPIO &pcfg_pull_up>;		
+		};
+	};
 };
 
 / {
@@ -169,6 +175,21 @@
 				reg = <0x20>;
 			};
 		};
+
+		i2c4: i2c@ff160000 {
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c4_xfer>;
+			status = "okay";
+			elan_i2c@15 {
+			compatible = "elan,ekt3000";
+			reg = <0x15>;
+			gpios = <&gpio7 3 GPIO_ACTIVE_HIGH>;
+			interrupt-parent = <&gpio7>;
+			interrupts = <3 IRQ_TYPE_LEVEL_HIGH>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&gpio7_a3>;
+		};
+};
 
 		edp: edp@ff970000 {
 			status = "okay";

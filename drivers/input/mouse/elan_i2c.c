@@ -37,6 +37,7 @@
 #include <linux/uaccess.h>
 #include <linux/jiffies.h>
 #include <linux/completion.h>
+#include <linux/of_device.h>
 
 #define DRIVER_NAME		"elan_i2c"
 #define ELAN_DRIVER_VERSION	"1.5.4"
@@ -1186,7 +1187,7 @@ static int elan_initialize(struct elan_tp_data *data)
 {
 	int ret;
 	int repeat = ETP_RETRY_COUNT;
-
+        int retry = 3;
 	do {
 		if (data->smbus) {
 			ret = elan_smbus_initialize(data->client);
@@ -1207,8 +1208,11 @@ static int elan_initialize(struct elan_tp_data *data)
 					"device initialize failed.\n");
 				goto err_initialize;
 			}
-
+            while (retry--){
 			ret = elan_i2c_enable_absolute_mode(data->client);
+                        if (ret >=0)
+                            break;
+                        }
 			if (ret < 0) {
 				dev_err(&data->client->dev,
 					"cannot switch to absolute mode.\n");
@@ -1712,6 +1716,7 @@ static void elan_async_init(void *arg, async_cookie_t cookie)
 	struct elan_tp_data *data = arg;
 	struct i2c_client *client = data->client;
 	int ret;
+	unsigned long irqflags;
 
 	/* initial elan touch pad */
 	ret = elan_initialize(data);
@@ -1722,9 +1727,15 @@ static void elan_async_init(void *arg, async_cookie_t cookie)
 	ret = elan_input_dev_create(data);
 	if (ret < 0)
 		goto err_input_dev;
+	/*
+	 * Systems using device tree should set up interrupt via DTS,
+	 * the rest will use the default.
+	*/
+	irqflags = of_driver_match_device(&client->dev, client->dev.driver) ?
+		0 : IRQF_TRIGGER_FALLING;
 
 	ret = request_threaded_irq(client->irq, NULL, elan_isr,
-				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+				   irqflags | IRQF_ONESHOT,
 				   client->name, data);
 	if (ret < 0) {
 		dev_err(&client->dev, "cannot register irq=%d\n",
@@ -1860,12 +1871,21 @@ static const struct acpi_device_id elan_acpi_id[] = {
 MODULE_DEVICE_TABLE(acpi, elan_acpi_id);
 #endif
 
+#ifdef CONFIG_OF
+static const struct of_device_id elan_of_match[] = {
+	{ .compatible = "elan,ekt3000" },
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(of, elan_of_match);
+#endif
+
 static struct i2c_driver elan_driver = {
 	.driver = {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
 		.pm	= &elan_pm_ops,
 		.acpi_match_table = ACPI_PTR(elan_acpi_id),
+		.of_match_table = of_match_ptr(elan_of_match),
 	},
 	.probe		= elan_probe,
 	.remove		= elan_remove,
