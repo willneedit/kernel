@@ -15,9 +15,9 @@
 
 &pinctrl {
 	buttons {
-		pwrbtn: pwrbtn {
-			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
+		//pwrbtn: pwrbtn {
+		//	rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_up>;
+		//};
 		lid_switch: lid-switch {
 			rockchip,pins = <7 13 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
