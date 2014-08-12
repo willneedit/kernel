@@ -132,7 +132,7 @@
 			#size-cells = <0>;
 			autorepeat;
 			pinctrl-names = "default";
-			pinctrl-0 = <&pwrbtn &lid_switch>;
+			pinctrl-0 = <&lid_switch>;
 
 			pwr-btn {
 				gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;

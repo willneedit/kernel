@@ -1591,7 +1591,7 @@ static irqreturn_t elan_isr(int irq, void *dev_id)
 	}
 
 	if (retval != report_len) {
-		dev_err(&data->client->dev, "wrong packet len(%d)", retval);
+		//dev_err(&data->client->dev, "wrong packet len(%d)", retval);
 		goto elan_isr_end;
 	}
 
