@@ -18,14 +18,8 @@
 #include <linux/pwm.h>
 #include <linux/time.h>
 
-#define PWM_CNTR		0x00		/* Counter register */
-#define PWM_HRC			0x04		/* High reference register */
-#define PWM_LRC			0x08		/* Low reference register */
-#define PWM_CTRL		0x0c		/* Control register */
 #define PWM_CTRL_TIMER_EN	(1 << 0)
 #define PWM_CTRL_OUTPUT_EN	(1 << 3)
-
-#define PRESCALER		2
 
 #define PWM_ENABLE		(1 << 0)
 #define PWM_CONTINUOUS		(1 << 1)
@@ -63,8 +57,8 @@ static inline struct rockchip_pwm_chip *to_rockchip_pwm_chip(struct pwm_chip *c)
 static void rockchip_pwm_set_enable_v1(struct pwm_chip *chip, bool enable)
 {
 	struct rockchip_pwm_chip *pc = to_rockchip_pwm_chip(chip);
-	u32 val = 0;
 	u32 enable_conf = PWM_CTRL_OUTPUT_EN | PWM_CTRL_TIMER_EN;
+	u32 val;
 
 	val = readl_relaxed(pc->base + pc->data->regs.ctrl);
 
@@ -79,9 +73,10 @@ static void rockchip_pwm_set_enable_v1(struct pwm_chip *chip, bool enable)
 static void rockchip_pwm_set_enable_v2(struct pwm_chip *chip, bool enable)
 {
 	struct rockchip_pwm_chip *pc = to_rockchip_pwm_chip(chip);
-	u32 val = 0;
 	u32 enable_conf = PWM_OUTPUT_LEFT | PWM_LP_DISABLE | PWM_ENABLE |
-		PWM_CONTINUOUS | PWM_DUTY_POSITIVE | PWM_INACTIVE_NEGATIVE;
+			  PWM_CONTINUOUS | PWM_DUTY_POSITIVE |
+			  PWM_INACTIVE_NEGATIVE;
+	u32 val;
 
 	val = readl_relaxed(pc->base + pc->data->regs.ctrl);
 
@@ -124,7 +119,7 @@ static int rockchip_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	writel(duty, pc->base + pc->data->regs.duty);
 	writel(0, pc->base + pc->data->regs.cntr);
 
-	//clk_disable(pc->clk);
+	clk_disable(pc->clk);
 
 	return 0;
 }
@@ -160,29 +155,35 @@ static const struct pwm_ops rockchip_pwm_ops = {
 };
 
 static const struct rockchip_pwm_data pwm_data_v1 = {
-	.regs.duty = PWM_HRC,
-	.regs.period = PWM_LRC,
-	.regs.cntr = PWM_CNTR,
-	.regs.ctrl = PWM_CTRL,
-	.prescaler = PRESCALER,
+	.regs = {
+		.duty = 0x04,
+		.period = 0x08,
+		.cntr = 0x00,
+		.ctrl = 0x0c,
+	},
+	.prescaler = 2,
 	.set_enable = rockchip_pwm_set_enable_v1,
 };
 
 static const struct rockchip_pwm_data pwm_data_v2 = {
-	.regs.duty = PWM_LRC,
-	.regs.period = PWM_HRC,
-	.regs.cntr = PWM_CNTR,
-	.regs.ctrl = PWM_CTRL,
-	.prescaler = PRESCALER-1,
+	.regs = {
+		.duty = 0x08,
+		.period = 0x04,
+		.cntr = 0x00,
+		.ctrl = 0x0c,
+	},
+	.prescaler = 1,
 	.set_enable = rockchip_pwm_set_enable_v2,
 };
 
 static const struct rockchip_pwm_data pwm_data_vop = {
-	.regs.duty = PWM_LRC,
-	.regs.period = PWM_HRC,
-	.regs.cntr = PWM_CTRL,
-	.regs.ctrl = PWM_CNTR,
-	.prescaler = PRESCALER-1,
+	.regs = {
+		.duty = 0x08,
+		.period = 0x04,
+		.cntr = 0x0c,
+		.ctrl = 0x00,
+	},
+	.prescaler = 1,
 	.set_enable = rockchip_pwm_set_enable_v2,
 };
 
@@ -235,6 +236,7 @@ static int rockchip_pwm_probe(struct platform_device *pdev)
 		clk_unprepare(pc->clk);
 		dev_err(&pdev->dev, "pwmchip_add() failed: %d\n", ret);
 	}
+
 	dev_info(&pdev->dev, "pwm_clk: %lu, pwm_name :%s\n",
 		 clk_get_rate(pc->clk), id->compatible);
 
