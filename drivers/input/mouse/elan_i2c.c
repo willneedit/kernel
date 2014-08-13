@@ -117,7 +117,7 @@
 #define ETP_I2C_CALIBRATE_CMD		0x0316
 #define ETP_I2C_MAX_BASELINE_CMD	0x0317
 #define ETP_I2C_MIN_BASELINE_CMD	0x0318
-#define ETP_I2C_REPORT_LEN		34
+#define ETP_I2C_REPORT_LEN		29
 #define ETP_I2C_FINGER_DATA_OFFSET	4
 #define ETP_I2C_REPORT_ID_OFFSET	2
 #define ETP_I2C_DESC_LENGTH		30
@@ -1185,9 +1185,9 @@ static int elan_sleep(struct elan_tp_data *data)
 
 static int elan_initialize(struct elan_tp_data *data)
 {
-	int ret;
+	int ret, retry = 3;
 	int repeat = ETP_RETRY_COUNT;
-        int retry = 3;
+
 	do {
 		if (data->smbus) {
 			ret = elan_smbus_initialize(data->client);
@@ -1208,10 +1208,12 @@ static int elan_initialize(struct elan_tp_data *data)
 					"device initialize failed.\n");
 				goto err_initialize;
 			}
-            while (retry--){
-			ret = elan_i2c_enable_absolute_mode(data->client);
-                        if (ret >=0)
-                            break;
+
+                        /*The i2c transfer sometimes will no ack,so has to retry it*/
+                         while (retry--) {
+			    ret = elan_i2c_enable_absolute_mode(data->client);
+                            if (ret >= 0)
+                                break;
                         }
 			if (ret < 0) {
 				dev_err(&data->client->dev,
@@ -1591,7 +1593,7 @@ static irqreturn_t elan_isr(int irq, void *dev_id)
 	}
 
 	if (retval != report_len) {
-		//dev_err(&data->client->dev, "wrong packet len(%d)", retval);
+		dev_err(&data->client->dev, "wrong packet len(%d)", retval);
 		goto elan_isr_end;
 	}
 

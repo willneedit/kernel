@@ -425,8 +425,8 @@ static void rk3288_lcdc_win23_set(struct lcdc_device *lcdc_dev,
 	struct drm_display_mode *mode = lcdc_dev->mode;
 
 	if (mode && win->enabled) {
-		u32 dsp_stx = win->xpos + mode->htotal - mode->hdisplay;
-		u32 dsp_sty = win->ypos + mode->vtotal - mode->vdisplay;
+		u32 dsp_stx = win->xpos + mode->htotal - mode->hsync_start;
+		u32 dsp_sty = win->ypos + mode->vtotal - mode->vsync_start;
 
 		mask = M_WIN2_EN | M_WIN2_DATA_FMT | M_WIN2_RB_SWAP;
 		val = V_WIN2_EN(1) | V_WIN2_DATA_FMT(win->fmt_cfg) |
