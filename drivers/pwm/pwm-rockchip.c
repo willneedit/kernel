@@ -14,9 +14,13 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/of_address.h>
 #include <linux/platform_device.h>
 #include <linux/pwm.h>
 #include <linux/time.h>
+#include <linux/mfd/syscon.h>
+#include <linux/regmap.h>
+
 
 #define PWM_CTRL_TIMER_EN	(1 << 0)
 #define PWM_CTRL_OUTPUT_EN	(1 << 3)
@@ -30,6 +34,7 @@
 
 struct rockchip_pwm_chip {
 	struct pwm_chip chip;
+	struct regmap *grf;
 	struct clk *clk;
 	const struct rockchip_pwm_data *data;
 	void __iomem *base;
@@ -45,6 +50,7 @@ struct rockchip_pwm_regs {
 struct rockchip_pwm_data {
 	struct rockchip_pwm_regs regs;
 	unsigned int prescaler;
+	unsigned int grf_soc_con2;
 
 	void (*set_enable)(struct pwm_chip *chip, bool enable);
 };
@@ -173,6 +179,7 @@ static const struct rockchip_pwm_data pwm_data_v2 = {
 		.ctrl = 0x0c,
 	},
 	.prescaler = 1,
+	.grf_soc_con2 = 0x024c,
 	.set_enable = rockchip_pwm_set_enable_v2,
 };
 
@@ -184,6 +191,7 @@ static const struct rockchip_pwm_data pwm_data_vop = {
 		.ctrl = 0x00,
 	},
 	.prescaler = 1,
+	.grf_soc_con2 = 0x024c,
 	.set_enable = rockchip_pwm_set_enable_v2,
 };
 
@@ -198,13 +206,18 @@ MODULE_DEVICE_TABLE(of, rockchip_pwm_dt_ids);
 static int rockchip_pwm_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *id;
+	struct device_node *np = pdev->dev.of_node;
 	struct rockchip_pwm_chip *pc;
 	struct resource *r;
 	int ret;
+	u64 value;
+
+	value = BIT(16) | BIT(0);
 
 	id = of_match_device(rockchip_pwm_dt_ids, &pdev->dev);
 	if (!id)
 		return -EINVAL;
+
 
 	pc = devm_kzalloc(&pdev->dev, sizeof(*pc), GFP_KERNEL);
 	if (!pc)
@@ -214,6 +227,12 @@ static int rockchip_pwm_probe(struct platform_device *pdev)
 	pc->base = devm_ioremap_resource(&pdev->dev, r);
 	if (IS_ERR(pc->base))
 		return PTR_ERR(pc->base);
+
+	pc->grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
+	if (IS_ERR(pc->grf)) {
+		dev_err(&pdev->dev, "pwm needs 'rockchip,grf' property\n");
+		return PTR_ERR(pc->grf);
+	}
 
 	pc->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(pc->clk))
@@ -235,6 +254,12 @@ static int rockchip_pwm_probe(struct platform_device *pdev)
 	if (ret < 0) {
 		clk_unprepare(pc->clk);
 		dev_err(&pdev->dev, "pwmchip_add() failed: %d\n", ret);
+	}
+
+	ret = regmap_write(pc->grf, pc->data->grf_soc_con2, value);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "Could not write to GRF: %d\n", ret);
+		return ret;
 	}
 
 	dev_info(&pdev->dev, "pwm_clk: %lu, pwm_name :%s\n",
