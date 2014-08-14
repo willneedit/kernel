@@ -375,14 +375,6 @@
 	status = "okay";
 };
 
-&pinctrl {
-	usb {
-		host_vbus_drv: host-vbus-drv {
-			rockchip,pins = <0 11 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-	};
-};
-
 &rk808 {
 		//compatible = "rockchip,rk808";
 		rk808,system-power-controller;
@@ -514,7 +506,7 @@
 				reg = <8>;
 				regulator-compatible = "LDO_REG5";
 				regulator-min-microvolt = <1800000>;
-				regulator-max-microvolt = <3300000>;
+				regulator-max-microvolt = <1800000>;
 				regulator-initial-state = <3>;
 				regulator-always-on;
 				regulator-boot-on;
@@ -556,7 +548,7 @@
 				reg = <11>;
 				regulator-compatible = "LDO_REG8";
 				regulator-min-microvolt = <1800000>;
-				regulator-max-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
 				regulator-initial-state = <3>;
 				regulator-always-on;
 				regulator-boot-on;
