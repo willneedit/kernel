@@ -326,6 +326,7 @@
 				interrupt-controller;
 				#interrupt-cells = <2>;
 			};
+
 			lcdc1 {
 				lcdc1_gpio:lcdc1_gpio {
 					rockchip,pins = <RK_GPIO1 32 RK_FUNC_GPIO &pcfg_pull_none>,
@@ -396,6 +397,17 @@
 				i2c5_xfer: i2c5-xfer {
 					rockchip,pins = <7 19 RK_FUNC_1 &pcfg_pull_none>,
 							<7 20 RK_FUNC_1 &pcfg_pull_none>;
+				};
+			};
+
+			i2s0 {
+				i2s0_clk: i2s0_clk {
+					rockchip,pins = <6 0 RK_FUNC_1 &pcfg_pull_up>,
+							<6 1 RK_FUNC_1 &pcfg_pull_up>,
+							<6 2 RK_FUNC_1 &pcfg_pull_up>,
+							<6 3 RK_FUNC_1 &pcfg_pull_up>,
+							<6 4 RK_FUNC_1 &pcfg_pull_up>,
+							<6 8 RK_FUNC_1 &pcfg_pull_up>;
 				};
 			};
 
@@ -732,6 +744,8 @@
 
 		i2s: i2s@ff890000 {
 			compatible = "rockchip,rk3288-i2s", "rockchip,rk3066-i2s";
+			rockchip,grf = <&grf>;
+			rockchip,i2s-power-1v8;
 			reg = <0xff890000 0x10000>;
 			interrupts = <GIC_SPI 85 IRQ_TYPE_LEVEL_HIGH>;
 			#address-cells = <1>;
@@ -826,6 +840,7 @@
 			clock-names = "baudclk", "apb_pclk";
 			status = "disabled";
 		};
+
 		lvds: lvds@ff96c000 {
 	      		compatible = "rockchip,rk3288-lvds";
 			reg = <0xff96c000 0x4000>;

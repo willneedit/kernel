@@ -40,6 +40,12 @@
 			rockchip,pins = <7 3 RK_FUNC_GPIO &pcfg_pull_up>;		
 		};
 	};
+
+	codec {
+		int_codec: int_codec {
+			rockchip,pins = <6 7 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+	};
 };
 
 / {
@@ -185,6 +191,9 @@
 			"Mic Jack", "MICBIAS",
 			"IN34", "Mic Jack";
 
+		rockchip,hp-det-gpios = <&gpio6 5 GPIO_ACTIVE_HIGH>;
+		rockchip,mic-det-gpios = <&gpio6 11 GPIO_ACTIVE_HIGH>;
+
 		rockchip,i2s-controller = <&i2s>;
 		rockchip,audio-codec = <&max98090>;
 	};
@@ -257,6 +266,10 @@
 	max98090: max98090@10 {
 		compatible = "maxim,max98090";
 		reg = <0x10>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <7 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&int_codec>;
 	};
 };
 
@@ -286,6 +299,12 @@
 	status = "okay";
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c5_xfer>;
+};
+
+&i2s {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s0_clk>;
 };
 
 &emmc {
@@ -414,7 +433,7 @@
 				reg = <0>;
 				regulator-compatible = "DCDC_REG1";
 				regulator-name = "vdd_arm";
-				regulator-min-microvolt = <750000>;
+				regulator-min-microvolt = <850000>;
 				regulator-max-microvolt = <1250000>;
 				regulator-initial-mode = <0x2>;
 				regulator-always-on;
@@ -422,7 +441,7 @@
 				regulator-initial-state = <3>;
 				regulator-state-mem {
 					regulator-state-mode = <0x2>;
-					regulator-state-disabled;//disabled
+					regulator-state-disabled;
 					regulator-state-uv = <900000>;
 				};
 			};
