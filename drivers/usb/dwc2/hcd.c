@@ -2633,56 +2633,6 @@ static void _dwc2_hcd_clear_tt_buffer_complete(struct usb_hcd *hcd,
 
 	spin_unlock_irqrestore(&hsotg->lock, flags);
 }
-static int dwc_host_suspend(struct usb_hcd *hcd)
-{
-	struct dwc2_hsotg *hsotg = dwc2_hcd_to_hsotg(hcd);
-	u32 hprt0;
-	u32 pcgctl;
-
-	if (dwc2_is_device_mode(hsotg))
-		return 0;
-
-	hprt0 = dwc2_read_hprt0(hsotg);
-
-	if (hprt0 | HPRT0_CONNSTS) /* usb device connected */
-		dwc2_port_suspend(hsotg, 1);
-	else { /* no device connect */
-		/* Update lx_state */
-		hsotg->lx_state = DWC2_L2;
-
-		/* Suspend the Phy Clock */
-		pcgctl = readl(hsotg->regs + PCGCTL);
-		pcgctl |= PCGCTL_STOPPCLK;
-		writel(pcgctl, hsotg->regs + PCGCTL);
-		udelay(10);
-	}
-
-	return 0;
-}
-
-static int dwc_host_resume(struct usb_hcd *hcd)
-{
-	struct dwc2_hsotg *hsotg = dwc2_hcd_to_hsotg(hcd);
-	u32 hprt0;
-
-	if (dwc2_is_device_mode(hsotg))
-		return 0;
-
-	dev_dbg(hsotg->dev, "%s\n", __func__);
-	writel(0, hsotg->regs + PCGCTL);
-	usleep_range(20000, 40000);
-
-	hprt0 = dwc2_read_hprt0(hsotg);
-	hprt0 |= HPRT0_RES;
-	writel(hprt0, hsotg->regs + HPRT0);
-	hprt0 &= ~HPRT0_SUSP;
-	usleep_range(100000, 150000);
-
-	hprt0 &= ~HPRT0_RES;
-	writel(hprt0, hsotg->regs + HPRT0);
-
-	return 0;
-}
 
 static struct hc_driver dwc2_hc_driver = {
 	.description = "dwc2_hsotg",
@@ -2703,9 +2653,6 @@ static struct hc_driver dwc2_hc_driver = {
 	.hub_status_data = _dwc2_hcd_hub_status_data,
 	.hub_control = _dwc2_hcd_hub_control,
 	.clear_tt_buffer_complete = _dwc2_hcd_clear_tt_buffer_complete,
-
-	.bus_suspend = dwc_host_suspend,
-	.bus_resume = dwc_host_resume,
 };
 
 /*
