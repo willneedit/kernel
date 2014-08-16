@@ -26,7 +26,7 @@
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
-
+//		enable-method = "rockchip,rk3288-smp";
 		cpu0: cpu@0 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a12";
@@ -162,6 +162,7 @@
 				     <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_HIGH)>,
 				     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_HIGH)>;
 			clock-frequency = <24000000>;
+			always-on;
 		};
 
 		gic: interrupt-controller@ffc01000 {
@@ -177,15 +178,34 @@
 			interrupts = <GIC_PPI 9 0xf04>;
 		};
 
-		pmu: pmu@ff730000 {
-			compatible = "syscon";
+		bus_intmem@ff700000 {
+			compatible = "mmio-sram";
+			reg = <0xff700000 0x18000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0 0xff700000 0x18000>;
+
+			smp-sram@0 {
+				compatible = "rockchip,rk3066-smp-sram";
+				reg = <0x10000 0x50>;
+			};
+		};
+
+		pmu_intmem@ff720000 {
+			compatible = "mmio-sram";
+			reg = <0xff720000 0x4000>;
+		};
+
+		pmu: power-management@ff730000 {
+			compatible = "rockchip,rk3066-pmu", "syscon";
 			reg = <0xff730000 0x100>;
 		};
 
 		sgrf: syscon@ff740000 {
-			compatible = "syscon";
+			compatible = "rockchip,rk3288-sgrf", "syscon";
 			reg = <0xff740000 0x1000>;
 		};
+
 
 		cru: cru@ff760000 {
 			compatible = "rockchip,rk3288-cru", "syscon";
