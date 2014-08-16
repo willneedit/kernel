@@ -71,13 +71,9 @@ static struct rk808_reg_data pre_init_reg[] = {
 	{RK808_BOOST_CONFIG_REG, BOOST_ILMIN_MASK, BOOST_ILMIN_100MA},
 	{RK808_BUCK1_CONFIG_REG, BUCK1_RATE_MASK,  BUCK_ILMIN_200MA},
 	{RK808_BUCK2_CONFIG_REG, BUCK2_RATE_MASK,  BUCK_ILMIN_200MA},
-	{RK808_DCDC_EN_REG,      MASK_NONE, SWITCH2_EN | SWITCH1_EN},
 	{RK808_VB_MON_REG,       MASK_ALL,  VB_LO_ACT | VB_LO_SEL_3500MV},
-	{RK808_INT_STS_MSK_REG1, MASK_ALL,  VOUT_LO_INT},
-	{RK808_CLK32OUT_REG,     MASK_ALL,  CLK32KOUT2_EN},
 	{RK808_INT_STS_REG1,     MASK_NONE, 0},
 	{RK808_INT_STS_REG2,     MASK_NONE, 0},
-	{RK808_RTC_STATUS_REG,   MASK_NONE, 0},
 };
 
 static const struct regmap_irq rk808_irqs[] = {
@@ -88,6 +84,14 @@ static const struct regmap_irq rk808_irqs[] = {
 	},
 	[RK808_IRQ_VB_LO] = {
 		.mask = RK808_IRQ_VB_LO_MSK,
+		.reg_offset = 0,
+	},
+	[RK808_IRQ_PWRON] = {
+		.mask = RK808_IRQ_PWRON_MSK,
+		.reg_offset = 0,
+	},
+	[RK808_IRQ_PWRON_LP] = {
+		.mask = RK808_IRQ_PWRON_LP_MSK,
 		.reg_offset = 0,
 	},
 	[RK808_IRQ_HOTDIE] = {
@@ -141,8 +145,8 @@ static int rk808_irq_init(struct rk808 *rk808)
 	}
 
 	ret = regmap_add_irq_chip(rk808->regmap, pdata->irq,
-		IRQF_ONESHOT, pdata->irq_base,
-		&rk808_irq_chip, &rk808->irq_data);
+				  IRQF_ONESHOT, pdata->irq_base,
+				  &rk808_irq_chip, &rk808->irq_data);
 	if (ret < 0)
 		dev_err(rk808->dev, "Failed to add irq_chip %d\n", ret);
 	return ret;
@@ -157,39 +161,20 @@ static int rk808_irq_exit(struct rk808 *rk808)
 	return 0;
 }
 
-#ifdef CONFIG_OF
-static struct of_device_id rk808_of_match[] = {
-	{ .compatible = "rockchip,rk808"},
-	{ },
-};
-MODULE_DEVICE_TABLE(of, rk808_of_match);
-
-static struct rk808_board *rk808_parse_dt(struct rk808 *rk808)
+static struct rk808_board *rk808_parse_dt(struct device *dev)
 {
 	struct rk808_board *pdata;
-	struct device_node *np;
+	struct device_node *np = dev->of_node;
 
-	np = of_node_get(rk808->dev->of_node);
-	if (!np) {
-		dev_err(rk808->dev, "could not find pmic sub-node\n");
-		return NULL;
-	}
-	pdata = devm_kzalloc(rk808->dev, sizeof(*pdata), GFP_KERNEL);
+	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)
 		return NULL;
 
 	pdata->pm_off = of_property_read_bool(np,
-				"rk808,system-power-controller");
+					"rockchip,system-power-controller");
 
 	return pdata;
 }
-
-#else
-static struct rk808_board *rk808_parse_dt(struct i2c_client *i2c)
-{
-	return NULL;
-}
-#endif
 
 static void rk808_device_shutdown(void)
 {
@@ -202,13 +187,16 @@ static void rk808_device_shutdown(void)
 	}
 
 	ret = regmap_update_bits(rk808->regmap,
-		RK808_INT_STS_MSK_REG1, (0x3 << 5), (0x3 << 5));
+				 RK808_INT_STS_MSK_REG1,
+				 (0x3 << 5), (0x3 << 5));
 	/* close rtc int when power off */
 	ret = regmap_update_bits(rk808->regmap,
-		RK808_RTC_INT_REG, (0x3 << 2), 0);
+				 RK808_RTC_INT_REG,
+				 (0x3 << 2), 0);
 	/* close rtc int when power off */
 	ret = regmap_update_bits(rk808->regmap,
-		RK808_DEVCTRL_REG, (0x1 << 3), (0x1 << 3));
+				 RK808_DEVCTRL_REG,
+				 (0x1 << 3), (0x1 << 3));
 	if (ret < 0)
 		dev_err(rk808->dev, "rk808 power off error!\n");
 
@@ -220,19 +208,12 @@ static int rk808_pre_init(struct rk808 *rk808)
 {
 	int i;
 	int ret = 0;
-	uint32_t val;
 	int table_size = sizeof(pre_init_reg)/sizeof(struct rk808_reg_data);
 
 	for (i = 0; i < table_size; i++) {
-		ret = regmap_read(rk808->regmap, pre_init_reg[i].addr, &val);
-		if (ret < 0) {
-			dev_err(rk808->dev,
-				"0x%x read err\n", pre_init_reg[i].addr);
-			return ret;
-		}
-		val &= pre_init_reg[i].mask;
-		val |= pre_init_reg[i].value;
-		ret = regmap_write(rk808->regmap, pre_init_reg[i].addr, val);
+		ret = regmap_update_bits(rk808->regmap, pre_init_reg[i].addr,
+					 pre_init_reg[i].mask,
+					 pre_init_reg[i].value);
 		if (ret < 0) {
 			dev_err(rk808->dev,
 				"0x%x write err\n", pre_init_reg[i].addr);
@@ -248,8 +229,14 @@ static int rk808_probe(struct i2c_client *client,
 {
 	int ret;
 	uint32_t val;
-	struct rk808 *rk808;
 	struct rk808_board *pdata = dev_get_platdata(&client->dev);
+	struct rk808 *rk808;
+
+	if (!pdata) {
+		pdata = rk808_parse_dt(&client->dev);
+		if (IS_ERR(pdata))
+			return PTR_ERR(pdata);
+	}
 
 	rk808 = devm_kzalloc(&client->dev, sizeof(struct rk808), GFP_KERNEL);
 	if (rk808 == NULL)
@@ -278,17 +265,6 @@ static int rk808_probe(struct i2c_client *client,
 		return ret;
 	}
 
-	if (IS_ENABLED(CONFIG_OF) && rk808->dev->of_node) {
-		pdata = rk808_parse_dt(rk808);
-		if (IS_ERR(pdata)) {
-			ret = IS_ERR(pdata);
-			return ret;
-		}
-	}
-
-	if (!pdata)
-		return -EINVAL;
-
 	pdata->irq = client->irq;
 	pdata->irq_base = -1;
 
@@ -303,7 +279,7 @@ static int rk808_probe(struct i2c_client *client,
 			      NULL, 0, regmap_irq_get_domain(rk808->irq_data));
 	if (ret < 0) {
 		dev_err(rk808->dev, "failed to add MFD devices %d\n", ret);
-		return ret;
+		goto err_irq_init_done;
 	}
 
 	g_rk808 = rk808;
@@ -311,6 +287,10 @@ static int rk808_probe(struct i2c_client *client,
 		pm_power_off = rk808_device_shutdown;
 
 	return 0;
+
+err_irq_init_done:
+	regmap_del_irq_chip(pdata->irq, rk808->irq_data);
+	return ret;
 }
 
 static int rk808_remove(struct i2c_client *i2c)
@@ -321,6 +301,12 @@ static int rk808_remove(struct i2c_client *i2c)
 	mfd_remove_devices(rk808->dev);
 	return 0;
 }
+
+static struct of_device_id rk808_of_match[] = {
+	{ .compatible = "rockchip,rk808"},
+	{ },
+};
+MODULE_DEVICE_TABLE(of, rk808_of_match);
 
 static const struct i2c_device_id rk808_ids[] = {
 	 { "rk808", 0},

@@ -149,14 +149,14 @@
 #define EN_VBAT_LOW_IRQ		(0x1 << 4)
 #define VBAT_LOW_ACT_MASK	(0x1 << 4)
 
-#define BUCK_ILMIN_MASK	~(7 << 0)
-#define BOOST_ILMIN_MASK	~(7 << 0)
+#define BUCK_ILMIN_MASK		(7 << 0)
+#define BOOST_ILMIN_MASK	(7 << 0)
 
-#define BUCK1_RATE_MASK	~(3<<3)
-#define BUCK2_RATE_MASK	~(3<<3)
+#define BUCK1_RATE_MASK		(3<<3)
+#define BUCK2_RATE_MASK		(3<<3)
 
-#define MASK_NONE	0xff
-#define MASK_ALL	0
+#define MASK_ALL	0xff
+#define MASK_NONE	0
 
 #define SWITCH2_EN	(1<<6)
 #define SWITCH1_EN	(1<<5)
