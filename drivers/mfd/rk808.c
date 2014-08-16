@@ -54,7 +54,7 @@ static struct resource rtc_resources[] = {
 	}
 };
 
-static struct mfd_cell rk808s[] = {
+static const struct mfd_cell rk808s[] = {
 	{
 		.name = "rk808-regulator",
 	},
@@ -65,7 +65,7 @@ static struct mfd_cell rk808s[] = {
 	},
 };
 
-static struct rk808_reg_data pre_init_reg[] = {
+static const struct rk808_reg_data pre_init_reg[] = {
 	{RK808_BUCK3_CONFIG_REG, BUCK_ILMIN_MASK, BUCK_ILMIN_150MA},
 	{RK808_BUCK4_CONFIG_REG, BUCK_ILMIN_MASK, BUCK_ILMIN_200MA},
 	{RK808_BOOST_CONFIG_REG, BOOST_ILMIN_MASK, BOOST_ILMIN_100MA},
@@ -129,38 +129,6 @@ static struct regmap_irq_chip rk808_irq_chip = {
 	.ack_base = RK808_INT_STS_REG1,
 };
 
-static int rk808_irq_init(struct rk808 *rk808)
-{
-	int ret = 0;
-	struct rk808_board *pdata = rk808->pdata;
-
-	if (!pdata) {
-		dev_err(rk808->dev, "No interrupt support, no pdata\n");
-		return -EINVAL;
-	}
-
-	if (!pdata->irq) {
-		dev_err(rk808->dev, "No interrupt support, no core IRQ\n");
-		return -EINVAL;
-	}
-
-	ret = regmap_add_irq_chip(rk808->regmap, pdata->irq,
-				  IRQF_ONESHOT, pdata->irq_base,
-				  &rk808_irq_chip, &rk808->irq_data);
-	if (ret < 0)
-		dev_err(rk808->dev, "Failed to add irq_chip %d\n", ret);
-	return ret;
-}
-
-static int rk808_irq_exit(struct rk808 *rk808)
-{
-	struct rk808_board *pdata = rk808->pdata;
-
-	if (pdata->irq > 0)
-		regmap_del_irq_chip(pdata->irq, rk808->irq_data);
-	return 0;
-}
-
 static struct rk808_board *rk808_parse_dt(struct device *dev)
 {
 	struct rk808_board *pdata;
@@ -208,7 +176,7 @@ static int rk808_pre_init(struct rk808 *rk808)
 {
 	int i;
 	int ret = 0;
-	int table_size = sizeof(pre_init_reg)/sizeof(struct rk808_reg_data);
+	int table_size = sizeof(pre_init_reg) / sizeof(struct rk808_reg_data);
 
 	for (i = 0; i < table_size; i++) {
 		ret = regmap_update_bits(rk808->regmap, pre_init_reg[i].addr,
@@ -239,9 +207,10 @@ static int rk808_probe(struct i2c_client *client,
 	}
 
 	rk808 = devm_kzalloc(&client->dev, sizeof(struct rk808), GFP_KERNEL);
-	if (rk808 == NULL)
+	if (!rk808)
 		return -ENOMEM;
 
+	rk808->pdata = pdata;
 	rk808->i2c = client;
 	rk808->dev = &client->dev;
 	i2c_set_clientdata(client, rk808);
@@ -268,11 +237,18 @@ static int rk808_probe(struct i2c_client *client,
 	pdata->irq = client->irq;
 	pdata->irq_base = -1;
 
-	rk808->pdata = pdata;
+	if (!pdata->irq) {
+		dev_err(rk808->dev, "No interrupt support, no core IRQ\n");
+		return -EINVAL;
+	}
 
-	ret = rk808_irq_init(rk808);
-	if (ret < 0)
+	ret = regmap_add_irq_chip(rk808->regmap, pdata->irq,
+				  IRQF_ONESHOT, pdata->irq_base,
+				  &rk808_irq_chip, &rk808->irq_data);
+	if (ret < 0) {
+		dev_err(rk808->dev, "Failed to add irq_chip %d\n", ret);
 		return ret;
+	}
 
 	ret = mfd_add_devices(rk808->dev, -1,
 			      rk808s, ARRAY_SIZE(rk808s),
@@ -296,8 +272,9 @@ err_irq_init_done:
 static int rk808_remove(struct i2c_client *i2c)
 {
 	struct rk808 *rk808 = i2c_get_clientdata(i2c);
+	struct rk808_board *pdata = rk808->pdata;
 
-	rk808_irq_exit(rk808);
+	regmap_del_irq_chip(pdata->irq, rk808->irq_data);
 	mfd_remove_devices(rk808->dev);
 	return 0;
 }

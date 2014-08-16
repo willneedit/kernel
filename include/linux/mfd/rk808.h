@@ -126,15 +126,15 @@
 #define RK808_IRQ_PLUG_OUT_INT	8
 #define RK808_NUM_IRQ		9
 
-#define RK808_IRQ_VOUT_LO_MSK		(1 << 0)
-#define RK808_IRQ_VB_LO_MSK		(1 << 1)
-#define RK808_IRQ_PWRON_MSK		(1 << 2)
-#define RK808_IRQ_PWRON_LP_MSK		(1 << 3)
-#define RK808_IRQ_HOTDIE_MSK		(1 << 4)
-#define RK808_IRQ_RTC_ALARM_MSK		(1 << 5)
-#define RK808_IRQ_RTC_PERIOD_MSK	(1 << 6)
-#define RK808_IRQ_PLUG_IN_INT_MSK	(1 << 0)
-#define RK808_IRQ_PLUG_OUT_INT_MSK	(1 << 1)
+#define RK808_IRQ_VOUT_LO_MSK		BIT(0)
+#define RK808_IRQ_VB_LO_MSK		BIT(1)
+#define RK808_IRQ_PWRON_MSK		BIT(2)
+#define RK808_IRQ_PWRON_LP_MSK		BIT(3)
+#define RK808_IRQ_HOTDIE_MSK		BIT(4)
+#define RK808_IRQ_RTC_ALARM_MSK		BIT(5)
+#define RK808_IRQ_RTC_PERIOD_MSK	BIT(6)
+#define RK808_IRQ_PLUG_IN_INT_MSK	BIT(0)
+#define RK808_IRQ_PLUG_OUT_INT_MSK	BIT(1)
 
 #define RK808_VBAT_LOW_2V8	0x00
 #define RK808_VBAT_LOW_2V9	0x01
@@ -151,22 +151,19 @@
 
 #define BUCK_ILMIN_MASK		(7 << 0)
 #define BOOST_ILMIN_MASK	(7 << 0)
-
 #define BUCK1_RATE_MASK		(3<<3)
 #define BUCK2_RATE_MASK		(3<<3)
-
 #define MASK_ALL	0xff
 #define MASK_NONE	0
 
-#define SWITCH2_EN	(1<<6)
-#define SWITCH1_EN	(1<<5)
+#define SWITCH2_EN	BIT(6)
+#define SWITCH1_EN	BIT(5)
 
-#define VB_LO_ACT	(1<<4)
+#define VB_LO_ACT		BIT(4)
 #define VB_LO_SEL_3500MV	(7<<0)
 
-#define VOUT_LO_INT	(1<<0)
-
-#define CLK32KOUT2_EN	(1<<0)
+#define VOUT_LO_INT	BIT(0)
+#define CLK32KOUT2_EN	BIT(0)
 
 enum {
 	BUCK_ILMIN_50MA,

@@ -351,15 +351,15 @@ static int rk808_regulator_probe(struct platform_device *pdev)
 
 	dev_dbg(rk808->dev, "%s\n", __func__);
 
-	if (rk808 == NULL) {
+	if (!rk808) {
 		dev_err(rk808->dev, "%s no rk808\n", __func__);
-		return -ENXIO;
+		return -ENODEV;
 	}
 
 	pdata = rk808->pdata;
 	if (!pdata) {
 		dev_err(rk808->dev, "%s no pdata\n", __func__);
-		return -ENXIO;
+		return -ENODEV;
 	}
 
 	ret = rk808_regulator_dts(rk808);

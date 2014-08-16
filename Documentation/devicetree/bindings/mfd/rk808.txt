@@ -25,7 +25,7 @@ rk808: pmic@1b {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pmic_int>;
 	reg = <0x1b>;
-	rk808,system-power-controller;
+	rockchip,system-power-controller;
 
 		regulators {
 			rk808_dcdc1_reg: DCDC_REG1 {
