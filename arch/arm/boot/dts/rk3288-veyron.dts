@@ -299,7 +299,9 @@
 
 	broken-cd;
 	non-removable;
-	supports-highspeed;
+	cap-mmc-highspeed;
+
+	caps2-mmc-hs200-1_8v;
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_rst &emmc_pwr &emmc_bus8>;
@@ -318,12 +320,20 @@
 	clock-frequency = <50000000>;
 	clock-freq-min-max = <400000 50000000>;
 
-	supports-highspeed;
+	card-detect-delay = <200>;
 
-	pinctrl-names = "default";
-	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd &sdmmc_bus4>;
+	default_voltage = <0>; //3.3v
+	cap-sd-highspeed;
+	cap-mmc-highspeed;
+
+	supports-highspeed;
+	pinctrl-names = "default", "power_on", "power_off";
+	pinctrl-0 = <&sdmmc_clk &sdmmc_cd_gpio &sdmmc_cmd &sdmmc_bus4>;
+	pinctrl-1 = <&sdmmc_power_on>;
+	pinctrl-2 = <&sdmmc_power_off>;
 
 	slot@0 {
+		cd-gpios = <&gpio7 5 GPIO_ACTIVE_LOW>;
 		reg = <0>;
 		bus-width = <4>;
 		disable-wp;
@@ -334,15 +344,15 @@
 	num-slots = <1>;
 	status = "okay";
 
-	clock-frequency = <50000000>;
-	clock-freq-min-max = <400000 50000000>;
+	clock-frequency = <150000000>;
+	clock-freq-min-max = <400000 150000000>;
 
 	default_voltage = <1>; //1.8v
 
 	broken-cd;
 	non-removable;
 	cap-sdio-irq;
-	supports-highspeed;
+	cap-sd-highspeed;
 	ignore-pm-notify;
 	keep-power-in-suspend;
 
