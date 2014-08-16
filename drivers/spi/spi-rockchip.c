@@ -576,7 +576,7 @@ static bool rockchip_spi_can_dma(struct spi_master *master,
 {
 	struct rockchip_spi *rs = spi_master_get_devdata(master);
 
-	return (xfer->len > rs->fifo_len);
+	return 0;//(xfer->len > rs->fifo_len);
 }
 
 static int rockchip_spi_probe(struct platform_device *pdev)
