@@ -515,7 +515,7 @@ static int sd_set_bus_speed_mode(struct mmc_card *card, u8 *status)
 	err = mmc_sd_switch(card, 1, 0, card->sd_bus_speed, status);
 	if (err)
 		return err;
-
+#if 0
 	if ((status[16] & 0xF) != card->sd_bus_speed)
 		pr_warning("%s: Problem setting bus speed mode!\n",
 			mmc_hostname(card->host));
@@ -523,6 +523,10 @@ static int sd_set_bus_speed_mode(struct mmc_card *card, u8 *status)
 		mmc_set_timing(card->host, timing);
 		mmc_set_clock(card->host, card->sw_caps.uhs_max_dtr);
 	}
+#else
+	mmc_set_timing(card->host, timing);
+	mmc_set_clock(card->host, card->sw_caps.uhs_max_dtr);
+#endif
 
 	return 0;
 }
@@ -784,6 +788,7 @@ try_again:
 	   ((*rocr & 0x41000000) == 0x41000000)) {
 		err = mmc_set_signal_voltage(host, MMC_SIGNAL_VOLTAGE_180,
 					pocr);
+		pr_info("mmc_set_signal_voltage 1.8v, ret = %d\n", err);
 		if (err == -EAGAIN) {
 			retries--;
 			goto try_again;

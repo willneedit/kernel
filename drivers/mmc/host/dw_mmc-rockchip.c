@@ -163,6 +163,11 @@ static void dw_mci_rk3288_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 		case MMC_POWER_UP:
 		case MMC_POWER_ON:
 			s = priv->pins_power_on;
+			if (ios->signal_voltage == MMC_SIGNAL_VOLTAGE_180)
+				dw_mci_rk3288_set_io_domain_voltage(host, 1);
+			else
+				dw_mci_rk3288_set_io_domain_voltage(host, 0);
+				
 			break;
 		case MMC_POWER_OFF:
 			s = priv->pins_power_off;
