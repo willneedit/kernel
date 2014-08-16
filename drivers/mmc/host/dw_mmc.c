@@ -946,6 +946,7 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	struct dw_mci_slot *slot = mmc_priv(mmc);
 	const struct dw_mci_drv_data *drv_data = slot->host->drv_data;
 	u32 regs;
+	int ret;
 
 	switch (ios->bus_width) {
 	case MMC_BUS_WIDTH_4:
@@ -984,6 +985,12 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	switch (ios->power_mode) {
 	case MMC_POWER_UP:
+		if ((!IS_ERR(mmc->supply.vmmc)) &&
+				!test_bit(DW_MMC_CARD_POWERED, &slot->flags)) {
+			ret = regulator_enable(mmc->supply.vmmc);
+			if (!ret)
+				set_bit(DW_MMC_CARD_POWERED, &slot->flags);
+		}
 		set_bit(DW_MMC_CARD_NEED_INIT, &slot->flags);
 		/* Power up slot */
 		if (slot->host->pdata->setpower)
@@ -993,6 +1000,18 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		mci_writel(slot->host, PWREN, regs);
 		break;
 	case MMC_POWER_OFF:
+		if (!IS_ERR(mmc->supply.vqmmc) &&
+				test_bit(DW_MMC_IO_POWERED, &slot->flags)) {
+			ret = regulator_disable(mmc->supply.vqmmc);
+			if (!ret)
+				clear_bit(DW_MMC_IO_POWERED, &slot->flags);
+		}
+		if (!IS_ERR(mmc->supply.vmmc) &&
+				test_bit(DW_MMC_CARD_POWERED, &slot->flags)) {
+			ret = regulator_disable(mmc->supply.vmmc);
+			if (!ret)
+				clear_bit(DW_MMC_CARD_POWERED, &slot->flags);
+		}
 		/* Power down slot */
 		if (slot->host->pdata->setpower)
 			slot->host->pdata->setpower(slot->id, 0);
@@ -1000,6 +1019,13 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		regs &= ~(1 << slot->id);
 		mci_writel(slot->host, PWREN, regs);
 		break;
+	case MMC_POWER_ON:
+		if (!IS_ERR(mmc->supply.vqmmc) &&
+				!test_bit(DW_MMC_IO_POWERED, &slot->flags)) {
+			ret = regulator_enable(mmc->supply.vqmmc);
+			if (!ret)
+				set_bit(DW_MMC_IO_POWERED, &slot->flags);
+		}
 	default:
 		break;
 	}
@@ -2162,13 +2188,18 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 		mmc->ocr_avail = host->pdata->get_ocr(id);
 	else
 		mmc->ocr_avail = MMC_VDD_32_33 | MMC_VDD_33_34;
-
+	
 	/*
 	 * Start with slot power disabled, it will be enabled when a card
 	 * is detected.
 	 */
 	if (host->pdata->setpower)
 		host->pdata->setpower(id, 0);
+
+	/*if there are external regulators, get them*/
+	ret = mmc_regulator_get_supply(mmc);
+	if (ret == -EPROBE_DEFER)
+		goto err_setup_bus;
 
 	if (host->pdata->caps)
 		mmc->caps = host->pdata->caps;
@@ -2244,7 +2275,7 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 
 err_setup_bus:
 	mmc_free_host(mmc);
-	return -EINVAL;
+	return ret;
 }
 
 static void dw_mci_cleanup_slot(struct dw_mci_slot *slot, unsigned int id)
@@ -2498,24 +2529,6 @@ int dw_mci_probe(struct dw_mci *host)
 		}
 	}
 
-	host->vmmc = devm_regulator_get_optional(host->dev, "vmmc");
-	if (IS_ERR(host->vmmc)) {
-		ret = PTR_ERR(host->vmmc);
-		if (ret == -EPROBE_DEFER)
-			goto err_clk_ciu;
-
-		dev_info(host->dev, "no vmmc regulator found: %d\n", ret);
-		host->vmmc = NULL;
-	} else {
-		ret = regulator_enable(host->vmmc);
-		if (ret) {
-			if (ret != -EPROBE_DEFER)
-				dev_err(host->dev,
-					"regulator_enable fail: %d\n", ret);
-			goto err_clk_ciu;
-		}
-	}
-
 	if (!host->bus_hz) {
 		dev_err(host->dev,
 			"Platform data must supply bus speed\n");
@@ -2668,8 +2681,6 @@ err_dmaunmap:
 		host->dma_ops->exit(host);
 
 err_regulator:
-	if (host->vmmc)
-		regulator_disable(host->vmmc);
 
 err_clk_ciu:
 	if (!IS_ERR(host->ciu_clk))
@@ -2705,9 +2716,6 @@ void dw_mci_remove(struct dw_mci *host)
 	if (host->use_dma && host->dma_ops->exit)
 		host->dma_ops->exit(host);
 
-	if (host->vmmc)
-		regulator_disable(host->vmmc);
-
 	if (!IS_ERR(host->ciu_clk))
 		clk_disable_unprepare(host->ciu_clk);
 
@@ -2724,9 +2732,6 @@ EXPORT_SYMBOL(dw_mci_remove);
  */
 int dw_mci_suspend(struct dw_mci *host)
 {
-	if (host->vmmc)
-		regulator_disable(host->vmmc);
-
 	return 0;
 }
 EXPORT_SYMBOL(dw_mci_suspend);
@@ -2734,15 +2739,6 @@ EXPORT_SYMBOL(dw_mci_suspend);
 int dw_mci_resume(struct dw_mci *host)
 {
 	int i, ret;
-
-	if (host->vmmc) {
-		ret = regulator_enable(host->vmmc);
-		if (ret) {
-			dev_err(host->dev,
-				"failed to enable regulator: %d\n", ret);
-			return ret;
-		}
-	}
 
 	if (!dw_mci_ctrl_all_reset(host)) {
 		ret = -ENODEV;

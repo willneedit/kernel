@@ -227,6 +227,8 @@ struct dw_mci_slot {
 	unsigned long		flags;
 #define DW_MMC_CARD_PRESENT	0
 #define DW_MMC_CARD_NEED_INIT	1
+#define DW_MMC_CARD_POWERED    2
+#define DW_MMC_IO_POWERED      3
 	int			id;
 	int			last_detect_state;
 };
