@@ -1,9 +1,0 @@
-config LCDC_RK3288
-        bool "rk3288 lcdc support"
-        depends on DRM_ROCKCHIP_LCDC
-        help
-	  Choose this option if you have a rk3288 lcd controller.
-	  rk3288 lcdc is the display interface from memory frame buffer
-	  to display device. There are two lcd controllers on rk3288,
-	  They have same regs setting, can use same drivers. We use the
-	  lcdc id distinguish between them

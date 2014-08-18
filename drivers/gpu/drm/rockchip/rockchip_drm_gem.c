@@ -72,12 +72,6 @@ static int rockchip_gem_alloc_buf(struct rockchip_gem_object *rk_obj)
 		goto err_free_pages;
 	}
 
-	if (iommu_present(&platform_bus_type)) {
-		rk_obj->paddr = rockchip_iovmm_map(drm->dev, rk_obj->sgt->sgl, 0, obj->size);
-		rk_obj->vaddr = vmap(p, obj->size >> PAGE_SHIFT,
-				VM_MAP, pgprot_writecombine(PAGE_KERNEL));
-	}
-	
 	return 0;
 
 err_free_pages:
@@ -108,7 +102,7 @@ static void rockchip_gem_free_buf(struct rockchip_gem_object *rk_obj)
 		if (rk_obj->vaddr)
 			vunmap(rk_obj->vaddr);
 		if (rk_obj->paddr)
-			rockchip_iovmm_unmap(drm->dev, rk_obj->paddr);
+			rockchip_iommu_unmap(rk_obj);
 	}
 	sg_free_table(rk_obj->sgt);
 	kfree(rk_obj->sgt);
@@ -122,6 +116,26 @@ static void rockchip_gem_free_buf(struct rockchip_gem_object *rk_obj)
 	}
 
 	rk_obj->pages = NULL;
+}
+
+int rockchip_iommu_mmap(struct device *dev,struct rockchip_gem_object *rk_obj)
+{
+	rk_obj->paddr = rockchip_iovmm_map(dev,	rk_obj->sgt->sgl, 0,
+					   rk_obj->base.size);
+	if (!rk_obj->paddr)
+		return -ENXIO;
+
+	rk_obj->mmu_dev = dev;
+
+	return 0;
+}
+
+void rockchip_iommu_unmap(struct rockchip_gem_object *rk_obj)
+{
+	if (rk_obj->mmu_dev)
+		rockchip_iovmm_unmap(rk_obj->mmu_dev, rk_obj->paddr);
+
+	rk_obj->mmu_dev = NULL;
 }
 
 struct rockchip_gem_object *
@@ -224,30 +238,6 @@ err_handle_create:
 	return ERR_PTR(ret);
 }
 
-/*
- * rockchip_drm_gem_mmap - (struct file_operation)->mmap callback function
- */
-int rockchip_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma)
-{
-	struct rockchip_gem_object *rk_obj;
-	struct drm_gem_object *gem_obj;
-	int ret;
-
-	ret = drm_gem_mmap(filp, vma);
-	if (ret)
-		return ret;
-
-	gem_obj = vma->vm_private_data;
-	rk_obj = to_rockchip_obj(gem_obj);
-
-	ret = remap_pfn_range(vma, vma->vm_start, rk_obj->paddr >> PAGE_SHIFT,
-			vma->vm_end - vma->vm_start, vma->vm_page_prot);
-	if (ret)
-		drm_gem_vm_close(vma);
-
-	return ret;
-}
-
 int rockchip_drm_gem_dumb_map_offset(struct drm_file *file_priv,
 				     struct drm_device *dev, uint32_t handle,
 				     uint64_t *offset)
@@ -288,8 +278,6 @@ unlock:
 struct sg_table *rockchip_gem_prime_get_sg_table(struct drm_gem_object *obj)
 {
 	struct rockchip_gem_object *rk_obj = to_rockchip_obj(obj);
-	struct sg_table *sgt;
-	int ret;
 
 	BUG_ON(!rk_obj->sgt);
 
@@ -329,22 +317,12 @@ void rockchip_gem_prime_vunmap(struct drm_gem_object *obj, void *vaddr)
 int rockchip_gem_prime_mmap(struct drm_gem_object *obj,
 			   struct vm_area_struct *vma)
 {
-	struct rockchip_gem_object *rk_obj;
 	struct drm_device *dev = obj->dev;
 	int ret;
 
 	mutex_lock(&dev->struct_mutex);
 	ret = drm_gem_mmap_obj(obj, obj->size, vma);
 	mutex_unlock(&dev->struct_mutex);
-	if (ret < 0)
-		return ret;
-
-	rk_obj = to_rockchip_obj(obj);
-
-	ret = remap_pfn_range(vma, vma->vm_start, rk_obj->paddr >> PAGE_SHIFT,
-			vma->vm_end - vma->vm_start, vma->vm_page_prot);
-	if (ret)
-		drm_gem_vm_close(vma);
 
 	return ret;
 }

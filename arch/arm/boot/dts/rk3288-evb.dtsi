@@ -56,65 +56,20 @@
 		};
 	};
 	/*for lvds
-	panel:panel {
-		compatible = "rockchip,panel";
-		status = "okay";
-		rockchip,output-face = "r6g6b6";
-
-		enable-gpios = <&gpio7 3 GPIO_ACTIVE_HIGH
-				&gpio7 4 GPIO_ACTIVE_HIGH
-				&gpio7 0 GPIO_ACTIVE_HIGH
-				&gpio7 2 GPIO_ACTIVE_HIGH>;
-		output-dither;
-
-		display-timings {
-			native-mode = <&timing0>;
-			timing0: 1280x800 {
-				clock-frequency = <71000000>;
-				hactive = <1280>;
-				vactive = <800>;
-				hback-porch = <100>;
-				hfront-porch = <18>;
-				vback-porch = <8>;
-				vfront-porch = <6>;
-				hsync-len = <10>;
-				vsync-len = <2>;
-				hsync-active = <0>;
-				vsync-active = <0>;
-				de-active = <0>;
-				pixelclk-active = <0>;
-			};
-		};
-	};*/
-
-	// for 1536x2048 edp
-	panel:panel {
-		compatible = "rockchip,panel";
-		status = "okay";
-		rockchip,output-face = "r6g6b6";
+	/*
+	panel: panel {                                                                                                                         
+	       compatible = "panel,b101ew05", "simple-panel";                    
 
 		enable-gpios = <&gpio7 3 GPIO_ACTIVE_HIGH>;
-		output-dither;
+                                      
+       	};*/
 
-		display-timings {
-			native-mode = <&timing1>;
-			timing1: timing@1 {
-				clock-frequency = <205000000>;
-				hactive = <1536>;
-				vactive = <2048>;
-				hback-porch = <48>;
-				hfront-porch = <12>;
-				vback-porch = <8>;
-				vfront-porch = <8>;
-				hsync-len = <16>;
-				vsync-len = <4>;
-				hsync-active = <0>;
-				vsync-active = <0>;
-				de-active = <0>;
-				pixelclk-active = <1>;
-			};
-		};
-	};
+
+	// for 1536x2048 edp
+	panel: panel {                                               
+		compatible ="panel,lp097qx1","simple-panel";                        
+		status = "okay";
+	};     
 
 	soc {
 		gpio-keys {
@@ -161,9 +116,13 @@
 		      rockchip,panel = <&panel>;
 		};
 
-		lcdc1: lcdc@ff940000 {
+		vopb: vopb@ff930000 {
+	      		status = "okay";
+      		};
+
+		vopl: vopl@ff940000 {
 			status = "okay";
-		 };
+		};
 	
 		watchdog@ff800000 {
 			status = "okay";

@@ -25,6 +25,8 @@ struct rockchip_gem_object {
 	dma_addr_t paddr;
 	void *vaddr;
 	unsigned int flags;
+
+	struct device *mmu_dev;
 };
 
 struct rockchip_gem_object *
@@ -47,6 +49,9 @@ int rockchip_drm_gem_dumb_map_offset(struct drm_file *file_priv,
 				     struct drm_device *dev, uint32_t handle,
 				     uint64_t *offset);
 int rockchip_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma);
+
+int rockchip_iommu_mmap(struct device *dev,struct rockchip_gem_object *rk_obj);
+void rockchip_iommu_unmap(struct rockchip_gem_object *rk_obj);
 /*
  * request gem object creation and buffer allocation as the size
  * that it is calculated with framebuffer information such as width,

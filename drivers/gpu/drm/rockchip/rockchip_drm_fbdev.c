@@ -31,11 +31,42 @@ struct rockchip_fbdev {
 	struct drm_gem_object *bo;
 };
 
+static int rockchip_drm_fb_mmap(struct fb_info *info,
+			struct vm_area_struct *vma)
+{
+	struct drm_fb_helper *helper = info->par;
+	struct drm_device *dev = helper->dev;
+	struct drm_gem_object *obj;
+	struct drm_vma_offset_node *node;
+	int ret;
+
+	if (drm_device_is_unplugged(dev))
+		return -ENODEV;
+
+	mutex_lock(&dev->struct_mutex);
+
+	node = drm_vma_offset_exact_lookup(dev->vma_offset_manager,
+					   vma->vm_pgoff,
+					   vma_pages(vma));
+	if (!node) {
+		mutex_unlock(&dev->struct_mutex);
+		return -EACCES;
+	}
+
+	obj = container_of(node, struct drm_gem_object, vma_node);
+	ret = drm_gem_mmap_obj(obj, drm_vma_node_size(node) << PAGE_SHIFT, vma);
+
+	mutex_unlock(&dev->struct_mutex);
+
+	return ret;
+}
+
 static struct fb_ops rockchip_drm_fbdev_ops = {
 	.owner		= THIS_MODULE,
-	.fb_fillrect	= sys_fillrect,
-	.fb_copyarea	= sys_copyarea,
-	.fb_imageblit	= sys_imageblit,
+	.fb_mmap        = rockchip_drm_fb_mmap,
+	.fb_fillrect    = cfb_fillrect,
+	.fb_copyarea    = cfb_copyarea,
+	.fb_imageblit   = cfb_imageblit,
 	.fb_check_var	= drm_fb_helper_check_var,
 	.fb_set_par	= drm_fb_helper_set_par,
 	.fb_blank	= drm_fb_helper_blank,
@@ -105,10 +136,15 @@ static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 	offset = fbi->var.xoffset * bytes_per_pixel;
 	offset += fbi->var.yoffset * fb->pitches[0];
 
-	dev->mode_config.fb_base = (resource_size_t)rk_obj->paddr;
+	if (!rk_obj->vaddr)
+		rk_obj->vaddr = vmap(rk_obj->pages,
+				     rk_obj->base.size >> PAGE_SHIFT,
+				     VM_MAP, pgprot_writecombine(PAGE_KERNEL));
+
+	dev->mode_config.fb_base = 0;
 	fbi->screen_base = rk_obj->vaddr + offset;
-	fbi->fix.smem_start = (unsigned long)(rk_obj->paddr + offset);
 	fbi->screen_size = size;
+	fbi->fix.smem_start = 0;
 	fbi->fix.smem_len = size;
 
 	DRM_DEBUG_KMS("FB [%dx%d]-%d vaddr=%p paddr=%x offset=%ld size=%d\n",
@@ -138,7 +174,7 @@ int rockchip_drm_fbdev_init(struct drm_device *dev)
 	int ret;
 
 	if (!dev->mode_config.num_crtc || !dev->mode_config.num_connector)
-		return 0;
+		return -EINVAL;
 
 	if (private->fb_helper) {
 		DRM_ERROR("no allow to reinit fbdev\n");

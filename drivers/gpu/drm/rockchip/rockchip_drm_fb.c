@@ -24,7 +24,7 @@
 
 struct rockchip_drm_fb {
 	struct drm_framebuffer fb;
-	struct drm_gem_object *obj[MAX_FB_BUFFER];
+	struct drm_gem_object *obj[ROCKCHIP_MAX_FB_BUFFER];
 };
 
 struct drm_gem_object *rockchip_fb_get_gem_obj(struct drm_framebuffer *fb,
@@ -185,7 +185,7 @@ void rockchip_drm_framebuffer_fini(struct drm_framebuffer *fb)
 
 	drm_framebuffer_unregister_private(fb);
 
-	for (i = 0; i < MAX_FB_BUFFER; i++) {
+	for (i = 0; i < ROCKCHIP_MAX_FB_BUFFER; i++) {
 		if (rockchip_fb->obj[i])
 			drm_gem_object_unreference_unlocked(rockchip_fb->obj[i]);
 	}

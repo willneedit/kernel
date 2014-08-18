@@ -347,15 +347,6 @@
 				#interrupt-cells = <2>;
 			};
 
-			lcdc1 {
-				lcdc1_gpio:lcdc1_gpio {
-					rockchip,pins = <RK_GPIO1 32 RK_FUNC_GPIO &pcfg_pull_none>,
-							<RK_GPIO1 33 RK_FUNC_GPIO &pcfg_pull_none>,
-							<RK_GPIO1 34 RK_FUNC_GPIO &pcfg_pull_none>,
-							<RK_GPIO1 35 RK_FUNC_GPIO &pcfg_pull_none>;
-	   			};
-	   		};
-
 			pcfg_pull_up: pcfg_pull_up {
 				bias-pull-up;
 			};
@@ -903,15 +894,6 @@
                         reset-names = "edp";
 			status = "disabled";
 		};
-
-		lcdc1: lcdc@ff940000 {
-	       		compatible = "rockchip,rk3288-lcdc";
-	       		reg = <0xff940000 0x10000>;
-	       		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
-	       		clocks = <&cru ACLK_VOP1>, <&cru DCLK_VOP1>, <&cru HCLK_VOP1>;
-	       		clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc";
-			status = "disabled";
-       		};
 	
 		gpu{
 			compatible = "arm,malit764",
@@ -954,7 +936,7 @@
 			interrupt-names = "vip_mmu";
 		};
 
-		vopb_mmu {
+		vopb_mmu: vopb_mmu {
 			dbgname = "vopb";
 			compatible = "rockchip,vopb_mmu";
 			reg = <0xff930300 0x100>;
@@ -962,7 +944,7 @@
 			interrupt-names = "vopb_mmu";
 		};
 
-		vopl_mmu {
+		vopl_mmu: vopl_mmu {
 			dbgname = "vopl";
 			compatible = "rockchip,vopl_mmu";
 			reg = <0xff940300 0x100>;
@@ -996,17 +978,27 @@
 			interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "isp_mmu";
 		};
-
-		lcdc0: lcdc@ff930000 {
-			compatible = "rockchip,rk3288-lcdc";
-			rockchip,prop = <1>;
-			rockchip,pwr18 = <0>;
-			reg = <0xff930000 0x10000>;
+		vopb: vopb@ff930000 {
+	      		compatible = "rockchip,rk3288-vopb";
+			reg = <0xff930000 0x19c>;
 			interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
-			status = "disabled";
 			clocks = <&cru ACLK_VOP0>, <&cru DCLK_VOP0>, <&cru HCLK_VOP0>;
-			clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc";
-		};
+			clock-names = "aclk_vop", "dclk_vop", "hclk_vop";
+
+			rockchip,iommu = <&vopb_mmu>;
+			status = "disabled";
+       		};
+
+		vopl: vopl@ff940000 {
+	       		compatible = "rockchip,rk3288-vopl";
+	       		reg = <0xff940000 0x19c>;
+	       		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
+	       		clocks = <&cru ACLK_VOP1>, <&cru DCLK_VOP1>, <&cru HCLK_VOP1>;
+	       		clock-names = "aclk_vop", "dclk_vop", "hclk_vop";
+
+			rockchip,iommu = <&vopl_mmu>;
+			status = "disabled";
+       		};
 
 		uart1: serial@ff190000 {
 			compatible = "snps,dw-apb-uart";

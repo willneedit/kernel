@@ -383,6 +383,72 @@ static const struct panel_desc samsung_ltn101nt05 = {
 	},
 };
 
+static const struct drm_display_mode panel_lp097qx1_mode = {
+	.clock = 205000,
+	.hdisplay = 1536,
+	.hsync_start = 1536 + 12,
+	.hsync_end = 1536 + 12 + 16,
+	.htotal = 1536 + 12 + 16 + 48,
+	.vdisplay = 2048,
+	.vsync_start = 2048 + 8,
+	.vsync_end = 2048 + 8 + 4,
+	.vtotal = 2048 + 8 + 4 + 8,
+	.vrefresh = 60,
+};
+
+static const struct panel_desc panel_lp097qx1 = {
+	.modes = &panel_lp097qx1_mode,
+	.num_modes = 1,
+	.size = {
+		.width = 1536,
+		.height = 2048,
+	},
+};
+
+static const struct drm_display_mode panel_n116bge_mode = {
+	.clock = 71000,
+	.hdisplay = 1366,
+	.hsync_start = 1366 + 100,
+	.hsync_end = 1366 + 100 + 26,
+	.htotal = 1366 + 100 + 26 + 100,
+	.vdisplay = 768,
+	.vsync_start = 768 + 10,
+	.vsync_end = 768 + 10 + 4,
+	.vtotal = 768 + 10 + 4 + 18,
+	.vrefresh = 60,
+};
+
+static const struct panel_desc panel_n116bge = {
+	.modes = &panel_n116bge_mode,
+	.num_modes = 1,
+	.size = {
+		.width = 1366,
+		.height = 768,
+	},
+};
+
+static const struct drm_display_mode panel_b101ew05_mode = {
+	.clock = 71000,
+	.hdisplay = 1280,
+	.hsync_start = 1280 + 18,
+	.hsync_end = 1280 + 18 + 10,
+	.htotal = 1280 + 10 + 18 + 100,
+	.vdisplay = 800,
+	.vsync_start = 800 + 6,
+	.vsync_end = 800 + 6 + 2,
+	.vtotal = 800 + 6 + 2 + 8,
+	.vrefresh = 60,
+};
+
+static const struct panel_desc panel_b101ew05 = {
+	.modes = &panel_b101ew05_mode,
+	.num_modes = 1,
+	.size = {
+		.width = 1280,
+		.height = 800,
+	},
+};
+
 static const struct of_device_id platform_of_match[] = {
 	{
 		.compatible = "auo,b101aw03",
@@ -396,6 +462,15 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "samsung,ltn101nt05",
 		.data = &samsung_ltn101nt05,
+	}, {
+		.compatible = "panel,b101ew05",
+		.data = &panel_b101ew05,
+	}, {
+		.compatible = "panel,n116bge",
+		.data = &panel_n116bge,
+	}, {
+		.compatible = "panel,lp097qx1",
+		.data = &panel_lp097qx1,
 	}, {
 		.compatible = "simple-panel",
 	}, {

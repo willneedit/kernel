@@ -16,10 +16,10 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 
-#include "rk3288_dp_core.h"
-#include "rk3288_dp_reg.h"
+#include "rockchip_edp_core.h"
+#include "rockchip_edp_reg.h"
 
-void rk3288_edp_enable_video_mute(struct rk3288_edp *edp, bool enable)
+void rockchip_edp_enable_video_mute(struct rockchip_edp_device *edp, bool enable)
 {
 	u32 val;
 
@@ -34,7 +34,7 @@ void rk3288_edp_enable_video_mute(struct rk3288_edp *edp, bool enable)
 	}
 }
 
-void rk3288_edp_stop_video(struct rk3288_edp *edp)
+void rockchip_edp_stop_video(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -43,7 +43,7 @@ void rk3288_edp_stop_video(struct rk3288_edp *edp)
 	writel(val, edp->regs + VIDEO_CTL_1);
 }
 
-void rk3288_edp_lane_swap(struct rk3288_edp *edp, bool enable)
+void rockchip_edp_lane_swap(struct rockchip_edp_device *edp, bool enable)
 {
 	u32 val;
 
@@ -57,7 +57,7 @@ void rk3288_edp_lane_swap(struct rk3288_edp *edp, bool enable)
 	writel(val, edp->regs + LANE_MAP);
 }
 
-void rk3288_edp_init_refclk(struct rk3288_edp *edp)
+void rockchip_edp_init_refclk(struct rockchip_edp_device *edp)
 {
 	writel(SEL_24M, edp->regs + ANALOG_CTL_2);
 	writel(REF_CLK_24M, edp->regs + PLL_REG_1);
@@ -73,7 +73,7 @@ void rk3288_edp_init_refclk(struct rk3288_edp *edp)
 	writel(0x55, edp->regs + DP_RESERVE2);
 }
 
-void rk3288_edp_init_interrupt(struct rk3288_edp *edp)
+void rockchip_edp_init_interrupt(struct rockchip_edp_device *edp)
 {
 	/* Set interrupt pin assertion polarity as high */
 	writel(INT_POL, edp->regs + INT_CTL);
@@ -94,12 +94,12 @@ void rk3288_edp_init_interrupt(struct rk3288_edp *edp)
 	writel(0x00, edp->regs + DP_INT_STA_MASK);
 }
 
-void rk3288_edp_reset(struct rk3288_edp *edp)
+void rockchip_edp_reset(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
-	rk3288_edp_stop_video(edp);
-	rk3288_edp_enable_video_mute(edp, 0);
+	rockchip_edp_stop_video(edp);
+	rockchip_edp_enable_video_mute(edp, 0);
 
 	val = VID_CAP_FUNC_EN_N | AUD_FIFO_FUNC_EN_N |
 		AUD_FUNC_EN_N | HDCP_FUNC_EN_N | SW_FUNC_EN_N;
@@ -112,7 +112,7 @@ void rk3288_edp_reset(struct rk3288_edp *edp)
 
 	usleep_range(20, 30);
 
-	rk3288_edp_lane_swap(edp, 0);
+	rockchip_edp_lane_swap(edp, 0);
 
 	writel(0x0, edp->regs + SYS_CTL_1);
 	writel(0x40, edp->regs + SYS_CTL_2);
@@ -136,7 +136,7 @@ void rk3288_edp_reset(struct rk3288_edp *edp)
 	writel(0x0, edp->regs + SOC_GENERAL_CTL);
 }
 
-void rk3288_edp_config_interrupt(struct rk3288_edp *edp)
+void rockchip_edp_config_interrupt(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -153,7 +153,7 @@ void rk3288_edp_config_interrupt(struct rk3288_edp *edp)
 	writel(val, edp->regs + DP_INT_STA_MASK);
 }
 
-u32 rk3288_edp_get_pll_lock_status(struct rk3288_edp *edp)
+u32 rockchip_edp_get_pll_lock_status(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -164,7 +164,7 @@ u32 rk3288_edp_get_pll_lock_status(struct rk3288_edp *edp)
 		return DP_PLL_UNLOCKED;
 }
 
-void rk3288_edp_analog_power_ctr(struct rk3288_edp *edp, bool enable)
+void rockchip_edp_analog_power_ctr(struct rockchip_edp_device *edp, bool enable)
 {
 	u32 val;
 
@@ -181,12 +181,12 @@ void rk3288_edp_analog_power_ctr(struct rk3288_edp *edp, bool enable)
 	}
 }
 
-void rk3288_edp_init_analog_func(struct rk3288_edp *edp)
+void rockchip_edp_init_analog_func(struct rockchip_edp_device *edp)
 {
 	u32 val;
 	int wt = 0;
 
-	rk3288_edp_analog_power_ctr(edp, 1);
+	rockchip_edp_analog_power_ctr(edp, 1);
 
 	val = PLL_LOCK_CHG;
 	writel(val, edp->regs + COMMON_INT_STA_1);
@@ -197,7 +197,7 @@ void rk3288_edp_init_analog_func(struct rk3288_edp *edp)
 
 	/* Power up PLL */
 	while (wt < 100) {
-		if (rk3288_edp_get_pll_lock_status(edp) == DP_PLL_LOCKED) {
+		if (rockchip_edp_get_pll_lock_status(edp) == DP_PLL_LOCKED) {
 			dev_dbg(edp->dev, "edp pll locked\n");
 			break;
 		} else {
@@ -213,7 +213,7 @@ void rk3288_edp_init_analog_func(struct rk3288_edp *edp)
 	writel(val, edp->regs + FUNC_EN_2);
 }
 
-void rk3288_edp_init_hpd(struct rk3288_edp *edp)
+void rockchip_edp_init_hpd(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -228,7 +228,7 @@ void rk3288_edp_init_hpd(struct rk3288_edp *edp)
 	writel(val, edp->regs + SYS_CTL_3);
 }
 
-void rk3288_edp_reset_aux(struct rk3288_edp *edp)
+void rockchip_edp_reset_aux(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -238,7 +238,7 @@ void rk3288_edp_reset_aux(struct rk3288_edp *edp)
 	writel(val, edp->regs + FUNC_EN_2);
 }
 
-void rk3288_edp_init_aux(struct rk3288_edp *edp)
+void rockchip_edp_init_aux(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -246,7 +246,7 @@ void rk3288_edp_init_aux(struct rk3288_edp *edp)
 	val = RPLY_RECEIV | AUX_ERR;
 	writel(val, edp->regs + DP_INT_STA);
 
-	rk3288_edp_reset_aux(edp);
+	rockchip_edp_reset_aux(edp);
 
 	/* Disable AUX transaction H/W retry */
 	/*val = AUX_BIT_PERIOD_EXPECTED_DELAY(3) | AUX_HW_RETRY_COUNT_SEL(0)|
@@ -263,7 +263,7 @@ void rk3288_edp_init_aux(struct rk3288_edp *edp)
 	writel(val, edp->regs + FUNC_EN_2);
 }
 
-int rk3288_edp_get_plug_in_status(struct rk3288_edp *edp)
+int rockchip_edp_get_plug_in_status(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -274,7 +274,7 @@ int rk3288_edp_get_plug_in_status(struct rk3288_edp *edp)
 	return -EINVAL;
 }
 
-void rk3288_edp_enable_sw_function(struct rk3288_edp *edp)
+void rockchip_edp_enable_sw_function(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -283,7 +283,7 @@ void rk3288_edp_enable_sw_function(struct rk3288_edp *edp)
 	writel(val, edp->regs + FUNC_EN_1);
 }
 
-int rk3288_edp_start_aux_transaction(struct rk3288_edp *edp)
+int rockchip_edp_start_aux_transaction(struct rockchip_edp_device *edp)
 {
 	int val;
 	int retval = 0;
@@ -340,7 +340,7 @@ int rk3288_edp_start_aux_transaction(struct rk3288_edp *edp)
 	return retval;
 }
 
-int rk3288_edp_write_byte_to_dpcd(struct rk3288_edp *edp,
+int rockchip_edp_write_byte_to_dpcd(struct rockchip_edp_device *edp,
 				  unsigned int val_addr,
 				  unsigned char data)
 {
@@ -374,7 +374,7 @@ int rk3288_edp_write_byte_to_dpcd(struct rk3288_edp *edp,
 		writel(val, edp->regs + AUX_CH_CTL_1);
 
 		/* Start AUX transaction */
-		retval = rk3288_edp_start_aux_transaction(edp);
+		retval = rockchip_edp_start_aux_transaction(edp);
 		if (retval == 0)
 			break;
 		else
@@ -384,7 +384,7 @@ int rk3288_edp_write_byte_to_dpcd(struct rk3288_edp *edp,
 	return retval;
 }
 
-int rk3288_edp_read_byte_from_dpcd(struct rk3288_edp *edp,
+int rockchip_edp_read_byte_from_dpcd(struct rockchip_edp_device *edp,
 				   unsigned int val_addr,
 				   unsigned char *data)
 {
@@ -414,7 +414,7 @@ int rk3288_edp_read_byte_from_dpcd(struct rk3288_edp *edp,
 		writel(val, edp->regs + AUX_CH_CTL_1);
 
 		/* Start AUX transaction */
-		retval = rk3288_edp_start_aux_transaction(edp);
+		retval = rockchip_edp_start_aux_transaction(edp);
 		if (retval == 0)
 			break;
 		else
@@ -428,7 +428,7 @@ int rk3288_edp_read_byte_from_dpcd(struct rk3288_edp *edp,
 	return retval;
 }
 
-int rk3288_edp_write_bytes_to_dpcd(struct rk3288_edp *edp,
+int rockchip_edp_write_bytes_to_dpcd(struct rockchip_edp_device *edp,
 				   unsigned int val_addr,
 				   unsigned int count,
 				   unsigned char data[])
@@ -478,7 +478,7 @@ int rk3288_edp_write_bytes_to_dpcd(struct rk3288_edp *edp,
 			writel(val, edp->regs + AUX_CH_CTL_1);
 
 			/* Start AUX transaction */
-			retval = rk3288_edp_start_aux_transaction(edp);
+			retval = rockchip_edp_start_aux_transaction(edp);
 			if (retval == 0)
 				break;
 			else
@@ -491,7 +491,7 @@ int rk3288_edp_write_bytes_to_dpcd(struct rk3288_edp *edp,
 	return retval;
 }
 
-int rk3288_edp_read_bytes_from_dpcd(struct rk3288_edp *edp,
+int rockchip_edp_read_bytes_from_dpcd(struct rockchip_edp_device *edp,
 				    unsigned int val_addr,
 				    unsigned int count,
 				    unsigned char data[])
@@ -535,7 +535,7 @@ int rk3288_edp_read_bytes_from_dpcd(struct rk3288_edp *edp,
 			writel(val, edp->regs + AUX_CH_CTL_1);
 
 			/* Start AUX transaction */
-			retval = rk3288_edp_start_aux_transaction(edp);
+			retval = rockchip_edp_start_aux_transaction(edp);
 			if (retval == 0)
 				break;
 			else
@@ -556,7 +556,7 @@ int rk3288_edp_read_bytes_from_dpcd(struct rk3288_edp *edp,
 	return retval;
 }
 
-int rk3288_edp_select_i2c_device(struct rk3288_edp *edp,
+int rockchip_edp_select_i2c_device(struct rockchip_edp_device *edp,
 				 unsigned int device_addr,
 				 unsigned int val_addr)
 {
@@ -582,14 +582,14 @@ int rk3288_edp_select_i2c_device(struct rk3288_edp *edp,
 	writel(val, edp->regs + AUX_CH_CTL_1);
 
 	/* Start AUX transaction */
-	retval = rk3288_edp_start_aux_transaction(edp);
+	retval = rockchip_edp_start_aux_transaction(edp);
 	if (retval != 0)
 		dev_dbg(edp->dev, "Aux Transaction fail!\n");
 
 	return retval;
 }
 
-int rk3288_edp_read_byte_from_i2c(struct rk3288_edp *edp,
+int rockchip_edp_read_byte_from_i2c(struct rockchip_edp_device *edp,
 				  unsigned int device_addr,
 				  unsigned int val_addr,
 				  unsigned int *data)
@@ -604,7 +604,7 @@ int rk3288_edp_read_byte_from_i2c(struct rk3288_edp *edp,
 		writel(val, edp->regs + BUFFER_DATA_CTL);
 
 		/* Select EDID device */
-		retval = rk3288_edp_select_i2c_device(edp,
+		retval = rockchip_edp_select_i2c_device(edp,
 						      device_addr,
 						      val_addr);
 		if (retval != 0) {
@@ -621,7 +621,7 @@ int rk3288_edp_read_byte_from_i2c(struct rk3288_edp *edp,
 		writel(val, edp->regs + AUX_CH_CTL_1);
 
 		/* Start AUX transaction */
-		retval = rk3288_edp_start_aux_transaction(edp);
+		retval = rockchip_edp_start_aux_transaction(edp);
 		if (retval == 0)
 			break;
 		else
@@ -635,7 +635,7 @@ int rk3288_edp_read_byte_from_i2c(struct rk3288_edp *edp,
 	return retval;
 }
 
-int rk3288_edp_read_bytes_from_i2c(struct rk3288_edp *edp,
+int rockchip_edp_read_bytes_from_i2c(struct rockchip_edp_device *edp,
 				   unsigned int device_addr,
 				   unsigned int val_addr,
 				   unsigned int count,
@@ -663,7 +663,7 @@ int rk3288_edp_read_bytes_from_i2c(struct rk3288_edp *edp,
 			 * request without sending addres
 			 */
 			if (!defer)
-				retval = rk3288_edp_select_i2c_device(
+				retval = rockchip_edp_select_i2c_device(
 						edp, device_addr, val_addr + i);
 			else
 				defer = 0;
@@ -678,7 +678,7 @@ int rk3288_edp_read_bytes_from_i2c(struct rk3288_edp *edp,
 			writel(val, edp->regs + AUX_CH_CTL_1);
 
 			/* Start AUX transaction */
-			retval = rk3288_edp_start_aux_transaction(edp);
+			retval = rockchip_edp_start_aux_transaction(edp);
 			if (retval == 0)
 				break;
 			else
@@ -702,7 +702,7 @@ int rk3288_edp_read_bytes_from_i2c(struct rk3288_edp *edp,
 	return retval;
 }
 
-void rk3288_edp_set_link_bandwidth(struct rk3288_edp *edp, u32 bwtype)
+void rockchip_edp_set_link_bandwidth(struct rockchip_edp_device *edp, u32 bwtype)
 {
 	u32 val;
 
@@ -711,7 +711,7 @@ void rk3288_edp_set_link_bandwidth(struct rk3288_edp *edp, u32 bwtype)
 		writel(val, edp->regs + LINK_BW_SET);
 }
 
-void rk3288_edp_get_link_bandwidth(struct rk3288_edp *edp, u32 *bwtype)
+void rockchip_edp_get_link_bandwidth(struct rockchip_edp_device *edp, u32 *bwtype)
 {
 	u32 val;
 
@@ -719,7 +719,7 @@ void rk3288_edp_get_link_bandwidth(struct rk3288_edp *edp, u32 *bwtype)
 	*bwtype = val;
 }
 
-void rk3288_edp_hw_link_training_en(struct rk3288_edp *edp)
+void rockchip_edp_hw_link_training_en(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -727,7 +727,7 @@ void rk3288_edp_hw_link_training_en(struct rk3288_edp *edp)
 	writel(val, edp->regs + HW_LT_CTL);
 }
 
-int rk3288_edp_wait_hw_lt_done(struct rk3288_edp *edp)
+int rockchip_edp_wait_hw_lt_done(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -740,14 +740,14 @@ int rk3288_edp_wait_hw_lt_done(struct rk3288_edp *edp)
 	}
 }
 
-int rk3288_edp_get_hw_lt_status(struct rk3288_edp *edp)
+int rockchip_edp_get_hw_lt_status(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
 	val = readl(edp->regs + HW_LT_CTL);
 	return (val & HW_LT_ERR_CODE_MASK) >> 4;
 }
-void rk3288_edp_set_lane_count(struct rk3288_edp *edp, u32 count)
+void rockchip_edp_set_lane_count(struct rockchip_edp_device *edp, u32 count)
 {
 	u32 val;
 
@@ -755,7 +755,7 @@ void rk3288_edp_set_lane_count(struct rk3288_edp *edp, u32 count)
 	writel(val, edp->regs + LANE_CNT_SET);
 }
 
-void rk3288_edp_get_lane_count(struct rk3288_edp *edp, u32 *count)
+void rockchip_edp_get_lane_count(struct rockchip_edp_device *edp, u32 *count)
 {
 	u32 val;
 
@@ -763,7 +763,7 @@ void rk3288_edp_get_lane_count(struct rk3288_edp *edp, u32 *count)
 	*count = val;
 }
 
-void rk3288_edp_enable_enhanced_mode(struct rk3288_edp *edp, bool enable)
+void rockchip_edp_enable_enhanced_mode(struct rockchip_edp_device *edp, bool enable)
 {
 	u32 val;
 
@@ -778,7 +778,7 @@ void rk3288_edp_enable_enhanced_mode(struct rk3288_edp *edp, bool enable)
 	}
 }
 
-void rk3288_edp_set_training_pattern(struct rk3288_edp *edp,
+void rockchip_edp_set_training_pattern(struct rockchip_edp_device *edp,
 				     enum pattern_set pattern)
 {
 	u32 val;
@@ -811,7 +811,7 @@ void rk3288_edp_set_training_pattern(struct rk3288_edp *edp,
 	}
 }
 
-void rk3288_edp_set_lane0_pre_emphasis(struct rk3288_edp *edp, u32 level)
+void rockchip_edp_set_lane0_pre_emphasis(struct rockchip_edp_device *edp, u32 level)
 {
 	u32 val;
 
@@ -819,7 +819,7 @@ void rk3288_edp_set_lane0_pre_emphasis(struct rk3288_edp *edp, u32 level)
 	writel(val, edp->regs + LN0_LINK_TRAINING_CTL);
 }
 
-void rk3288_edp_set_lane1_pre_emphasis(struct rk3288_edp *edp, u32 level)
+void rockchip_edp_set_lane1_pre_emphasis(struct rockchip_edp_device *edp, u32 level)
 {
 	u32 val;
 
@@ -827,7 +827,7 @@ void rk3288_edp_set_lane1_pre_emphasis(struct rk3288_edp *edp, u32 level)
 	writel(val, edp->regs + LN1_LINK_TRAINING_CTL);
 }
 
-void rk3288_edp_set_lane2_pre_emphasis(struct rk3288_edp *edp, u32 level)
+void rockchip_edp_set_lane2_pre_emphasis(struct rockchip_edp_device *edp, u32 level)
 {
 	u32 val;
 
@@ -835,7 +835,7 @@ void rk3288_edp_set_lane2_pre_emphasis(struct rk3288_edp *edp, u32 level)
 	writel(val, edp->regs + LN2_LINK_TRAINING_CTL);
 }
 
-void rk3288_edp_set_lane3_pre_emphasis(struct rk3288_edp *edp, u32 level)
+void rockchip_edp_set_lane3_pre_emphasis(struct rockchip_edp_device *edp, u32 level)
 {
 	u32 val;
 
@@ -843,7 +843,7 @@ void rk3288_edp_set_lane3_pre_emphasis(struct rk3288_edp *edp, u32 level)
 	writel(val, edp->regs + LN3_LINK_TRAINING_CTL);
 }
 
-void rk3288_edp_set_lane0_link_training(struct rk3288_edp *edp,
+void rockchip_edp_set_lane0_link_training(struct rockchip_edp_device *edp,
 					u32 training_lane)
 {
 	u32 val;
@@ -852,7 +852,7 @@ void rk3288_edp_set_lane0_link_training(struct rk3288_edp *edp,
 	writel(val, edp->regs + LN0_LINK_TRAINING_CTL);
 }
 
-void rk3288_edp_set_lane1_link_training(struct rk3288_edp *edp,
+void rockchip_edp_set_lane1_link_training(struct rockchip_edp_device *edp,
 					u32 training_lane)
 {
 	u32 val;
@@ -861,7 +861,7 @@ void rk3288_edp_set_lane1_link_training(struct rk3288_edp *edp,
 	writel(val, edp->regs + LN1_LINK_TRAINING_CTL);
 }
 
-void rk3288_edp_set_lane2_link_training(struct rk3288_edp *edp,
+void rockchip_edp_set_lane2_link_training(struct rockchip_edp_device *edp,
 					u32 training_lane)
 {
 	u32 val;
@@ -870,7 +870,7 @@ void rk3288_edp_set_lane2_link_training(struct rk3288_edp *edp,
 	writel(val, edp->regs + LN2_LINK_TRAINING_CTL);
 }
 
-void rk3288_edp_set_lane3_link_training(struct rk3288_edp *edp,
+void rockchip_edp_set_lane3_link_training(struct rockchip_edp_device *edp,
 					u32 training_lane)
 {
 	u32 val;
@@ -879,7 +879,7 @@ void rk3288_edp_set_lane3_link_training(struct rk3288_edp *edp,
 	writel(val, edp->regs + LN3_LINK_TRAINING_CTL);
 }
 
-u32 rk3288_edp_get_lane0_link_training(struct rk3288_edp *edp)
+u32 rockchip_edp_get_lane0_link_training(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -887,7 +887,7 @@ u32 rk3288_edp_get_lane0_link_training(struct rk3288_edp *edp)
 	return val;
 }
 
-u32 rk3288_edp_get_lane1_link_training(struct rk3288_edp *edp)
+u32 rockchip_edp_get_lane1_link_training(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -895,7 +895,7 @@ u32 rk3288_edp_get_lane1_link_training(struct rk3288_edp *edp)
 	return val;
 }
 
-u32 rk3288_edp_get_lane2_link_training(struct rk3288_edp *edp)
+u32 rockchip_edp_get_lane2_link_training(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -903,7 +903,7 @@ u32 rk3288_edp_get_lane2_link_training(struct rk3288_edp *edp)
 	return val;
 }
 
-u32 rk3288_edp_get_lane3_link_training(struct rk3288_edp *edp)
+u32 rockchip_edp_get_lane3_link_training(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -911,11 +911,11 @@ u32 rk3288_edp_get_lane3_link_training(struct rk3288_edp *edp)
 	return val;
 }
 
-void rk3288_edp_reset_macro(struct rk3288_edp *edp)
+void rockchip_edp_reset_macro(struct rockchip_edp_device *edp)
 {
 }
 
-int rk3288_edp_init_video(struct rk3288_edp *edp)
+int rockchip_edp_init_video(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -937,7 +937,7 @@ int rk3288_edp_init_video(struct rk3288_edp *edp)
 	return 0;
 }
 
-void rk3288_edp_set_video_color_format(struct rk3288_edp *edp,
+void rockchip_edp_set_video_color_format(struct rockchip_edp_device *edp,
 				       u32 color_dedpth,
 				       u32 color_space,
 				       u32 dynamic_range,
@@ -961,7 +961,7 @@ void rk3288_edp_set_video_color_format(struct rk3288_edp *edp,
 	writel(val, edp->regs + VIDEO_CTL_3);
 }
 
-int rk3288_edp_is_slave_video_stream_clock_on(struct rk3288_edp *edp)
+int rockchip_edp_is_slave_video_stream_clock_on(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -987,7 +987,7 @@ int rk3288_edp_is_slave_video_stream_clock_on(struct rk3288_edp *edp)
 	return 0;
 }
 
-void rk3288_edp_set_video_cr_mn(struct rk3288_edp *edp,
+void rockchip_edp_set_video_cr_mn(struct rockchip_edp_device *edp,
 				enum clock_recovery_m_value_type type,
 				u32 m_value,
 				u32 n_value)
@@ -1022,7 +1022,7 @@ void rk3288_edp_set_video_cr_mn(struct rk3288_edp *edp,
 	}
 }
 
-void rk3288_edp_set_video_timing_mode(struct rk3288_edp *edp, u32 type)
+void rockchip_edp_set_video_timing_mode(struct rockchip_edp_device *edp, u32 type)
 {
 	u32 val;
 
@@ -1037,7 +1037,7 @@ void rk3288_edp_set_video_timing_mode(struct rk3288_edp *edp, u32 type)
 	}
 }
 
-int rk3288_edp_bist_cfg(struct rk3288_edp *edp)
+int rockchip_edp_bist_cfg(struct rockchip_edp_device *edp)
 {
 	struct video_info *video_info = &edp->video_info;
 	struct drm_display_mode *mode = &edp->mode;
@@ -1048,8 +1048,8 @@ int rk3288_edp_bist_cfg(struct rk3288_edp *edp)
 	y_total = mode->vtotal;
 	x_act = mode->hdisplay;
 
-	rk3288_edp_set_video_cr_mn(edp, CALCULATED_M, 0, 0);
-	rk3288_edp_set_video_color_format(edp, video_info->color_depth,
+	rockchip_edp_set_video_cr_mn(edp, CALCULATED_M, 0, 0);
+	rockchip_edp_set_video_color_format(edp, video_info->color_depth,
 					  video_info->color_space,
 					  video_info->dynamic_range,
 					  video_info->ycbcr_coeff);
@@ -1098,11 +1098,11 @@ int rk3288_edp_bist_cfg(struct rk3288_edp *edp)
 	return 0;
 }
 
-void rk3288_edp_enable_video_master(struct rk3288_edp *edp, bool enable)
+void rockchip_edp_enable_video_master(struct rockchip_edp_device *edp, bool enable)
 {
 }
 
-void rk3288_edp_start_video(struct rk3288_edp *edp)
+void rockchip_edp_start_video(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -1111,7 +1111,7 @@ void rk3288_edp_start_video(struct rk3288_edp *edp)
 	writel(val, edp->regs + VIDEO_CTL_1);
 }
 
-int rk3288_edp_is_video_stream_on(struct rk3288_edp *edp)
+int rockchip_edp_is_video_stream_on(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -1127,7 +1127,7 @@ int rk3288_edp_is_video_stream_on(struct rk3288_edp *edp)
 	return 0;
 }
 
-void rk3288_edp_config_video_slave_mode(struct rk3288_edp *edp,
+void rockchip_edp_config_video_slave_mode(struct rockchip_edp_device *edp,
 					struct video_info *video_info)
 {
 	u32 val;
@@ -1155,7 +1155,7 @@ void rk3288_edp_config_video_slave_mode(struct rk3288_edp *edp,
 	writel(val, edp->regs + SOC_GENERAL_CTL);*/
 }
 
-void rk3288_edp_enable_scrambling(struct rk3288_edp *edp)
+void rockchip_edp_enable_scrambling(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -1164,7 +1164,7 @@ void rk3288_edp_enable_scrambling(struct rk3288_edp *edp)
 	writel(val, edp->regs + TRAINING_PTN_SET);
 }
 
-void rk3288_edp_disable_scrambling(struct rk3288_edp *edp)
+void rockchip_edp_disable_scrambling(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -1173,7 +1173,7 @@ void rk3288_edp_disable_scrambling(struct rk3288_edp *edp)
 	writel(val, edp->regs + TRAINING_PTN_SET);
 }
 
-enum dp_irq_type rk3288_edp_get_irq_type(struct rk3288_edp *edp)
+enum dp_irq_type rockchip_edp_get_irq_type(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
@@ -1191,7 +1191,7 @@ enum dp_irq_type rk3288_edp_get_irq_type(struct rk3288_edp *edp)
 	return DP_IRQ_TYPE_UNKNOWN;
 }
 
-void rk3288_edp_clear_hotplug_interrupts(struct rk3288_edp *edp)
+void rockchip_edp_clear_hotplug_interrupts(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
