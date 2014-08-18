@@ -1878,6 +1878,8 @@ static int rockchip_pinctrl_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, info);
 
+	regmap_write(info->regmap_base, 0x244, (1<<28) | (0 <<12));
+
 	return 0;
 }
 

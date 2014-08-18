@@ -15,9 +15,9 @@
 
 &pinctrl {
 	buttons {
-		//pwrbtn: pwrbtn {
-		//	rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_up>;
-		//};
+		pwrbtn: pwrbtn {
+			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
 		lid_switch: lid-switch {
 			rockchip,pins = <7 13 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
@@ -38,6 +38,12 @@
 	elan {
 		elan_isr: elan-isr {
 			rockchip,pins = <7 3 RK_FUNC_GPIO &pcfg_pull_up>;		
+		};
+	};
+
+	codec {
+		int_codec: int_codec {
+			rockchip,pins = <6 7 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
 	};
 };
@@ -103,7 +109,7 @@
 			#size-cells = <0>;
 			autorepeat;
 			pinctrl-names = "default";
-			pinctrl-0 = <&lid_switch>;
+			pinctrl-0 = <&pwrbtn &lid_switch>;
 
 			pwr-btn {
 				gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
@@ -175,7 +181,7 @@
 	sound {
 		compatible = "rockchip,rockchip-audio-max98090-veyron",
 				 "rockchip,rockchip-audio-max98090";
-		rockchip,model = "ROCKCHIP Veyron";
+		rockchip,model = "ROCKCHIP-I2S";
 
 		rockchip,audio-routing =
 			"Headphones", "HPR",
@@ -184,6 +190,9 @@
 			"Speakers", "SPKL",
 			"Mic Jack", "MICBIAS",
 			"IN34", "Mic Jack";
+
+		rockchip,hp-det-gpios = <&gpio6 5 GPIO_ACTIVE_HIGH>;
+		rockchip,mic-det-gpios = <&gpio6 11 GPIO_ACTIVE_HIGH>;
 
 		rockchip,i2s-controller = <&i2s>;
 		rockchip,audio-codec = <&max98090>;
@@ -257,6 +266,10 @@
 	max98090: max98090@10 {
 		compatible = "maxim,max98090";
 		reg = <0x10>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <7 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&int_codec>;
 	};
 };
 
@@ -288,6 +301,12 @@
 	pinctrl-0 = <&i2c5_xfer>;
 };
 
+&i2s {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s0_clk>;
+};
+
 &emmc {
 	num-slots = <1>;
 	status = "okay";
@@ -299,7 +318,9 @@
 
 	broken-cd;
 	non-removable;
-	supports-highspeed;
+	cap-mmc-highspeed;
+
+	caps2-mmc-hs200-1_8v;
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_rst &emmc_pwr &emmc_bus8>;
@@ -315,15 +336,25 @@
 	num-slots = <1>;
 	status = "okay";
 
-	clock-frequency = <50000000>;
-	clock-freq-min-max = <400000 50000000>;
+	vqmmc-supply = <&rk808_ldo8_reg>;
+
+	clock-frequency = <150000000>;
+	clock-freq-min-max = <400000 150000000>;
+
+	card-detect-delay = <200>;
+
+	default_voltage = <0>; //3.3v
+	cap-sd-highspeed;
+	cap-mmc-highspeed;
 
 	supports-highspeed;
-
-	pinctrl-names = "default";
-	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd &sdmmc_bus4>;
+	pinctrl-names = "default", "power_on", "power_off";
+	pinctrl-0 = <&sdmmc_clk &sdmmc_cd_gpio &sdmmc_cmd &sdmmc_bus4>;
+	pinctrl-1 = <&sdmmc_power_on>;
+	pinctrl-2 = <&sdmmc_power_off>;
 
 	slot@0 {
+		cd-gpios = <&gpio7 5 GPIO_ACTIVE_LOW>;
 		reg = <0>;
 		bus-width = <4>;
 		disable-wp;
@@ -334,15 +365,15 @@
 	num-slots = <1>;
 	status = "okay";
 
-	clock-frequency = <50000000>;
-	clock-freq-min-max = <400000 50000000>;
+	clock-frequency = <150000000>;
+	clock-freq-min-max = <400000 150000000>;
 
 	default_voltage = <1>; //1.8v
 
 	broken-cd;
 	non-removable;
 	cap-sdio-irq;
-	supports-highspeed;
+	cap-sd-highspeed;
 	ignore-pm-notify;
 	keep-power-in-suspend;
 
@@ -368,6 +399,12 @@
 		reg = <0>;
 
 		google,cros-ec-spi-msg-delay = <2000>;
+
+		charger: gpio-charger@0 {
+			compatible = "gpio-charger";
+			charger-type = "usb-sdp";
+			gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+		};
 
 		i2c-tunnel {
 			compatible = "google,cros-ec-i2c-tunnel";
@@ -405,7 +442,7 @@
 
 &rk808 {
 		//compatible = "rockchip,rk808";
-		rk808,system-power-controller;
+		rockchip,system-power-controller;
 		regulators {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -414,7 +451,7 @@
 				reg = <0>;
 				regulator-compatible = "DCDC_REG1";
 				regulator-name = "vdd_arm";
-				regulator-min-microvolt = <750000>;
+				regulator-min-microvolt = <850000>;
 				regulator-max-microvolt = <1250000>;
 				regulator-initial-mode = <0x2>;
 				regulator-always-on;
@@ -422,7 +459,7 @@
 				regulator-initial-state = <3>;
 				regulator-state-mem {
 					regulator-state-mode = <0x2>;
-					regulator-state-disabled;//disabled
+					regulator-state-disabled;
 					regulator-state-uv = <900000>;
 				};
 			};

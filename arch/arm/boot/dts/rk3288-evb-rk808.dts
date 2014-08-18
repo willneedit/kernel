@@ -19,7 +19,7 @@
 };
 &rk808 {
 		//compatible = "rockchip,rk808";
-		rk808,system-power-controller;
+		rockchip,system-power-controller;
 		regulators {
 			#address-cells = <1>;
 			#size-cells = <0>;

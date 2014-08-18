@@ -141,6 +141,8 @@ static int cros_ec_spi_receive_response(struct cros_ec_device *ec_dev,
 			return ret;
 		}
 
+		msleep(1);
+
 		for (end = ptr + EC_MSG_PREAMBLE_COUNT; ptr != end; ptr++) {
 			if (*ptr == EC_MSG_HEADER) {
 				dev_dbg(ec_dev->dev, "msg found at %zd\n",

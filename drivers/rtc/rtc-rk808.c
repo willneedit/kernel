@@ -30,7 +30,9 @@
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/miscdevice.h>
+#include <linux/i2c.h>
 #include <linux/irqdomain.h>
+#include <linux/clk-provider.h>
 
 /* RTC_CTRL_REG bitfields */
 #define BIT_RTC_CTRL_REG_STOP_RTC_M		0x01
@@ -70,6 +72,11 @@ struct rk808_rtc {
 	struct rk808 *rk808;
 	struct rtc_device *rtc;
 	unsigned int alarm_enabled:1;
+#ifdef CONFIG_COMMON_CLK
+	struct clk_onecell_data clk_data;
+	struct clk_hw		clkout1_hw;
+	struct clk_hw		clkout2_hw;
+#endif
 };
 
 /*
@@ -81,20 +88,12 @@ static int rk808_rtc_readtime(struct device *dev, struct rtc_time *tm)
 	struct rk808 *rk808 = rk808_rtc->rk808;
 	int ret;
 	u8 rtc_data[ALL_TIME_REGS + 1];
-	uint32_t rtc_ctl;
 
 	/* Has the RTC been programmed? */
-	ret = regmap_read(rk808->regmap, RK808_RTC_CTRL_REG, &rtc_ctl);
+	ret = regmap_update_bits(rk808->regmap, RK808_RTC_CTRL_REG,
+				 BIT_RTC_CTRL_REG_RTC_V_OPT_M, 0);
 	if (ret < 0) {
-		dev_err(dev, "Failed to read RTC control: %d\n", ret);
-		return ret;
-	}
-
-	rtc_ctl &= ~BIT_RTC_CTRL_REG_RTC_V_OPT_M;
-
-	ret = regmap_write(rk808->regmap, RK808_RTC_CTRL_REG, rtc_ctl);
-	if (ret < 0) {
-		dev_err(dev, "Failed to write RTC control: %d\n", ret);
+		dev_err(dev, "Failed to update RTC control: %d\n", ret);
 		return ret;
 	}
 
@@ -125,7 +124,6 @@ static int rk808_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	struct rk808_rtc *rk808_rtc = dev_get_drvdata(dev);
 	struct rk808 *rk808 = rk808_rtc->rk808;
 	int ret;
-	uint32_t rtc_ctl;
 	uint32_t rtc_data[ALL_TIME_REGS + 1];
 
 	rtc_data[0] = bin2bcd(tm->tm_sec);
@@ -140,15 +138,11 @@ static int rk808_rtc_set_time(struct device *dev, struct rtc_time *tm)
 		tm->tm_wday, tm->tm_hour , tm->tm_min, tm->tm_sec);
 
 	/* Stop RTC while updating the RTC registers */
-	ret = regmap_read(rk808->regmap, RK808_RTC_CTRL_REG, &rtc_ctl);
+	ret = regmap_update_bits(rk808->regmap, RK808_RTC_CTRL_REG,
+				 BIT_RTC_CTRL_REG_STOP_RTC_M,
+				 BIT_RTC_CTRL_REG_STOP_RTC_M);
 	if (ret < 0) {
-		dev_err(dev, "Failed to read RTC control: %d\n", ret);
-		return ret;
-	}
-	rtc_ctl |= (BIT_RTC_CTRL_REG_STOP_RTC_M);
-	ret = regmap_write(rk808->regmap, RK808_RTC_CTRL_REG, rtc_ctl);
-	if (ret < 0) {
-		dev_err(dev, "Failed to write RTC control: %d\n", ret);
+		dev_err(dev, "Failed to update RTC control: %d\n", ret);
 		return ret;
 	}
 
@@ -158,15 +152,10 @@ static int rk808_rtc_set_time(struct device *dev, struct rtc_time *tm)
 		return ret;
 	}
 	/* Start RTC again */
-	ret = regmap_read(rk808->regmap, RK808_RTC_CTRL_REG, &rtc_ctl);
+	ret = regmap_update_bits(rk808->regmap, RK808_RTC_CTRL_REG,
+				 BIT_RTC_CTRL_REG_STOP_RTC_M, 0);
 	if (ret < 0) {
-		dev_err(dev, "Failed to read RTC control: %d\n", ret);
-		return ret;
-	}
-	rtc_ctl &= ~BIT_RTC_CTRL_REG_STOP_RTC_M;
-	ret = regmap_write(rk808->regmap, RK808_RTC_CTRL_REG, rtc_ctl);
-	if (ret < 0) {
-		dev_err(dev, "Failed to write RTC control: %d\n", ret);
+		dev_err(dev, "Failed to update RTC control: %d\n", ret);
 		return ret;
 	}
 	return 0;
@@ -184,7 +173,7 @@ static int rk808_rtc_readalarm(struct device *dev, struct rtc_wkalrm *alrm)
 	u8 alrm_data[ALL_ALM_REGS + 1];
 
 	ret = regmap_bulk_read(rk808->regmap,
-			RK808_ALARM_SECONDS_REG, alrm_data, 6);
+			       RK808_ALARM_SECONDS_REG, alrm_data, 6);
 
 	/* some of these fields may be wildcard/"match all" */
 	alrm->time.tm_sec = bcd2bin(alrm_data[0]);
@@ -205,25 +194,18 @@ static int rk808_rtc_readalarm(struct device *dev, struct rtc_wkalrm *alrm)
 		alrm->time.tm_mday, alrm->time.tm_wday, alrm->time.tm_hour,
 		alrm->time.tm_min, alrm->time.tm_sec);
 
-	if (int_reg & BIT_RTC_INTERRUPTS_REG_IT_ALARM_M)
-		alrm->enabled = 1;
-	else
-		alrm->enabled = 0;
+	alrm->enabled = (int_reg & BIT_RTC_INTERRUPTS_REG_IT_ALARM_M) ? 1 : 0;
 
 	return 0;
 }
 
 static int rk808_rtc_stop_alarm(struct rk808_rtc *rk808_rtc)
 {
-	int int_reg;
 	int ret = 0;
 	struct rk808 *rk808 = rk808_rtc->rk808;
 
-	ret = regmap_read(rk808->regmap, RK808_RTC_INT_REG, &int_reg);
-	if (!ret) {
-		int_reg &= ~BIT_RTC_INTERRUPTS_REG_IT_ALARM_M;
-		ret = regmap_write(rk808->regmap, RK808_RTC_INT_REG, int_reg);
-	}
+	ret = regmap_update_bits(rk808->regmap, RK808_RTC_INT_REG,
+				 BIT_RTC_INTERRUPTS_REG_IT_ALARM_M, 0);
 	if (!ret)
 		rk808_rtc->alarm_enabled = 0;
 
@@ -232,15 +214,12 @@ static int rk808_rtc_stop_alarm(struct rk808_rtc *rk808_rtc)
 
 static int rk808_rtc_start_alarm(struct rk808_rtc *rk808_rtc)
 {
-	int int_reg;
 	int ret = 0;
 	struct rk808 *rk808 = rk808_rtc->rk808;
 
-	ret = regmap_read(rk808->regmap, RK808_RTC_INT_REG, &int_reg);
-	if (!ret) {
-		int_reg |= BIT_RTC_INTERRUPTS_REG_IT_ALARM_M;
-		ret = regmap_write(rk808->regmap, RK808_RTC_INT_REG, int_reg);
-	}
+	ret = regmap_update_bits(rk808->regmap, RK808_RTC_INT_REG,
+				 BIT_RTC_INTERRUPTS_REG_IT_ALARM_M,
+				 BIT_RTC_INTERRUPTS_REG_IT_ALARM_M);
 	if (!ret)
 		rk808_rtc->alarm_enabled = 1;
 
@@ -272,7 +251,7 @@ static int rk808_rtc_setalarm(struct device *dev, struct rtc_wkalrm *alrm)
 	alrm_data[5] = bin2bcd(alrm->time.tm_year - 100);
 
 	ret = regmap_bulk_write(rk808->regmap,
-			RK808_ALARM_SECONDS_REG, alrm_data, 6);
+				RK808_ALARM_SECONDS_REG, alrm_data, 6);
 	if (ret < 0) {
 		dev_err(dev, "Failed to bulk write: %d\n", ret);
 		return ret;
@@ -288,14 +267,14 @@ static int rk808_rtc_setalarm(struct device *dev, struct rtc_wkalrm *alrm)
 }
 
 static int rk808_rtc_alarm_irq_enable(struct device *dev,
-				       unsigned int enabled)
+				      unsigned int enabled)
 {
 	struct rk808_rtc *rk808_rtc = dev_get_drvdata(dev);
 
 	if (enabled)
 		return rk808_rtc_start_alarm(rk808_rtc);
-	else
-		return rk808_rtc_stop_alarm(rk808_rtc);
+
+	return rk808_rtc_stop_alarm(rk808_rtc);
 }
 
 /*
@@ -315,28 +294,17 @@ static irqreturn_t rk808_alm_irq(int irq, void *data)
 	int ret;
 	uint32_t rtc_ctl;
 
-	ret = regmap_read(rk808->regmap, RK808_RTC_STATUS_REG, &rtc_ctl);
+	ret = regmap_update_bits(rk808->regmap, RK808_RTC_STATUS_REG,
+				 0, 0);
 	if (ret < 0) {
 		dev_err(rk808_rtc->rk808->dev,
-			"%s:Failed to read RTC status: %d\n", __func__, ret);
-		return ret;
-	}
-
-	rtc_ctl &= 0xff;
-
-	/* The alarm interrupt keeps its low level, until the micro-controller
-	 * write 1 in the ALARM bit of the RTC_STATUS_REG register.
-	 */
-	ret = regmap_write(rk808->regmap, RK808_RTC_STATUS_REG, rtc_ctl);
-	if (ret < 0) {
-		dev_err(rk808_rtc->rk808->dev,
-			"%s:Failed to read RTC status: %d\n", __func__, ret);
+			"%s:Failed to update RTC status: %d\n", __func__, ret);
 		return ret;
 	}
 
 	rtc_update_irq(rk808_rtc->rtc, 1, RTC_IRQF | RTC_AF);
 	dev_info(rk808_rtc->rk808->dev,
-		"%s:irq=%d,rtc_ctl=0x%x\n", __func__, irq, rtc_ctl);
+		 "%s:irq=%d,rtc_ctl=0x%x\n", __func__, irq, rtc_ctl);
 	return IRQ_HANDLED;
 }
 
@@ -385,7 +353,6 @@ static int rk808_rtc_resume(struct device *dev)
 
 	return 0;
 }
-
 #else
 #define rk808_rtc_suspend NULL
 #define rk808_rtc_resume NULL
@@ -396,6 +363,99 @@ static const struct dev_pm_ops rk808_rtc_pm_ops = {
 	.resume = rk808_rtc_resume,
 	.poweroff = rk808_rtc_suspend,
 };
+
+#ifdef CONFIG_COMMON_CLK
+static unsigned long rk808_clkout_recalc_rate(struct clk_hw *hw,
+					      unsigned long parent_rate)
+{
+	return 32768;
+}
+
+static int rk808_clkout1_is_prepared(struct clk_hw *hw)
+{
+	return 1;
+}
+
+static int rk808_clkout2_control(struct clk_hw *hw, bool enable)
+{
+	struct rk808_rtc *rk808_rtc = container_of(hw, struct rk808_rtc,
+						   clkout2_hw);
+	struct rk808 *rk808 = rk808_rtc->rk808;
+
+	return regmap_update_bits(rk808->regmap, RK808_CLK32OUT_REG,
+				  CLK32KOUT2_EN, enable ? CLK32KOUT2_EN : 0);
+}
+
+static int rk808_clkout2_prepare(struct clk_hw *hw)
+{
+	return rk808_clkout2_control(hw, 1);
+}
+
+static void rk808_clkout2_unprepare(struct clk_hw *hw)
+{
+	rk808_clkout2_control(hw, 0);
+}
+
+static int rk808_clkout2_is_prepared(struct clk_hw *hw)
+{
+	struct rk808_rtc *rk808_rtc = container_of(hw, struct rk808_rtc,
+						   clkout2_hw);
+	struct rk808 *rk808 = rk808_rtc->rk808;
+	uint32_t val;
+
+	int ret = regmap_read(rk808->regmap, RK808_CLK32OUT_REG, &val);
+
+	if (ret < 0)
+		return ret;
+
+	return (val & CLK32KOUT2_EN) ? 1 : 0;
+}
+
+static const struct clk_ops rk808_clkout1_ops = {
+	.recalc_rate = rk808_clkout_recalc_rate,
+	.is_prepared = rk808_clkout1_is_prepared,
+};
+
+static const struct clk_ops rk808_clkout2_ops = {
+	.prepare = rk808_clkout2_prepare,
+	.unprepare = rk808_clkout2_unprepare,
+	.is_prepared = rk808_clkout2_is_prepared,
+	.recalc_rate = rk808_clkout_recalc_rate,
+};
+
+static int register_clocks(struct rk808_rtc *rk808_rtc)
+{
+	struct clk **clk_table;
+	struct clk_init_data init;
+	struct rk808 *rk808 = rk808_rtc->rk808;
+	struct i2c_client *client = rk808->i2c;
+	struct device_node *node = client->dev.of_node;
+
+	clk_table = devm_kzalloc(&client->dev,
+				 2*sizeof(struct clk *), GFP_KERNEL);
+	if (!clk_table)
+		return -ENOMEM;
+
+	init.flags = CLK_IS_ROOT;
+	init.parent_names = NULL;
+	init.num_parents = 0;
+	init.name = "rk808-clkout1";
+	init.ops = &rk808_clkout1_ops;
+	rk808_rtc->clkout1_hw.init = &init;
+	clk_table[0] = clk_register(&client->dev, &rk808_rtc->clkout1_hw);
+
+	init.name = "rk808-clkout2";
+	init.ops = &rk808_clkout2_ops;
+	rk808_rtc->clkout2_hw.init = &init;
+	clk_table[1] = clk_register(&client->dev, &rk808_rtc->clkout2_hw);
+
+	rk808_rtc->clk_data.clks = clk_table;
+	rk808_rtc->clk_data.clk_num = 2;
+	of_clk_add_provider(node, of_clk_src_onecell_get, clk_table);
+
+	return 0;
+}
+#endif
 
 /*2012.1.1 12:00:00 Saturday*/
 struct rtc_time tm_def = {
@@ -414,8 +474,7 @@ static int rk808_rtc_probe(struct platform_device *pdev)
 	struct rk808_rtc *rk808_rtc;
 	struct rtc_time tm;
 	int alm_irq;
-	int ret = 0;
-	uint32_t rtc_ctl;
+	int ret;
 
 	rk808_rtc = devm_kzalloc(&pdev->dev, sizeof(*rk808_rtc), GFP_KERNEL);
 	if (rk808_rtc == NULL)
@@ -425,19 +484,12 @@ static int rk808_rtc_probe(struct platform_device *pdev)
 	rk808_rtc->rk808 = rk808;
 
 	/* start rtc default */
-	ret = regmap_read(rk808->regmap, RK808_RTC_CTRL_REG, &rtc_ctl);
+	ret = regmap_update_bits(rk808->regmap, RK808_RTC_CTRL_REG,
+				 BIT_RTC_CTRL_REG_STOP_RTC_M, 0);
 	if (ret < 0) {
 		dev_err(&pdev->dev,
 			"Failed to read RTC control: %d\n", ret);
 		return ret;
-	}
-	rtc_ctl &= ~BIT_RTC_CTRL_REG_STOP_RTC_M;
-
-	ret = regmap_write(rk808->regmap, RK808_RTC_CTRL_REG, rtc_ctl);
-	if (ret < 0) {
-		dev_err(&pdev->dev,
-			"Failed to write RTC control: %d\n", ret);
-			return ret;
 	}
 
 	ret = regmap_write(rk808->regmap, RK808_RTC_STATUS_REG, 0xfe);
@@ -446,6 +498,7 @@ static int rk808_rtc_probe(struct platform_device *pdev)
 			"Failed to write RTC control: %d\n", ret);
 			return ret;
 	}
+
 	/* set init time */
 	ret = rk808_rtc_readtime(&pdev->dev, &tm);
 	if (ret < 0) {
@@ -476,17 +529,22 @@ static int rk808_rtc_probe(struct platform_device *pdev)
 
 	/* request alarm irq of rk808 */
 	ret = devm_request_threaded_irq(&pdev->dev, alm_irq, NULL,
-		rk808_alm_irq, IRQF_TRIGGER_LOW | IRQF_EARLY_RESUME,
-		"RTC alarm", rk808_rtc);
+					rk808_alm_irq,
+					IRQF_TRIGGER_LOW | IRQF_EARLY_RESUME,
+					"RTC alarm", rk808_rtc);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to request alarm IRQ %d: %d\n",
 			alm_irq, ret);
 	}
 	device_set_wakeup_capable(&pdev->dev, 1);
 
+#ifdef CONFIG_COMMON_CLK
+	ret = register_clocks(rk808_rtc);
+#endif
+
 	dev_info(rk808->dev, "%s:ok\n", __func__);
 
-	return 0;
+	return ret;
 }
 
 static struct platform_driver rk808_rtc_driver = {

@@ -661,6 +661,7 @@ try_again:
 	if (host->ops->init_card)
 		host->ops->init_card(host, card);
 
+	rocr &= ~R4_18V_PRESENT;
 	/*
 	 * If the host and card support UHS-I mode request the card
 	 * to switch to 1.8V signaling level.  No 1.8v signalling if
@@ -683,7 +684,7 @@ try_again:
 		}
 		err = 0;
 	} else {
-		ocr &= ~R4_18V_PRESENT;
+		//ocr &= ~R4_18V_PRESENT;
 	}
 
 	/*
