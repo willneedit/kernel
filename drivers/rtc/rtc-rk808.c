@@ -251,7 +251,7 @@ static int rk808_rtc_setalarm(struct device *dev, struct rtc_wkalrm *alrm)
 	alrm_data[5] = bin2bcd(alrm->time.tm_year - 100);
 
 	ret = regmap_bulk_write(rk808->regmap,
-			RK808_ALARM_SECONDS_REG, alrm_data, 6);
+				RK808_ALARM_SECONDS_REG, alrm_data, 6);
 	if (ret < 0) {
 		dev_err(dev, "Failed to bulk write: %d\n", ret);
 		return ret;
@@ -267,14 +267,14 @@ static int rk808_rtc_setalarm(struct device *dev, struct rtc_wkalrm *alrm)
 }
 
 static int rk808_rtc_alarm_irq_enable(struct device *dev,
-				       unsigned int enabled)
+				      unsigned int enabled)
 {
 	struct rk808_rtc *rk808_rtc = dev_get_drvdata(dev);
 
 	if (enabled)
 		return rk808_rtc_start_alarm(rk808_rtc);
-	else
-		return rk808_rtc_stop_alarm(rk808_rtc);
+
+	return rk808_rtc_stop_alarm(rk808_rtc);
 }
 
 /*
@@ -529,8 +529,9 @@ static int rk808_rtc_probe(struct platform_device *pdev)
 
 	/* request alarm irq of rk808 */
 	ret = devm_request_threaded_irq(&pdev->dev, alm_irq, NULL,
-		rk808_alm_irq, IRQF_TRIGGER_LOW | IRQF_EARLY_RESUME,
-		"RTC alarm", rk808_rtc);
+					rk808_alm_irq,
+					IRQF_TRIGGER_LOW | IRQF_EARLY_RESUME,
+					"RTC alarm", rk808_rtc);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to request alarm IRQ %d: %d\n",
 			alm_irq, ret);
