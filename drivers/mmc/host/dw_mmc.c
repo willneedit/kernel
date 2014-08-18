@@ -115,6 +115,7 @@ static const u8 tuning_blk_pattern_8bit[] = {
 static inline bool dw_mci_fifo_reset(struct dw_mci *host);
 static inline bool dw_mci_ctrl_all_reset(struct dw_mci *host);
 static void mci_send_cmd(struct dw_mci_slot *slot, u32 cmd, u32 arg);
+static bool dw_mci_ctrl_reset(struct dw_mci *host, u32 reset);
 
 #if defined(CONFIG_DEBUG_FS)
 static int dw_mci_req_show(struct seq_file *s, void *v)
@@ -692,6 +693,8 @@ static int dw_mci_submit_data_dma(struct dw_mci *host, struct mmc_data *data)
 	/* If we don't have a channel, we can't do DMA */
 	if (!host->use_dma)
 		return -ENODEV;
+
+	dw_mci_ctrl_reset(host, SDMMC_CTRL_DMA_RESET);
 
 	sg_len = dw_mci_pre_dma_transfer(host, data, 0);
 	if (sg_len < 0) {
