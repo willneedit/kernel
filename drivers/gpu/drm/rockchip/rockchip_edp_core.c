@@ -546,7 +546,7 @@ static void rockchip_drm_encoder_prepare(struct drm_encoder *encoder)
 
 static void rockchip_drm_encoder_commit(struct drm_encoder *encoder)
 {
-	rockchip_edp_commit(encoder);
+	/*rockchip_edp_commit(encoder);*/
 }
 
 static void rockchip_drm_encoder_disable(struct drm_encoder *encoder)
