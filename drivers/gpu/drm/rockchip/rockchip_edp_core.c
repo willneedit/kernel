@@ -25,7 +25,7 @@
 #include <video/of_videomode.h>
 #include <video/videomode.h>
 
-#include "rockchip_edp_core.h" 
+#include "rockchip_edp_core.h"
 
 #define connector_to_edp(c) \
 		container_of(c, struct rockchip_edp_device, connector)
@@ -272,9 +272,9 @@ static int rockchip_edp_config_video(struct rockchip_edp_device *edp,
 	rockchip_edp_config_video_slave_mode(edp, video_info);
 
 	rockchip_edp_set_video_color_format(edp, video_info->color_depth,
-					  video_info->color_space,
-					  video_info->dynamic_range,
-					  video_info->ycbcr_coeff);
+					    video_info->color_space,
+					    video_info->dynamic_range,
+					    video_info->ycbcr_coeff);
 
 	if (rockchip_edp_get_pll_lock_status(edp) == DP_PLL_UNLOCKED) {
 		dev_err(edp->dev, "PLL is not locked yet.\n");
@@ -365,9 +365,33 @@ static irqreturn_t rockchip_edp_isr(int irq, void *arg)
 	return IRQ_HANDLED;
 }
 
-static void rockchip_edp_enable(struct rockchip_edp_device *edp)
+static void rockchip_edp_commit(struct drm_encoder *encoder)
 {
+	struct rockchip_edp_device *edp = encoder_to_edp(encoder);
 	int ret = 0;
+
+	ret = rockchip_edp_set_link_train(edp);
+	if (ret)
+		dev_err(edp->dev, "link train failed!\n");
+	else
+		dev_dbg(edp->dev, "link training success.\n");
+
+	rockchip_edp_set_lane_count(edp, edp->link_train.lane_count);
+	rockchip_edp_set_link_bandwidth(edp, edp->link_train.link_rate);
+	rockchip_edp_init_video(edp);
+
+	ret = rockchip_edp_config_video(edp, &edp->video_info);
+	if (ret)
+		dev_err(edp->dev, "unable to config video\n");
+}
+
+static void rockchip_edp_poweron(struct drm_encoder *encoder)
+{
+	struct rockchip_edp_device *edp = encoder_to_edp(encoder);
+	int ret = 0;
+
+	if (edp->dpms_mode == DRM_MODE_DPMS_ON)
+		return;
 
 	if (edp->panel)
 		edp->panel->funcs->enable(edp->panel);
@@ -391,24 +415,16 @@ static void rockchip_edp_enable(struct rockchip_edp_device *edp)
 	}
 
 	enable_irq(edp->irq);
-
-	ret = rockchip_edp_set_link_train(edp);
-	if (ret)
-		dev_err(edp->dev, "link train failed!\n");
-	else
-		dev_dbg(edp->dev, "link training success.\n");
-
-	rockchip_edp_set_lane_count(edp, edp->link_train.lane_count);
-	rockchip_edp_set_link_bandwidth(edp, edp->link_train.link_rate);
-	rockchip_edp_init_video(edp);
-
-	ret = rockchip_edp_config_video(edp, &edp->video_info);
-	if (ret)
-		dev_err(edp->dev, "unable to config video\n");
+	rockchip_edp_commit(encoder);
 }
 
-static void rockchip_edp_disable(struct rockchip_edp_device *edp)
+static void rockchip_edp_poweroff(struct drm_encoder *encoder)
 {
+	struct rockchip_edp_device *edp = encoder_to_edp(encoder);
+
+	if (edp->dpms_mode == DRM_MODE_DPMS_OFF)
+		return;
+
 	disable_irq(edp->irq);
 	rockchip_edp_reset(edp);
 	rockchip_edp_analog_power_ctr(edp, 0);
@@ -467,12 +483,12 @@ static void rockchip_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
 	switch (mode) {
 	case DRM_MODE_DPMS_ON:
 		mdelay(100);
-		rockchip_edp_enable(edp);
+		rockchip_edp_poweron(encoder);
 		break;
 	case DRM_MODE_DPMS_STANDBY:
 	case DRM_MODE_DPMS_SUSPEND:
 	case DRM_MODE_DPMS_OFF:
-		rockchip_edp_disable(edp);
+		rockchip_edp_poweroff(encoder);
 		break;
 	default:
 		break;
@@ -491,7 +507,7 @@ rockchip_drm_encoder_mode_fixup(struct drm_encoder *encoder,
 
 		priv_mode = kzalloc(sizeof(*priv_mode), GFP_KERNEL);
 		priv_mode->out_type = ROCKCHIP_DISPLAY_TYPE_EDP;
-		adjusted_mode->private = (int *) priv_mode;
+		adjusted_mode->private = (int *)priv_mode;
 	}
 
 	return true;
@@ -509,7 +525,7 @@ static void rockchip_drm_encoder_mode_set(struct drm_encoder *encoder,
 	int index;
 
 	index = drm_crtc_index(encoder->crtc);
-	
+
 	rk_crtc = &private->rk_crtc[index];
 
 	if (rk_crtc->id == ROCKCHIP_CRTC_VOPL)
@@ -518,9 +534,8 @@ static void rockchip_drm_encoder_mode_set(struct drm_encoder *encoder,
 		val = EDP_SEL_VOP_LIT << 16;
 
 	ret = regmap_write(edp->grf, edp->soc_data->grf_soc_con6, val);
-	if (ret != 0) {
+	if (ret != 0)
 		dev_err(edp->dev, "Could not write to GRF: %d\n", ret);
-	}
 
 	memcpy(&edp->mode, adjusted, sizeof(*mode));
 }
@@ -531,7 +546,7 @@ static void rockchip_drm_encoder_prepare(struct drm_encoder *encoder)
 
 static void rockchip_drm_encoder_commit(struct drm_encoder *encoder)
 {
-//	rockchip_drm_encoder_dpms(encoder, DRM_MODE_DPMS_ON);
+	rockchip_edp_commit(encoder);
 }
 
 static void rockchip_drm_encoder_disable(struct drm_encoder *encoder)
@@ -797,8 +812,9 @@ static int rockchip_edp_probe(struct platform_device *pdev)
 static int rockchip_edp_remove(struct platform_device *pdev)
 {
 	struct rockchip_edp_device *edp = platform_get_drvdata(pdev);
+	struct drm_encoder *encoder = &edp->encoder;
 
-	rockchip_edp_disable(edp);
+	rockchip_drm_encoder_dpms(encoder, DRM_MODE_DPMS_OFF);
 
 	rockchip_drm_component_del(edp->dev);
 	return 0;
