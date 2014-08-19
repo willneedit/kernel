@@ -401,13 +401,11 @@ static int rockchip_lvds_bind(struct device *dev, struct device *master,
 	ret = drm_panel_attach(ctx->panel, connector);
 	if (ret) {
 		DRM_ERROR("failed to attach connector and encoder\n");
-		goto err_detach_connector;
+		goto err_free_connector_sysfs;
 	}
 
 	return 0;
 
-err_detach_connector:
-	drm_mode_connector_detach_encoder(connector, encoder);
 err_free_connector_sysfs:
 	drm_sysfs_connector_remove(connector);
 err_free_connector:
