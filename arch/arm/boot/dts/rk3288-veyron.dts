@@ -235,7 +235,7 @@
 	pinctrl-0 = <&i2c1_xfer>;
 
 	tpm: tpm@20 {
-		compatible = "infineon,slb9635tt";
+		compatible = "infineon,slb9645tt";
 		reg = <0x20>;
 	};
 };
