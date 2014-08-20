@@ -55,6 +55,8 @@
 		mshc1 = &sdio0;
 		mshc3 = &emmc;
 
+		i2c1 = &i2c1_fake;
+
 		serial0 = &uart0;
 		serial1 = &uart1;
 		serial2 = &uart2;
@@ -213,6 +215,18 @@
 		regulator-always-on;
 		regulator-boot-on;
 	};
+
+	i2c1_fake: i2c@1 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio8 4 0 /* sda */
+			 &gpio8 5 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <2>;	/* ~100 kHz */
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c1_fake_xfer>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
 };
 
 &i2c0 {
@@ -229,11 +243,8 @@
 	};
 };
 
-&i2c1 {
+&i2c1_fake {
 	status = "okay";
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c1_xfer>;
-
 	tpm: tpm@20 {
 		compatible = "infineon,slb9645tt";
 		reg = <0x20>;
@@ -244,8 +255,8 @@
 	status = "okay";
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c2_xfer>;
-
 	max98090: max98090@10 {
+		status = "okay";
 		compatible = "maxim,max98090";
 		reg = <0x10>;
 		interrupt-parent = <&gpio6>;
@@ -265,8 +276,8 @@
 	status = "okay";
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c4_xfer>;
-
 	elan_i2c@15 {
+		status = "okay";
 		compatible = "elan,ekt3000";
 		reg = <0x15>;
 		gpios = <&gpio7 3 GPIO_ACTIVE_HIGH>;
