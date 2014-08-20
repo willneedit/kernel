@@ -289,7 +289,7 @@ config RTC_DRV_MAX77686
 	  will be called rtc-max77686.
 
 config RTC_DRV_RK808
-	tristate "Rockchip RK808 RTC"
+	tristate "rk808 rtc for rk"
 	depends on MFD_RK808
 	help
 	  If you say yes here you will get support for the

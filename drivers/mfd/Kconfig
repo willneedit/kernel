@@ -553,7 +553,7 @@ config MFD_RC5T583
 	  different functionality of the device.
 
 config MFD_RK808
-	tristate "Rockchip RK808 Power Management chip"
+	bool "RK808 Power Management chip"
 	depends on I2C
 	select MFD_CORE
 	select REGMAP_I2C
