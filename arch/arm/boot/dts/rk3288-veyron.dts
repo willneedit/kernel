@@ -120,10 +120,14 @@
 			rockchip,panel = <&panel>;
 		};
 
-		lcdc1: lcdc@ff940000 {
+		vopb: vopb@ff930000 {
+	      		status = "okay";
+      		};
+
+		vopl: vopl@ff940000 {
 			status = "okay";
-		 };
-	
+		};
+
 		watchdog@ff800000 {
 			status = "okay";
 		};
