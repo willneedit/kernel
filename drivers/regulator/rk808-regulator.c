@@ -277,6 +277,8 @@ static const struct regulator_desc rk808_reg[] = {
 	},
 };
 
+#ifdef CONFIG_OF
+
 static struct of_regulator_match rk808_reg_matches[] = {
 	[RK808_ID_DCDC1]	= { .name = "DCDC_REG1" },
 	[RK808_ID_DCDC2]	= { .name = "DCDC_REG2" },
@@ -300,7 +302,7 @@ static int rk808_regulator_dts(struct rk808 *rk808)
 	struct device_node *np, *reg_np;
 	int i, count;
 
-	np = rk808->dev->of_node;
+	np = of_node_get(rk808->dev->of_node);
 	if (!np) {
 		dev_err(rk808->dev, "could not find pmic sub-node\n");
 		return -ENXIO;
@@ -327,8 +329,8 @@ static int rk808_regulator_dts(struct rk808 *rk808)
 	}
 
 	for (i = 0; i < count; i++) {
-		if (!rk808_reg_matches[i].init_data ||
-		    !rk808_reg_matches[i].of_node)
+		if (!rk808_reg_matches[i].init_data
+			|| !rk808_reg_matches[i].of_node)
 			continue;
 
 		pdata->rk808_init_data[i] = rk808_reg_matches[i].init_data;
@@ -337,6 +339,12 @@ static int rk808_regulator_dts(struct rk808 *rk808)
 
 	return 0;
 }
+#else
+static struct rk808_board rk808_regulator_dts(struct rk808 *rk808)
+{
+	return NULL;
+}
+#endif
 
 static int rk808_regulator_probe(struct platform_device *pdev)
 {
@@ -362,9 +370,11 @@ static int rk808_regulator_probe(struct platform_device *pdev)
 		return -ENXIO;
 	}
 
-	ret = rk808_regulator_dts(rk808);
-	if (ret)
-		return ret;
+	if (IS_ENABLED(CONFIG_OF) && rk808->dev->of_node) {
+		ret = rk808_regulator_dts(rk808);
+		if (ret)
+			return ret;
+	}
 
 	rk808->num_regulators = rk808_NUM_REGULATORS;
 	rk808->rdev = kcalloc(rk808_NUM_REGULATORS,
@@ -377,21 +387,17 @@ static int rk808_regulator_probe(struct platform_device *pdev)
 		reg_data = pdata->rk808_init_data[i];
 		if (!reg_data)
 			continue;
-
 		config.dev = rk808->dev;
 		config.driver_data = rk808;
 		config.regmap = rk808->regmap;
-
 		if (rk808->dev->of_node)
 			config.of_node = pdata->of_node[i];
 		if (reg_data->constraints.name)
 			rail_name = reg_data->constraints.name;
 		else
 			rail_name = rk808_reg[i].name;
-
 		reg_data->supply_regulator = rail_name;
 		config.init_data = reg_data;
-
 		rk808_rdev = regulator_register(&rk808_reg[i], &config);
 		if (IS_ERR(rk808_rdev)) {
 			dev_err(rk808->dev,
