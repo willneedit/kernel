@@ -406,7 +406,7 @@ static const struct panel_desc panel_lp097qx1 = {
 };
 
 static const struct drm_display_mode panel_n116bge_mode = {
-	.clock = 71000,
+	.clock = 76000,
 	.hdisplay = 1366,
 	.hsync_start = 1366 + 100,
 	.hsync_end = 1366 + 100 + 26,
