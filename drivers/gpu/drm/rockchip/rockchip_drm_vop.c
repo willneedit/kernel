@@ -512,6 +512,7 @@ static inline bool is_alpha_support(uint32_t format)
 	}
 }
 
+#ifdef CONFIG_ROCKCHIP_IOVMM
 struct device *vop_get_sysmmu_dev(struct vop_context *ctx)
 {
 	struct device_node *mmu_node;
@@ -550,6 +551,7 @@ static inline void platform_set_sysmmu(struct device *sysmmu, struct device *dev
 {
 	dev->archdata.iommu = sysmmu;
 }
+#endif
 
 static int rockchip_plane_get_size(int start, unsigned length, unsigned last)
 {

@@ -278,10 +278,21 @@ unlock:
 struct sg_table *rockchip_gem_prime_get_sg_table(struct drm_gem_object *obj)
 {
 	struct rockchip_gem_object *rk_obj = to_rockchip_obj(obj);
+	struct sg_table *sgt;
+	int ret;
 
-	BUG_ON(!rk_obj->sgt);
+	sgt = drm_prime_pages_to_sg(rk_obj->pages, obj->size / PAGE_SIZE);
+	if (IS_ERR(sgt)) {
+		dev_err(obj->dev->dev, "failed to allocate sgt\n");
+		goto out;
+	}
 
-	return rk_obj->sgt;
+	return sgt;
+
+out:
+	kfree(sgt);
+	return NULL;
+
 }
 
 struct drm_gem_object *
