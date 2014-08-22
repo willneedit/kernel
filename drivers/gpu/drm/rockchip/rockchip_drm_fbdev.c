@@ -34,31 +34,30 @@ struct rockchip_fbdev {
 static int rockchip_drm_fb_mmap(struct fb_info *info,
 			struct vm_area_struct *vma)
 {
-	struct drm_fb_helper *helper = info->par;
-	struct drm_device *dev = helper->dev;
-	struct drm_gem_object *obj;
-	struct drm_vma_offset_node *node;
-	int ret;
+	unsigned long start = vma->vm_start;
+	unsigned long size = vma->vm_end - vma->vm_start;
+	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
+	unsigned long page, pos;
 
-	if (drm_device_is_unplugged(dev))
-		return -ENODEV;
+	if (offset + size > info->fix.smem_len)
+		return -EINVAL;
 
-	mutex_lock(&dev->struct_mutex);
+	pos = (unsigned long)info->fix.smem_start + offset;
 
-	node = drm_vma_offset_exact_lookup(dev->vma_offset_manager,
-					   vma->vm_pgoff,
-					   vma_pages(vma));
-	if (!node) {
-		mutex_unlock(&dev->struct_mutex);
-		return -EACCES;
+	while (size > 0) {
+		page = vmalloc_to_pfn((void *)pos);
+		if (remap_pfn_range(vma, start, page, PAGE_SIZE, PAGE_SHARED))
+			return -EAGAIN;
+
+		start += PAGE_SIZE;
+		pos += PAGE_SIZE;
+		if (size > PAGE_SIZE)
+			size -= PAGE_SIZE;
+		else
+			size = 0;
 	}
 
-	obj = container_of(node, struct drm_gem_object, vma_node);
-	ret = drm_gem_mmap_obj(obj, drm_vma_node_size(node) << PAGE_SHIFT, vma);
-
-	mutex_unlock(&dev->struct_mutex);
-
-	return ret;
+	return 0;
 }
 
 static struct fb_ops rockchip_drm_fbdev_ops = {
@@ -97,6 +96,7 @@ static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 		sizes->surface_depth);
 
 	size = mode_cmd.pitches[0] * mode_cmd.height;
+
 	rk_obj = rockchip_gem_create_object(dev, size);
 	if (IS_ERR(rk_obj))
 		return -ENOMEM;
@@ -143,9 +143,9 @@ static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 
 	dev->mode_config.fb_base = 0;
 	fbi->screen_base = rk_obj->vaddr + offset;
-	fbi->screen_size = size;
-	fbi->fix.smem_start = 0;
-	fbi->fix.smem_len = size;
+	fbi->screen_size = rk_obj->base.size;
+	fbi->fix.smem_start = (unsigned long)rk_obj->vaddr;
+	fbi->fix.smem_len = rk_obj->base.size;
 
 	DRM_DEBUG_KMS("FB [%dx%d]-%d vaddr=%p paddr=%x offset=%ld size=%d\n",
 		      fb->width, fb->height, fb->depth, rk_obj->vaddr,
