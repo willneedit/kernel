@@ -694,6 +694,12 @@
 					rockchip,pins = <5 15 3 &pcfg_pull_none>;
 				};
 			};
+
+			tsadc {
+				tsadc_int: tsadc-int {
+				rockchip,pins = <0 10 RK_FUNC_1 &pcfg_pull_up>;
+				};
+			};
 		};
 
 		i2c0: i2c@ff650000 {
@@ -859,6 +865,21 @@
 			pinctrl-0 = <&pwm3_pin>;
 			clocks = <&cru PCLK_RKPWM>;
 			clock-names = "pwm";
+			status = "disabled";
+		};
+
+		tsadc: tsadc@ff280000 {
+			compatible = "rockchip,rk3288-tsadc";
+			reg = <0xff280000 0x100>;
+			interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>;
+			clock-frequency = <10000>;
+			clocks = <&cru SCLK_TSADC>, <&cru PCLK_TSADC>;
+			clock-names = "tsadc_clk", "tsadc_pclk";
+			pinctrl-names = "default";
+			pinctrl-1 = <&tsadc_int>;
+			passive-temp = <80>;
+			critical-temp = <100>;
+			force-shut-temp = <120>;
 			status = "disabled";
 		};
 		
