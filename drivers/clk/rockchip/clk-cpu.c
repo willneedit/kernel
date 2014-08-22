@@ -124,7 +124,7 @@ static int rockchip_cpuclk_pre_rate_change(struct rockchip_cpuclk *cpuclk,
 	 * set.
 	 */
 	if (alt_prate > ndata->old_rate) {
-		alt_div =  DIV_ROUND_UP(alt_prate, ndata->old_rate) - 1;
+		alt_div =  0;//DIV_ROUND_UP(alt_prate, ndata->old_rate) - 1;
 		WARN_ON(alt_div >= reg_data->div_core_mask);
 
 		pr_debug("%s: setting div %lu as alt-rate %lu > old-rate %lu\n",
