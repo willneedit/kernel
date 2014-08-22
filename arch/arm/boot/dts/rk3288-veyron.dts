@@ -441,7 +441,7 @@
 				regulator-compatible = "DCDC_REG1";
 				regulator-name = "vdd_arm";
 				regulator-min-microvolt = <850000>;
-				regulator-max-microvolt = <1250000>;
+				regulator-max-microvolt = <1350000>;
 				regulator-initial-mode = <0x2>;
 				regulator-always-on;
 				regulator-boot-on;
