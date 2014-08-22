@@ -141,6 +141,15 @@ config SPEAR_THERMAL
 	  Enable this to plug the SPEAr thermal sensor driver into the Linux
 	  thermal framework.
 
+config ROCKCHIP_THERMAL
+	tristate "Rockchip thermal driver"
+	depends on ARCH_ROCKCHIP
+	help
+	  Support for Temperature Sensor ADC (TS-ADC) found on Rockchip SoCs.
+	  It supports one critical trip point and one passive trip point.  The
+	  cpufreq is used as the cooling device to throttle CPUs when the
+	  passive trip is crossed.
+
 config RCAR_THERMAL
 	tristate "Renesas R-Car thermal driver"
 	depends on ARCH_SHMOBILE || COMPILE_TEST
