@@ -1909,10 +1909,10 @@ static void elan_async_init(void *arg, async_cookie_t cookie)
 	* the rest will use the default.
 	*/
 	irqflags = of_driver_match_device(&client->dev, client->dev.driver) ?
-	0 : IRQF_TRIGGER_FALLING;
+					  0 : IRQF_TRIGGER_FALLING;
 
 	ret = request_threaded_irq(client->irq, NULL, elan_isr,
-				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+				   irqflags | IRQF_ONESHOT,
 				   client->name, data);
 	if (ret < 0) {
 		dev_err(&client->dev, "cannot register irq=%d\n",
