@@ -63,7 +63,7 @@
 #define encoder_to_ctx(c) \
 		container_of(c, struct lvds_context, encoder)
 
-/**
+/*
  * @grf_offset: offset inside the grf regmap for setting the rockchip lvds
  */
 struct rockchip_lvds_soc_data {
@@ -84,7 +84,7 @@ static const struct of_device_id rockchip_lvds_dt_ids[] = {
 	{}
 };
 
-static inline int lvds_name_to_format(const char *s)
+static int lvds_name_to_format(const char *s)
 {
 	if (!s)
 		return 0;
@@ -245,7 +245,7 @@ rockchip_drm_encoder_mode_fixup(struct drm_encoder *encoder,
 
 		priv_mode = kzalloc(sizeof(*priv_mode), GFP_KERNEL);
 		priv_mode->out_type = ROCKCHIP_DISPLAY_TYPE_LVDS;
-		adjusted_mode->private = (int *) priv_mode;
+		adjusted_mode->private = (int *)priv_mode;
 	}
 
 	return true;
@@ -466,8 +466,8 @@ static int rockchip_lvds_probe(struct platform_device *pdev)
 	 * The control bit is located in the GRF register space.
 	 */
 	if (ctx->soc_data->grf_gpio_iomux >= 0 ||
-	    ctx->soc_data->grf_vop_sel >=0 ||
-	    ctx->soc_data->grf_lvds_ctrl >=0) {
+	    ctx->soc_data->grf_vop_sel >= 0 ||
+	    ctx->soc_data->grf_lvds_ctrl >= 0) {
 		ctx->grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
 		if (IS_ERR(ctx->grf)) {
 			dev_err(&pdev->dev,
@@ -513,7 +513,8 @@ static int rockchip_lvds_probe(struct platform_device *pdev)
 
 	ctx->dpms_mode = DRM_MODE_DPMS_OFF;
 
-	ret = rockchip_drm_component_add(ctx->dev, &rockchip_lvds_component_ops);
+	ret = rockchip_drm_component_add(ctx->dev,
+					 &rockchip_lvds_component_ops);
 	if (ret)
 		return -EINVAL;
 

@@ -21,6 +21,7 @@
 #include "rockchip_drm_gem.h"
 
 #define to_rockchip_fb(x) container_of(x, struct rockchip_drm_fb, fb)
+#define MIN(a, b) (((a) < (b)) ? (a): (b))
 
 struct rockchip_drm_fb {
 	struct drm_framebuffer fb;
@@ -32,7 +33,7 @@ struct drm_gem_object *rockchip_fb_get_gem_obj(struct drm_framebuffer *fb,
 {
 	struct rockchip_drm_fb *rk_fb = to_rockchip_fb(fb);
 
-	if (plane >= 4)
+	if (plane >= ROCKCHIP_MAX_FB_BUFFER)
 		return NULL;
 
 	return rk_fb->obj[plane];
@@ -44,7 +45,7 @@ static void rockchip_drm_fb_destroy(struct drm_framebuffer *fb)
 	struct drm_gem_object *obj;
 	int i;
 
-	for (i = 0; i < 4; i++) {
+	for (i = 0; i < ROCKCHIP_MAX_FB_BUFFER; i++) {
 		obj = rockchip_fb->obj[i];
 		if (obj)
 			drm_gem_object_unreference_unlocked(obj);
@@ -75,7 +76,7 @@ static struct rockchip_drm_fb *rockchip_fb_alloc(struct drm_device *dev,
 	struct rockchip_drm_fb *rockchip_fb;
 	int ret;
 	int i;
-	
+
 	rockchip_fb = kzalloc(sizeof(*rockchip_fb), GFP_KERNEL);
 	if (!rockchip_fb)
 		return ERR_PTR(-ENOMEM);
@@ -88,7 +89,8 @@ static struct rockchip_drm_fb *rockchip_fb_alloc(struct drm_device *dev,
 	ret = drm_framebuffer_init(dev, &rockchip_fb->fb,
 				   &rockchip_drm_fb_funcs);
 	if (ret) {
-		dev_err(dev->dev, "Failed to initialize framebuffer: %d\n", ret);
+		dev_err(dev->dev, "Failed to initialize framebuffer: %d\n",
+			ret);
 		kfree(rockchip_fb);
 		return ERR_PTR(ret);
 	}
@@ -101,31 +103,35 @@ rockchip_user_fb_create(struct drm_device *dev, struct drm_file *file_priv,
 			struct drm_mode_fb_cmd2 *mode_cmd)
 {
 	struct rockchip_drm_fb *rockchip_fb;
-	struct drm_gem_object *objs[4];
+	struct drm_gem_object *objs[ROCKCHIP_MAX_FB_BUFFER];
 	struct drm_gem_object *obj;
 	unsigned int hsub;
 	unsigned int vsub;
+	int num_planes;
 	int ret;
 	int i;
 
 	hsub = drm_format_horz_chroma_subsampling(mode_cmd->pixel_format);
 	vsub = drm_format_vert_chroma_subsampling(mode_cmd->pixel_format);
+	num_planes = MIN(drm_format_num_planes(mode_cmd->pixel_format),
+			 ROCKCHIP_MAX_FB_BUFFER);
 
-	for (i = 0; i < drm_format_num_planes(mode_cmd->pixel_format); i++) {
+	for (i = 0; i < num_planes; i++) {
 		unsigned int width = mode_cmd->width / (i ? hsub : 1);
 		unsigned int height = mode_cmd->height / (i ? vsub : 1);
 		unsigned int min_size;
 
-		obj = drm_gem_object_lookup(dev, file_priv, mode_cmd->handles[i]);
+		obj = drm_gem_object_lookup(dev, file_priv,
+					    mode_cmd->handles[i]);
 		if (!obj) {
 			dev_err(dev->dev, "Failed to lookup GEM object\n");
 			ret = -ENXIO;
 			goto err_gem_object_unreference;
 		}
 
-		min_size = (height - 1) * mode_cmd->pitches[i]
-			 + width * drm_format_plane_cpp(mode_cmd->pixel_format, i)
-			 + mode_cmd->offsets[i];
+		min_size = (height - 1) * mode_cmd->pitches[i] +
+			mode_cmd->offsets[i] +
+			width * drm_format_plane_cpp(mode_cmd->pixel_format, i);
 
 		if (obj->size < min_size) {
 			drm_gem_object_unreference_unlocked(obj);
@@ -171,9 +177,8 @@ rockchip_drm_framebuffer_init(struct drm_device *dev,
 	struct rockchip_drm_fb *rockchip_fb;
 
 	rockchip_fb = rockchip_fb_alloc(dev, mode_cmd, &obj, 1);
-	if (IS_ERR(rockchip_fb)) {
+	if (IS_ERR(rockchip_fb))
 		return NULL;
-	}
 
 	return &rockchip_fb->fb;
 }
@@ -186,8 +191,10 @@ void rockchip_drm_framebuffer_fini(struct drm_framebuffer *fb)
 	drm_framebuffer_unregister_private(fb);
 
 	for (i = 0; i < ROCKCHIP_MAX_FB_BUFFER; i++) {
-		if (rockchip_fb->obj[i])
-			drm_gem_object_unreference_unlocked(rockchip_fb->obj[i]);
+		struct drm_gem_object *obj = rockchip_fb->obj[i];
+
+		if (obj)
+			drm_gem_object_unreference_unlocked(obj);
 	}
 
 	drm_framebuffer_cleanup(fb);

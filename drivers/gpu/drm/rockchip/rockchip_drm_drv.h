@@ -21,6 +21,7 @@
 #include <linux/component.h>
 
 #define ROCKCHIP_MAX_FB_BUFFER	4
+#define ROCKCHIP_MAX_CONNECTOR	2
 
 struct drm_device;
 struct drm_connector;
@@ -72,8 +73,6 @@ enum rockchip_drm_output_type {
 	ROCKCHIP_DISPLAY_TYPE_RGB,
 	/* LVDS Interface. */
 	ROCKCHIP_DISPLAY_TYPE_LVDS,
-	/* DUAL LVDS Interface. */
-	ROCKCHIP_DISPLAY_TYPE_DUAL_LVDS,
 	/* EDP Interface. */
 	ROCKCHIP_DISPLAY_TYPE_EDP,
 	/* MIPI Interface. */
@@ -88,10 +87,14 @@ enum rockchip_crtc_type {
 	ROCKCHIP_MAX_CRTC,
 };
 
+/* Rockchip drm crtc
+ * id@ identify the crtc, so the connector know which crtc connected;
+ */
 struct rockchip_drm_crtc {
 	int id;
 	struct drm_crtc *crtc;
 };
+
 /*
  * Rockchip drm private structure.
  *
@@ -108,7 +111,6 @@ struct rockchip_drm_private {
 	unsigned int pipe;
 };
 
-
 void rockchip_drm_crtc_finish_pageflip(struct drm_device *dev, int pipe);
 void rockchip_drm_crtc_cancel_pending_flip(struct drm_device *dev);
 int rockchip_drm_crtc_enable_vblank(struct drm_device *dev, int pipe);
@@ -117,6 +119,7 @@ void rockchip_drm_crtc_disable_vblank(struct drm_device *dev, int pipe);
 int rockchip_drm_component_add(struct device *dev,
 			       const struct component_ops *ops);
 void rockchip_drm_component_del(struct device *dev);
+
 extern struct platform_driver rockchip_vop_platform_driver;
 #ifdef CONFIG_ROCKCHIP_LVDS
 extern struct platform_driver rockchip_lvds_driver;

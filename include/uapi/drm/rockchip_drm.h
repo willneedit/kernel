@@ -21,7 +21,6 @@
  * User-desired buffer creation information structure.
  *
  * @size: user-desired memory allocation size.
- *     - this size value would be page-aligned internally.
  * @flags: user request for setting memory type or cache attributes.
  * @handle: returned a handle to created gem object.
  *     - this handle will be set by gem module of kernel side.

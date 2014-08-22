@@ -1,9 +1,6 @@
 /*
- *
  * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
  * Author:mark yao <mark.yao@rock-chips.com>
- *
- * based on exynos_drm_fb.h
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -27,5 +24,5 @@ void rockchip_drm_framebuffer_fini(struct drm_framebuffer *fb);
 void rockchip_drm_mode_config_init(struct drm_device *dev);
 
 struct drm_gem_object *rockchip_fb_get_gem_obj(struct drm_framebuffer *fb,
-	unsigned int plane);
+					       unsigned int plane);
 #endif /* _ROCKCHIP_DRM_FB_H_ */

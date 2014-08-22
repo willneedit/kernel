@@ -14,11 +14,10 @@
  * GNU General Public License for more details.
  */
 
-#include <linux/pm_runtime.h>
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
-
-#include <linux/anon_inodes.h>
+#include <drm/drm_fb_helper.h>
+#include <linux/pm_runtime.h>
 #include <linux/component.h>
 
 #include <drm/rockchip_drm.h>
@@ -28,13 +27,11 @@
 #include "rockchip_drm_fbdev.h"
 #include "rockchip_drm_gem.h"
 
-#define DRIVER_NAME	"rockchip-drm"
+#define DRIVER_NAME	"rockchip"
 #define DRIVER_DESC	"RockChip Soc DRM"
 #define DRIVER_DATE	"20140818"
 #define DRIVER_MAJOR	1
 #define DRIVER_MINOR	0
-
-#define VBLANK_OFF_DELAY	50000
 
 static DEFINE_MUTEX(drm_component_lock);
 static LIST_HEAD(drm_component_list);
@@ -52,12 +49,12 @@ static int rockchip_drm_load(struct drm_device *dev, unsigned long flags)
 	struct rockchip_drm_private *private;
 	int ret;
 
-	private = kzalloc(sizeof(*private), GFP_KERNEL);
+	private = devm_kzalloc(dev->dev, sizeof(*private), GFP_KERNEL);
 	if (!private)
 		return -ENOMEM;
 
 	dev_set_drvdata(dev->dev, dev);
-	dev->dev_private = (void *)private;
+	dev->dev_private = private;
 
 	drm_mode_config_init(dev);
 
@@ -74,8 +71,6 @@ static int rockchip_drm_load(struct drm_device *dev, unsigned long flags)
 	ret = drm_vblank_init(dev, ROCKCHIP_MAX_CRTC);
 	if (ret)
 		goto err_mode_config_cleanup;
-
-	drm_vblank_offdelay = VBLANK_OFF_DELAY;
 
 	platform_set_drvdata(dev->platformdev, dev);
 	rockchip_drm_fbdev_init(dev);
@@ -143,47 +138,26 @@ static int rockchip_drm_resume(struct drm_device *dev)
 	return 0;
 }
 
-static int rockchip_drm_open(struct drm_device *dev, struct drm_file *file)
+void rockchip_drm_lastclose(struct drm_device *dev)
 {
-	return 0;
-}
+	struct rockchip_drm_private *priv = dev->dev_private;
 
-static void rockchip_drm_postclose(struct drm_device *dev,
-				   struct drm_file *file)
-{
-	struct drm_pending_event *e, *et;
-	unsigned long flags;
-
-	if (!file->driver_priv)
-		return;
-
-	/* Release all events not unhandled by page flip handler. */
-	rockchip_drm_crtc_cancel_pending_flip(dev);
-
-	spin_lock_irqsave(&dev->event_lock, flags);
-
-	/* Release all events handled by page flip handler but not freed. */
-	list_for_each_entry_safe(e, et, &file->event_list, link) {
-		list_del(&e->link);
-		e->destroy(e);
-	}
-
-	spin_unlock_irqrestore(&dev->event_lock, flags);
-
-	kfree(file->driver_priv);
-	file->driver_priv = NULL;
+	drm_modeset_lock_all(dev);
+	if (priv->fb_helper)
+		drm_fb_helper_restore_fbdev_mode(priv->fb_helper);
+	drm_modeset_unlock_all(dev);
 }
 
 static const struct drm_ioctl_desc rockchip_ioctls[] = {
-	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_CREATE, rockchip_drm_gem_create_ioctl,
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_CREATE, rockchip_gem_create_ioctl,
 			  DRM_UNLOCKED | DRM_AUTH),
-	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_MAP_OFFSET,
-			  rockchip_drm_gem_map_offset_ioctl, DRM_UNLOCKED |
-			  DRM_AUTH),
-	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_MMAP, rockchip_drm_gem_mmap_ioctl,
-			  DRM_UNLOCKED | DRM_AUTH),
-	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_GET, rockchip_drm_gem_get_ioctl,
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_GET, rockchip_gem_get_ioctl,
 			  DRM_UNLOCKED),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_MAP_OFFSET,
+			  rockchip_gem_map_offset_ioctl, DRM_UNLOCKED |
+			  DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_MMAP, rockchip_gem_mmap_ioctl,
+			  DRM_UNLOCKED | DRM_AUTH),
 };
 
 static const struct file_operations rockchip_drm_driver_fops = {
@@ -208,17 +182,16 @@ static struct drm_driver rockchip_drm_driver = {
 	.driver_features	= DRIVER_MODESET | DRIVER_GEM | DRIVER_PRIME,
 	.load			= rockchip_drm_load,
 	.unload			= rockchip_drm_unload,
+	.lastclose		= rockchip_drm_lastclose,
 	.suspend		= rockchip_drm_suspend,
 	.resume			= rockchip_drm_resume,
-	.open			= rockchip_drm_open,
-	.postclose		= rockchip_drm_postclose,
 	.get_vblank_counter	= drm_vblank_count,
 	.enable_vblank		= rockchip_drm_crtc_enable_vblank,
 	.disable_vblank		= rockchip_drm_crtc_disable_vblank,
-	.gem_free_object	= rockchip_drm_free_object,
 	.gem_vm_ops		= &rockchip_drm_vm_ops,
+	.gem_free_object	= rockchip_gem_free_object,
 	.dumb_create		= rockchip_gem_dumb_create,
-	.dumb_map_offset	= rockchip_drm_gem_dumb_map_offset,
+	.dumb_map_offset	= rockchip_gem_dumb_map_offset,
 	.dumb_destroy		= drm_gem_dumb_destroy,
 	.prime_handle_to_fd	= drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle	= drm_gem_prime_fd_to_handle,
@@ -369,12 +342,11 @@ static const struct component_master_ops rockchip_drm_ops = {
 
 static int rockchip_drm_platform_probe(struct platform_device *pdev)
 {
-	int ret;                                                                  
-	
-	
+	int ret;
+
 	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
 	rockchip_drm_driver.num_ioctls = ARRAY_SIZE(rockchip_ioctls);
-	
+
 	ret = component_master_add(&pdev->dev, &rockchip_drm_ops);
 	if (ret < 0)
 		DRM_DEBUG_KMS("re-tried by last sub driver probed later.\n");
@@ -461,6 +433,9 @@ static void rockchip_drm_exit(void)
 	platform_driver_unregister(&rockchip_vop_platform_driver);
 }
 
+/*
+ * use device_initcall_sync because we should wait panel-simple init
+ */
 device_initcall_sync(rockchip_drm_init);
 module_exit(rockchip_drm_exit);
 

@@ -22,7 +22,6 @@
 #include "rockchip_drm_gem.h"
 #include "rockchip_drm_fb.h"
 
-#define MAX_CONNECTOR		4
 #define PREFERRED_BPP		32
 #define to_rockchip_fbdev(x) container_of(x, struct rockchip_fbdev, helper)
 
@@ -157,7 +156,7 @@ err_rockchip_drm_framebuffer_fini:
 err_framebuffer_release:
 	framebuffer_release(fbi);
 err_rockchip_gem_free_object:
-	rockchip_drm_free_object(&rk_obj->base);
+	rockchip_gem_free_object(&rk_obj->base);
 	return ret;
 }
 
@@ -192,7 +191,7 @@ int rockchip_drm_fbdev_init(struct drm_device *dev)
 	fbdev->helper.funcs = &rockchip_drm_fb_helper_funcs;
 	helper = &fbdev->helper;
 
-	ret = drm_fb_helper_init(dev, helper, num_crtc, MAX_CONNECTOR);
+	ret = drm_fb_helper_init(dev, helper, num_crtc, ROCKCHIP_MAX_CONNECTOR);
 	if (ret < 0) {
 		dev_err(dev->dev, "Failed to initialize drm fb helper.\n");
 		goto err_free;

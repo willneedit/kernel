@@ -4,9 +4,8 @@
 
 ccflags-y := -Iinclude/drm -Idrivers/gpu/drm/rockchip
 
-rockchipdrm-y := rockchip_drm_drv.o rockchip_drm_gem.o \
-		rockchip_drm_fb.o rockchip_drm_fbdev.o \
-		rockchip_drm_vop.o
+rockchipdrm-y := rockchip_drm_drv.o rockchip_drm_fb.o rockchip_drm_fbdev.o \
+		rockchip_drm_gem.o rockchip_drm_vop.o
 
 rockchipdrm-$(CONFIG_ROCKCHIP_LVDS) += rockchip_lvds.o
 rockchipdrm-$(CONFIG_ROCKCHIP_EDP) += rockchip_edp_core.o rockchip_edp_reg.o

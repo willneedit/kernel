@@ -1,6 +1,6 @@
 config DRM_ROCKCHIP
 	tristate "DRM Support for Rockchip"
-	depends on DRM
+	depends on DRM && ROCKCHIP_IOVMM
 	select DRM_KMS_HELPER
 	select DRM_KMS_FB_HELPER
 	select DRM_PANEL
@@ -21,9 +21,14 @@ config ROCKCHIP_LVDS
 	depends on DRM_ROCKCHIP
 	help
 	  Choose this option if you have a Rockchip lvds.
+	  Rockchip rk3288 SoC has lvds Controller can be used.
+	  If you have an LVDS Panel, say Y to enable its driver.
 
 config ROCKCHIP_EDP
 	bool "Rockchip edp support"
 	depends on DRM_ROCKCHIP
 	help
-	  Choose this option if you have a Rockchip lvds.
+	  Choose this option if you have a Rockchip eDP.
+	  Rockchip rk3288 SoC has eDP TX Controller can be used.
+	  If you have an Embedded DisplayPort Panel, say Y to enable its
+	  driver.

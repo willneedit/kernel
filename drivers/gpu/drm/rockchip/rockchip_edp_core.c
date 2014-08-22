@@ -491,7 +491,6 @@ static void rockchip_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
 
 	switch (mode) {
 	case DRM_MODE_DPMS_ON:
-		mdelay(100);
 		rockchip_edp_poweron(encoder);
 		break;
 	case DRM_MODE_DPMS_STANDBY:
@@ -603,7 +602,7 @@ static int rockchip_edp_bind(struct device *dev, struct device *master,
 	edp->drm_dev = drm_dev;
 
 	panel_node = of_parse_phandle(edp->dev->of_node,
-			"rockchip,panel", 0);
+				      "rockchip,panel", 0);
 	if (!panel_node) {
 		DRM_ERROR("failed to find diaplay panel\n");
 		return -ENODEV;
