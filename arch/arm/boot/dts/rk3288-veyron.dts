@@ -80,6 +80,13 @@
 		enable-gpios = <&gpio7 15 GPIO_ACTIVE_HIGH>;
 	};
 
+	xin32k: xin32k {
+		compatible = "fixed-clock";
+		clock-frequency =<32768>;
+		#clock-cells=<0>;
+		clock-output-names = "xin32k";
+	};
+
 	soc {
 		gpio-keys {
 			compatible = "gpio-keys";
