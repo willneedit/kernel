@@ -21,6 +21,7 @@ config ARCH_ROCKCHIP
 	select ARCH_HAS_CPUFREQ
 	select ARM_HAS_SG_CHAIN
 	select CLKSRC_ARM_GLOBAL_TIMER_SCHED_CLOCK
+	select PM_GENERIC_DOMAINS if PM
 	help
 	  Support for Rockchip's Cortex-A9 Single-to-Quad-Core-SoCs
 	  containing the RK2928, RK30xx and RK31xx series.
