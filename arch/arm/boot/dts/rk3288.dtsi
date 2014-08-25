@@ -183,6 +183,12 @@
 			interrupts = <GIC_PPI 9 0xf04>;
 		};
 
+		power: power-domain {
+			compatible = "rockchip,rk3288-power-domain";
+			#rockchip,power-domain-cells = <1>;
+			rockchip,pmu = <&pmu>;
+		};
+
 		bus_intmem@ff700000 {
 			compatible = "mmio-sram";
 			reg = <0xff700000 0x18000>;
