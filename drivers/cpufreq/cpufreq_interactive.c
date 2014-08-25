@@ -984,11 +984,8 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		if (atomic_inc_return(&active_count) > 1)
 			return 0;
 
-		if (cpufreq_get_global_kobject())
-			rc = sysfs_create_group(cpufreq_global_kobject,
-						&interactive_attr_group);
-		else
-			rc = cpufreq_sysfs_create_file(&interactive_attr_group.attrs);
+		rc = sysfs_create_group(cpufreq_global_kobject,
+				&interactive_attr_group);
 		if (rc)
 			return rc;
 
