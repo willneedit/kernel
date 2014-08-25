@@ -111,7 +111,7 @@ void rockchip_edp_reset(struct rockchip_edp_device *edp)
 		LS_CLK_DOMAIN_FUNC_EN_N;
 	writel(val, edp->regs + FUNC_EN_2);
 
-	usleep_range(20, 30);
+	usleep_range(2000, 3000);
 
 	rockchip_edp_lane_swap(edp, 0);
 
@@ -204,7 +204,7 @@ void rockchip_edp_init_analog_func(struct rockchip_edp_device *edp)
 			break;
 		} else {
 			wt++;
-			udelay(5);
+			udelay(500);
 		}
 	}
 
@@ -301,7 +301,7 @@ int rockchip_edp_start_aux_transaction(struct rockchip_edp_device *edp)
 			return -ETIMEDOUT;
 		}
 		val = readl(edp->regs + AUX_CH_CTL_2);
-		usleep_range(100, 110);
+		usleep_range(2000, 2200);
 	}
 
 	/* Is AUX CH command redply received? */
@@ -313,7 +313,7 @@ int rockchip_edp_start_aux_transaction(struct rockchip_edp_device *edp)
 			return -ETIMEDOUT;
 		}
 		val = readl(edp->regs + DP_INT_STA);
-		usleep_range(10, 20);
+		usleep_range(1000, 2000);
 	}
 
 	/* Clear interrupt source for AUX CH command redply */
