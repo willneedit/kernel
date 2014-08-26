@@ -67,12 +67,11 @@ extern int rockchip_tsadc_get_temp(int chn);
 static u32 div_dvfs = 0 ;
 
 static mali_dvfs_info mali_dvfs_infotbl[] = {
-	  {850000,  100000, 0, 70, 0},
-      {900000,  200000, 50, 65, 0},
-      {1000000, 300000, 60, 78, 0},
-      {1050000, 420000, 65, 75, 0},
-      {1150000, 500000, 70, 75, 0},
-      {1200000, 600000, 90, 100, 0},
+	{800000,  100000, 0, 50, 0},
+	{850000,  200000, 50, 65, 0},
+	{950000,  300000, 40, 80, 0},
+	{1000000, 400000, 65, 85, 0},
+	{1150000, 600000, 85, 100, 0},
 };
 mali_dvfs_info *p_mali_dvfs_infotbl = mali_dvfs_infotbl;
 
@@ -148,7 +147,7 @@ static void mali_dvfs_event_proc(struct work_struct *w)
 	#define ROCKCHIP_PM_POLICY_NORMAL 0
 	#define ROCKCHIP_PM_POLICY_PERFORMANCE 1
 #endif
-	policy = ROCKCHIP_PM_POLICY_PERFORMANCE;
+	policy = ROCKCHIP_PM_POLICY_NORMAL;
 	if (ROCKCHIP_PM_POLICY_PERFORMANCE == policy) {
 		dvfs_status->step = MALI_DVFS_STEP - 1;	/*Highest level when performance mode*/
 	} else {

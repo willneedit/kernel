@@ -440,7 +440,7 @@
 				reg = <0>;
 				regulator-compatible = "DCDC_REG1";
 				regulator-name = "vdd_arm";
-				regulator-min-microvolt = <850000>;
+				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1350000>;
 				regulator-initial-mode = <0x2>;
 				regulator-always-on;
@@ -457,7 +457,7 @@
 				reg = <1>;
 				regulator-compatible = "DCDC_REG2";
 				regulator-name = "vdd_gpu";
-				regulator-min-microvolt = <850000>;
+				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1250000>;
 				regulator-initial-mode = <0x2>;
 				regulator-always-on;
