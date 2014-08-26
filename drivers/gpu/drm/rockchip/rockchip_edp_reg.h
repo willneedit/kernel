@@ -12,8 +12,10 @@
 * option) any later version.
 */
 
-#ifndef _RK32XX_DP_REG_H
-#define _RK32XX_DP_REG_H
+#ifndef _ROCKCHIP_EDP_REG_H
+#define _ROCKCHIP_EDP_REG_H
+
+#include <linux/bitops.h>
 
 #define DP_VERSION				0x10
 
@@ -84,22 +86,21 @@
 
 #define TOTAL_LINE_CFG_L			0x48
 #define TOTAL_LINE_CFG_H			0x4c
-#define ATV_LINE_CFG_L			0x50
-#define ATV_LINE_CFG_H			0x54
-#define VF_PORCH_REG			0x58
-#define VSYNC_CFG_REG			0x5c
-#define VB_PORCH_REG			0x60
-#define TOTAL_PIXELL_REG		0x64
-#define TOTAL_PIXELH_REG		0x68
-#define ATV_PIXELL_REG			0x6c
-#define ATV_PIXELH_REG			0x70
-#define HF_PORCHL_REG			0x74
-#define HF_PORCHH_REG			0x78
-#define HSYNC_CFGL_REG			0x7c
-#define HSYNC_CFGH_REG			0x80
-#define HB_PORCHL_REG			0x84
-#define HB_PORCHH_REG			0x88
-
+#define ATV_LINE_CFG_L				0x50
+#define ATV_LINE_CFG_H				0x54
+#define VF_PORCH_REG				0x58
+#define VSYNC_CFG_REG				0x5c
+#define VB_PORCH_REG				0x60
+#define TOTAL_PIXELL_REG			0x64
+#define TOTAL_PIXELH_REG			0x68
+#define ATV_PIXELL_REG				0x6c
+#define ATV_PIXELH_REG				0x70
+#define HF_PORCHL_REG				0x74
+#define HF_PORCHH_REG				0x78
+#define HSYNC_CFGL_REG				0x7c
+#define HSYNC_CFGH_REG				0x80
+#define HB_PORCHL_REG				0x84
+#define HB_PORCHH_REG				0x88
 
 #define SSC_REG					0x104
 #define TX_REG_COMMON				0x114
@@ -375,4 +376,4 @@
 #define AUX_ADDR_15_8(x)		(((x) >> 8) & 0xff)
 #define AUX_ADDR_19_16(x)		(((x) >> 16) & 0x0f)
 
-#endif
+#endif /* _ROCKCHIP_EDP_REG_H */

@@ -12,6 +12,7 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/kernel.h>
 #include <drm/drmP.h>
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_crtc_helper.h>
@@ -21,7 +22,6 @@
 #include "rockchip_drm_gem.h"
 
 #define to_rockchip_fb(x) container_of(x, struct rockchip_drm_fb, fb)
-#define MIN(a, b) (((a) < (b)) ? (a): (b))
 
 struct rockchip_drm_fb {
 	struct drm_framebuffer fb;
@@ -113,7 +113,7 @@ rockchip_user_fb_create(struct drm_device *dev, struct drm_file *file_priv,
 
 	hsub = drm_format_horz_chroma_subsampling(mode_cmd->pixel_format);
 	vsub = drm_format_vert_chroma_subsampling(mode_cmd->pixel_format);
-	num_planes = MIN(drm_format_num_planes(mode_cmd->pixel_format),
+	num_planes = min(drm_format_num_planes(mode_cmd->pixel_format),
 			 ROCKCHIP_MAX_FB_BUFFER);
 
 	for (i = 0; i < num_planes; i++) {

@@ -14,8 +14,8 @@
  * GNU General Public License for more details.
  */
 
-#ifndef _ROCKCHIP_DRM_DRV_H_
-#define _ROCKCHIP_DRM_DRV_H_
+#ifndef _ROCKCHIP_DRM_DRV_H
+#define _ROCKCHIP_DRM_DRV_H
 
 #include <linux/module.h>
 #include <linux/component.h>
@@ -98,7 +98,7 @@ struct rockchip_drm_crtc {
 /*
  * Rockchip drm private structure.
  *
- * @pipe: the pipe number for this crtc.
+ * @num_pipe: the pipe number for this crtc.
  */
 struct rockchip_drm_private {
 	struct drm_fb_helper *fb_helper;
@@ -108,7 +108,7 @@ struct rockchip_drm_private {
 	 */
 	struct rockchip_drm_crtc rk_crtc[ROCKCHIP_MAX_CRTC];
 
-	unsigned int pipe;
+	unsigned int num_pipe;
 };
 
 void rockchip_drm_crtc_finish_pageflip(struct drm_device *dev, int pipe);
@@ -127,4 +127,4 @@ extern struct platform_driver rockchip_lvds_driver;
 #ifdef CONFIG_ROCKCHIP_EDP
 extern struct platform_driver rockchip_edp_driver;
 #endif
-#endif /* _ROCKCHIP_DRM_DRV_H_ */
+#endif /* _ROCKCHIP_DRM_DRV_H */

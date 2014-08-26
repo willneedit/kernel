@@ -12,8 +12,8 @@
  * GNU General Public License for more details.
  */
 
-#ifndef _ROCKCHIP_DRM_GEM_H_
-#define _ROCKCHIP_DRM_GEM_H_
+#ifndef _ROCKCHIP_DRM_GEM_H
+#define _ROCKCHIP_DRM_GEM_H
 
 #define to_rockchip_obj(x) container_of(x, struct rockchip_gem_object, base)
 
@@ -83,4 +83,4 @@ int rockchip_gem_mmap_ioctl(struct drm_device *dev, void *data,
 /* get buffer information to memory region allocated by gem. */
 int rockchip_gem_get_ioctl(struct drm_device *dev, void *data,
 			   struct drm_file *file_priv);
-#endif
+#endif /* _ROCKCHIP_DRM_GEM_H */

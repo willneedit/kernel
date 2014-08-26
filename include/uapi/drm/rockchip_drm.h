@@ -12,8 +12,8 @@
  * option) any later version.
  */
 
-#ifndef _UAPI_ROCKCHIP_DRM_H_
-#define _UAPI_ROCKCHIP_DRM_H_
+#ifndef _UAPI_ROCKCHIP_DRM_H
+#define _UAPI_ROCKCHIP_DRM_H
 
 #include <drm/drm.h>
 
@@ -27,8 +27,8 @@
  */
 struct drm_rockchip_gem_create {
 	uint64_t size;
-	unsigned int flags;
-	unsigned int handle;
+	uint32_t flags;
+	uint32_t handle;
 };
 
 /**
@@ -40,8 +40,8 @@ struct drm_rockchip_gem_create {
  *     - this value should be set by user.
  */
 struct drm_rockchip_gem_map_off {
-	unsigned int handle;
-	unsigned int pad;
+	uint32_t handle;
+	uint32_t pad;
 	uint64_t offset;
 };
 
@@ -57,8 +57,8 @@ struct drm_rockchip_gem_map_off {
  *      by do_mmap().
  */
 struct drm_rockchip_gem_mmap {
-	unsigned int handle;
-	unsigned int pad;
+	uint32_t handle;
+	uint32_t pad;
 	uint64_t size;
 	uint64_t mapped;
 };
@@ -73,26 +73,14 @@ struct drm_rockchip_gem_mmap {
  *      be set by driver.
  */
 struct drm_rockchip_gem_info {
-	unsigned int handle;
-	unsigned int flags;
+	uint32_t handle;
+	uint32_t flags;
 	uint64_t size;
-};
-
-/* memory type definitions. */
-enum e_drm_rockchip_gem_mem_type {
-	/* non-cachable mapping and used as default. */
-	ROCKCHIP_BO_NONCACHABLE = 0 << 0,
-	/* cachable mapping. */
-	ROCKCHIP_BO_CACHABLE = 1 << 0,
-	/* write-combine mapping. */
-	ROCKCHIP_BO_WC = 1 << 1,
-	ROCKCHIP_BO_MASK = ROCKCHIP_BO_CACHABLE | ROCKCHIP_BO_WC
 };
 
 #define DRM_ROCKCHIP_GEM_CREATE		0x00
 #define DRM_ROCKCHIP_GEM_MAP_OFFSET	0x01
 #define DRM_ROCKCHIP_GEM_MMAP		0x02
-/* Reserved 0x03 ~ 0x05 for rockchip specific gem ioctl */
 #define DRM_ROCKCHIP_GEM_GET		0x04
 
 #define DRM_IOCTL_ROCKCHIP_GEM_CREATE	DRM_IOWR(DRM_COMMAND_BASE + \
@@ -106,4 +94,4 @@ enum e_drm_rockchip_gem_mem_type {
 
 #define DRM_IOCTL_ROCKCHIP_GEM_GET	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_ROCKCHIP_GEM_GET, struct drm_rockchip_gem_info)
-#endif /* _UAPI_ROCKCHIP_DRM_H_ */
+#endif /* _UAPI_ROCKCHIP_DRM_H */

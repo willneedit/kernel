@@ -22,7 +22,8 @@ config ROCKCHIP_LVDS
 	help
 	  Choose this option if you have a Rockchip lvds.
 	  Rockchip rk3288 SoC has lvds Controller can be used.
-	  If you have an LVDS Panel, say Y to enable its driver.
+	  If you have an LVDS Panel, say Y to enable its
+	  driver.
 
 config ROCKCHIP_EDP
 	bool "Rockchip edp support"

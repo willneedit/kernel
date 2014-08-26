@@ -12,8 +12,8 @@
  * GNU General Public License for more details.
  */
 
-#ifndef _ROCKCHIP_DRM_FB_H_
-#define _ROCKCHIP_DRM_FB_H_
+#ifndef _ROCKCHIP_DRM_FB_H
+#define _ROCKCHIP_DRM_FB_H
 
 struct drm_framebuffer *
 rockchip_drm_framebuffer_init(struct drm_device *dev,
@@ -25,4 +25,4 @@ void rockchip_drm_mode_config_init(struct drm_device *dev);
 
 struct drm_gem_object *rockchip_fb_get_gem_obj(struct drm_framebuffer *fb,
 					       unsigned int plane);
-#endif /* _ROCKCHIP_DRM_FB_H_ */
+#endif /* _ROCKCHIP_DRM_FB_H */
