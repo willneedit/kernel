@@ -121,7 +121,7 @@ static int rockchip_edp_pre_init(struct rockchip_edp_device *edp)
 	}
 
 	reset_control_assert(edp->rst);
-	usleep_range(1000, 2000);
+	usleep_range(10, 20);
 	reset_control_deassert(edp->rst);
 
 	return 0;
@@ -238,7 +238,7 @@ static int rockchip_edp_hw_link_training(struct rockchip_edp_device *edp)
 			dev_err(edp->dev, "hw lt timeout");
 			return -ETIMEDOUT;
 		}
-		mdelay(100);
+		mdelay(1);
 		val = rockchip_edp_wait_hw_lt_done(edp);
 	}
 
@@ -291,7 +291,7 @@ static int rockchip_edp_config_video(struct rockchip_edp_device *edp,
 			return -ETIMEDOUT;
 		}
 
-		udelay(100);
+		udelay(1);
 	}
 
 	/* Set to use the register calculated M/N video */
@@ -322,7 +322,7 @@ static int rockchip_edp_config_video(struct rockchip_edp_device *edp,
 			return -ETIMEDOUT;
 		}
 
-		mdelay(100);
+		mdelay(1);
 	}
 
 	if (retval != 0)
@@ -555,6 +555,7 @@ static void rockchip_drm_encoder_prepare(struct drm_encoder *encoder)
 static void rockchip_drm_encoder_commit(struct drm_encoder *encoder)
 {
 	/*rockchip_edp_commit(encoder);*/
+	rockchip_drm_encoder_dpms(encoder, DRM_MODE_DPMS_ON);
 }
 
 static void rockchip_drm_encoder_disable(struct drm_encoder *encoder)
