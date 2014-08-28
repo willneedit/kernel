@@ -146,9 +146,9 @@ static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 	fbi->fix.smem_start = (unsigned long)rk_obj->vaddr;
 	fbi->fix.smem_len = rk_obj->base.size;
 
-	DRM_DEBUG_KMS("FB [%dx%d]-%d vaddr=%p paddr=%x offset=%ld size=%d\n",
+	DRM_DEBUG_KMS("FB [%dx%d]-%d vaddr=%p offset=%ld size=%d\n",
 		      fb->width, fb->height, fb->depth, rk_obj->vaddr,
-		      rk_obj->paddr, offset, size);
+		      offset, size);
 	return 0;
 
 err_rockchip_drm_framebuffer_fini:

@@ -55,6 +55,9 @@
 #define VOP_CTRL_SET(x, name, v) \
 		REG_SET(x, 0, (x)->data->ctrl->name, v)
 
+#define VOP_WIN_GET_YRGBADDR(ctx,win) \
+		vop_readl(ctx,win->base + win->phy->yrgb_addr.offset)
+
 #define to_vop_ctx(x) container_of(x, struct vop_context, crtc)
 #define to_rockchip_plane(x) container_of(x, struct rockchip_plane, base)
 
@@ -63,6 +66,10 @@ struct rockchip_plane {
 	struct drm_plane base;
 	const struct vop_win *win;
 	struct vop_context *ctx;
+
+	dma_addr_t paddr;
+	struct drm_gem_object *front_obj;
+	struct drm_gem_object *pending_obj;
 };
 
 struct vop_context {
@@ -76,6 +83,10 @@ struct vop_context {
 	unsigned int win_msk;
 	wait_queue_head_t wait_vsync_queue;
 	atomic_t wait_vsync_event;
+
+	struct workqueue_struct *vsync_wq;
+	struct work_struct vsync_work;
+	struct mutex vsync_mutex;
 
 	struct vop_driver_data *data;
 
@@ -135,7 +146,7 @@ struct vop_ctrl {
 	struct vop_reg out_mode;
 	struct vop_reg dither_down;
 	struct vop_reg dither_up;
-	struct vop_reg pin_sync;
+	struct vop_reg pin_pol;
 
 	struct vop_reg htotal_pw;
 	struct vop_reg hact_st_end;
@@ -267,7 +278,7 @@ static const struct vop_ctrl ctrl_data = {
 	.dither_down = VOP_REG(DSP_CTRL1, 0xf, 1),
 	.dither_up = VOP_REG(DSP_CTRL1, 0x1, 6),
 	.out_mode = VOP_REG(DSP_CTRL0, 0xf, 0),
-	.pin_sync = VOP_REG(DSP_CTRL0, 0xf, 4),
+	.pin_pol = VOP_REG(DSP_CTRL0, 0xf, 4),
 	.htotal_pw = VOP_REG(DSP_HTOTAL_HS_END, 0x1fff1fff, 0),
 	.hact_st_end = VOP_REG(DSP_HACT_ST_END, 0x1fff1fff, 0),
 	.vtotal_pw = VOP_REG(DSP_VTOTAL_VS_END, 0x1fff1fff, 0),
@@ -402,7 +413,7 @@ struct device *vop_get_sysmmu_dev(struct vop_context *ctx)
 
 	pd = of_find_device_by_node(mmu_node);
 	if (!pd) {
-		pr_err("can't find platform device in device node\n");
+		DRM_ERROR("can't find platform device in device node\n");
 		of_node_put(mmu_node);
 		return  NULL;
 	}
@@ -416,7 +427,7 @@ int vop_sysmmu_fault_handler(struct device *dev, enum rk_iommu_inttype itype,
 			     unsigned long pgtable_base,
 			     unsigned long fault_addr, unsigned int status)
 {
-	DRM_ERROR("Generating Kernel OOPS... because it is unrecoverable.\n");
+	dev_err(dev, "Generating Kernel OOPS... because it is unrecoverable.\n");
 
 	return 0;
 }
@@ -529,9 +540,9 @@ static int rockchip_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	unsigned int dsp_stx;
 	unsigned int dsp_sty;
 	unsigned int y_vir_stride;
+	dma_addr_t paddr;
 	enum vop_data_format format;
 	bool is_alpha;
-	int ret;
 
 	if (!win) {
 		DRM_ERROR("can't find win data for vop, failed\n");
@@ -546,11 +557,9 @@ static int rockchip_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 
 	rk_obj = to_rockchip_obj(obj);
 
-	if (!rk_obj->paddr) {
-		ret = rockchip_iommu_mmap(ctx->dev, rk_obj);
-		if (ret < 0)
-			return ret;
-	}
+	paddr = rockchip_iommu_mmap(ctx->dev, rk_obj, ctx->pipe);
+	if (paddr <= 0)
+		return -ENOMEM;
 
 	actual_w = rockchip_plane_get_size(crtc_x,
 					   crtc_w, crtc->mode.hdisplay);
@@ -582,7 +591,7 @@ static int rockchip_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 
 	VOP_WIN_SET(ctx, win, format, format);
 	VOP_WIN_SET(ctx, win, yrgb_vir, y_vir_stride);
-	VOP_WIN_SET(ctx, win, yrgb_addr, rk_obj->paddr + offset);
+	VOP_WIN_SET(ctx, win, yrgb_addr, paddr + offset);
 	VOP_WIN_SET(ctx, win, act_info,
 		    ((actual_h - 1) << 16) | (actual_w - 1));
 	VOP_WIN_SET(ctx, win, dsp_info,
@@ -600,6 +609,21 @@ static int rockchip_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	vop_cfg_done(ctx);
 
 	spin_unlock(&ctx->reg_lock);
+
+	mutex_lock(&ctx->vsync_mutex);
+
+	/*
+	 * Because the buffer set to vop take effect at frame start time,
+	 * we need make sure old buffer is not in use before we release
+	 * it.
+	 * reference the gem obj, and unference it when it swap out of vop.
+	 */
+	if (obj != rockchip_plane->front_obj) {
+		drm_gem_object_reference(obj);
+		rockchip_plane->pending_obj = obj;
+		rockchip_plane->paddr = paddr + offset;
+	}
+	mutex_unlock(&ctx->vsync_mutex);
 
 	return 0;
 }
@@ -817,7 +841,10 @@ static int rockchip_drm_crtc_mode_set(struct drm_crtc *crtc,
 		return -EINVAL;
 	};
 
-	VOP_CTRL_SET(ctx, pin_sync, 0x8);
+	val = 0x8;
+	val |= (adjusted_mode->flags & DRM_MODE_FLAG_NHSYNC) ? 1 : 0;
+	val |= (adjusted_mode->flags & DRM_MODE_FLAG_NVSYNC) ? (1 << 1) : 0;
+	VOP_CTRL_SET(ctx, pin_pol, val);
 
 	VOP_CTRL_SET(ctx, htotal_pw, (htotal << 16) | hsync_len);
 	val = (hsync_len + left_margin) << 16;
@@ -866,7 +893,7 @@ static int rockchip_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 
 static void rockchip_drm_crtc_commit(struct drm_crtc *crtc)
 {
-	rockchip_drm_crtc_mode_set_base(crtc, crtc->x, crtc->y, crtc->fb);
+	rockchip_drm_crtc_dpms(crtc, DRM_MODE_DPMS_ON);
 }
 
 static const struct drm_crtc_helper_funcs rockchip_crtc_helper_funcs = {
@@ -980,6 +1007,44 @@ static const struct drm_crtc_funcs rockchip_crtc_funcs = {
 	.destroy = rockchip_drm_crtc_destroy,
 };
 
+static void rockchip_vsync_worker(struct work_struct *work)
+{
+	struct vop_context *ctx = container_of(work, struct vop_context,
+					       vsync_work);
+	struct drm_device *drm = ctx->drm_dev;
+	struct rockchip_plane *rockchip_plane;
+	struct drm_plane *plane;
+
+	mutex_lock(&ctx->vsync_mutex);
+
+	list_for_each_entry(plane, &drm->mode_config.plane_list, head) {
+		rockchip_plane = to_rockchip_plane(plane);
+		if (!(rockchip_plane->ctx == ctx) ||
+		    !rockchip_plane->pending_obj)
+			continue;
+		/*
+		 * make sure the paddr take effect, so that
+		 * we can unreference the old gem obj
+		 */
+		if (rockchip_plane->paddr !=
+		    VOP_WIN_GET_YRGBADDR(ctx,rockchip_plane->win)) {
+			continue;
+		}
+
+		/*
+		 * drm_gem_object_unreference maybe call iommu unmap,
+		 * and iommu not allow unmap buffer at irq context,
+		 * so we do drm_gem_object_unreference at queue_work.
+		 */
+		if (rockchip_plane->front_obj)
+			drm_gem_object_unreference(rockchip_plane->front_obj);
+		rockchip_plane->front_obj = rockchip_plane->pending_obj;
+		rockchip_plane->pending_obj = NULL;
+	}
+
+	mutex_unlock(&ctx->vsync_mutex);
+}
+
 static int vop_bind(struct device *dev, struct device *master, void *data)
 {
 	struct drm_device *drm_dev = data;
@@ -1045,6 +1110,14 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 	rockchip_iovmm_set_fault_handler(ctx->dev,
 			vop_sysmmu_fault_handler);
 	rockchip_iovmm_activate(ctx->dev);
+
+	ctx->vsync_wq = create_singlethread_workqueue("vsync");
+	if (!ctx->vsync_wq) {
+		dev_err(dev, "failed to create workqueue\n");
+		return -EINVAL;
+	}
+	INIT_WORK(&ctx->vsync_work, rockchip_vsync_worker);
+	mutex_init(&ctx->vsync_mutex);
 
 	return 0;
 }
@@ -1126,6 +1199,8 @@ static irqreturn_t rockchip_vop_isr(int irq, void *data)
 
 	drm_handle_vblank(ctx->drm_dev, ctx->pipe);
 	rockchip_drm_crtc_finish_pageflip(ctx->drm_dev, ctx->pipe);
+
+	queue_work(ctx->vsync_wq, &ctx->vsync_work);
 
 	return IRQ_HANDLED;
 }

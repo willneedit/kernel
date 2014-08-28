@@ -17,16 +17,20 @@
 
 #define to_rockchip_obj(x) container_of(x, struct rockchip_gem_object, base)
 
+struct rockchip_mmu_mmap {
+	struct device *mmu_dev;
+	dma_addr_t paddr;
+};
+
 struct rockchip_gem_object {
 	struct drm_gem_object base;
 
 	struct page **pages;
 	struct sg_table *sgt;
-	dma_addr_t paddr;
 	void *vaddr;
 	unsigned int flags;
 
-	struct device *mmu_dev;
+	struct rockchip_mmu_mmap mmu_mmap[ROCKCHIP_MAX_CRTC];
 };
 
 struct sg_table *rockchip_gem_prime_get_sg_table(struct drm_gem_object *obj);
@@ -56,7 +60,9 @@ int rockchip_gem_map_offset_ioctl(struct drm_device *drm, void *data,
 /*
  * mmap iommu buffer for each vop device.
  */
-int rockchip_iommu_mmap(struct device *dev, struct rockchip_gem_object *rk_obj);
+dma_addr_t rockchip_iommu_mmap(struct device *dev,
+			       struct rockchip_gem_object *rk_obj,
+			       int pipe);
 /*
  * unmap iommu buffer
  */

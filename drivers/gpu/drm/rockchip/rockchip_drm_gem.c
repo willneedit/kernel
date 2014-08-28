@@ -61,8 +61,8 @@ static void rockchip_gem_free_buf(struct rockchip_gem_object *rk_obj)
 
 	if (rk_obj->vaddr)
 		vunmap(rk_obj->vaddr);
-	if (rk_obj->paddr)
-		rockchip_iommu_unmap(rk_obj);
+
+	rockchip_iommu_unmap(rk_obj);
 
 	sg_free_table(rk_obj->sgt);
 	kfree(rk_obj->sgt);
@@ -72,24 +72,41 @@ static void rockchip_gem_free_buf(struct rockchip_gem_object *rk_obj)
 	rk_obj->pages = NULL;
 }
 
-int rockchip_iommu_mmap(struct device *dev, struct rockchip_gem_object *rk_obj)
+dma_addr_t rockchip_iommu_mmap(struct device *dev, struct rockchip_gem_object *rk_obj,
+			       int pipe)
 {
-	rk_obj->paddr = rockchip_iovmm_map(dev,	rk_obj->sgt->sgl, 0,
-					   rk_obj->base.size);
-	if (!rk_obj->paddr)
+	struct rockchip_mmu_mmap *mmu_mmap;
+
+	if (pipe < 0 || pipe >= ROCKCHIP_MAX_CRTC)
+		return -EINVAL;
+	mmu_mmap = &rk_obj->mmu_mmap[pipe];
+
+	if (mmu_mmap->paddr)
+		return mmu_mmap->paddr;
+
+	mmu_mmap->paddr = rockchip_iovmm_map(dev, rk_obj->sgt->sgl, 0,
+					     rk_obj->base.size);
+	if (!mmu_mmap->paddr)
 		return -ENXIO;
 
-	rk_obj->mmu_dev = dev;
+	mmu_mmap->mmu_dev = dev;
 
-	return 0;
+	return mmu_mmap->paddr;
 }
 
 void rockchip_iommu_unmap(struct rockchip_gem_object *rk_obj)
 {
-	if (rk_obj->mmu_dev)
-		rockchip_iovmm_unmap(rk_obj->mmu_dev, rk_obj->paddr);
+	int i;
 
-	rk_obj->mmu_dev = NULL;
+	for(i = 0; i < ROCKCHIP_MAX_CRTC; i++) {
+		if (rk_obj->mmu_mmap[i].paddr) {
+			rockchip_iovmm_unmap(rk_obj->mmu_mmap[i].mmu_dev,
+					     rk_obj->mmu_mmap[i].paddr);
+
+			rk_obj->mmu_mmap[i].mmu_dev = NULL;
+			rk_obj->mmu_mmap[i].paddr = 0;
+		}
+	}
 }
 
 struct rockchip_gem_object *
