@@ -41,7 +41,6 @@ static int rockchip_max98090_asoc_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_codec *codec = codec_dai->codec;
 	struct snd_soc_card *card = codec->card;
 	int srate, mclk;
@@ -69,13 +68,6 @@ static int rockchip_max98090_asoc_hw_params(struct snd_pcm_substream *substream,
 		break;
 	}
 
-	err = snd_soc_dai_set_sysclk(cpu_dai, 0, mclk,
-				     SND_SOC_CLOCK_OUT);
-	if (err < 0) {
-		dev_err(card->dev, "cpu_dai clock not set\n");
-		return err;
-	}
-
 	err = snd_soc_dai_set_sysclk(codec_dai, 0, mclk,
 				     SND_SOC_CLOCK_IN);
 	if (err < 0) {
@@ -91,6 +83,7 @@ static struct snd_soc_ops rockchip_max98090_ops = {
 };
 
 static struct snd_soc_jack rockchip_max98090_hp_jack;
+
 static struct snd_soc_jack_pin rockchip_max98090_hp_jack_pins[] = {
 	{
 		.pin = "Headphones",
@@ -102,27 +95,7 @@ static struct snd_soc_jack_gpio rockchip_max98090_hp_jack_gpio = {
 	.name = "Headphone detection",
 	.report = SND_JACK_HEADPHONE,
 	.debounce_time = 150,
-	.invert = 0,
-};
-
-static struct snd_soc_jack rockchip_max98090_mic_jack;
-static struct snd_soc_jack_pin rockchip_max98090_mic_jack_pins[] = {
-	{
-		.pin = "Mic Jack",
-		.mask = SND_JACK_MICROPHONE,
-	},
-};
-
-static struct snd_soc_jack_gpio rockchip_max98090_mic_jack_gpio = {
-	.name = "mic detect",
-	.report = SND_JACK_MICROPHONE,
-	.debounce_time = 150,
 	.invert = 1,
-};
-
-static const struct snd_soc_dapm_route rockchip_max98090_audio_map[] = {
-	{"Mic Jack", "NULL", "MICBIAS"},
-	{"MIC2", "NULL", "Mic Jack"},
 };
 
 static const struct snd_soc_dapm_widget rockchip_max98090_dapm_widgets[] = {
@@ -137,39 +110,20 @@ static const struct snd_kcontrol_new rockchip_max98090_controls[] = {
 
 static int rockchip_max98090_asoc_init(struct snd_soc_pcm_runtime *rtd)
 {
-	struct snd_soc_codec *codec = rtd->codec;
-	struct snd_soc_card *card = codec->card;
-	struct device_node *dn = card->dev->of_node;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct snd_soc_codec *codec = codec_dai->codec;
+	struct rockchip_max98090 *machine = snd_soc_card_get_drvdata(codec->card);
 
-	if (dn) {
-		enum of_gpio_flags flags;
-
-		rockchip_max98090_mic_jack_gpio.gpio = of_get_named_gpio_flags(
-				dn, "rockchip,mic-det-gpios", 0, &flags);
-		rockchip_max98090_mic_jack_gpio.invert = !!(flags & OF_GPIO_ACTIVE_LOW);
-
-		rockchip_max98090_hp_jack_gpio.gpio = of_get_named_gpio_flags(
-				dn, "rockchip,hp-det-gpios", 0, &flags);
-		rockchip_max98090_hp_jack_gpio.invert = !!(flags & OF_GPIO_ACTIVE_LOW);
-	}
-
-	if (gpio_is_valid(rockchip_max98090_mic_jack_gpio.gpio)) {
-		snd_soc_jack_new(codec, "Mic Jack", SND_JACK_MICROPHONE,
-				 &rockchip_max98090_mic_jack);
-		snd_soc_jack_add_pins(&rockchip_max98090_mic_jack,
-				      ARRAY_SIZE(rockchip_max98090_mic_jack_pins),
-				      rockchip_max98090_mic_jack_pins);
-		snd_soc_jack_add_gpios(&rockchip_max98090_mic_jack, 1,
-				       &rockchip_max98090_mic_jack_gpio);
-	}
-
-	if (gpio_is_valid(rockchip_max98090_hp_jack_gpio.gpio)) {
-		snd_soc_jack_new(codec, "Headphone Jack",
-				 SND_JACK_HEADPHONE, &rockchip_max98090_hp_jack);
+	if (gpio_is_valid(machine->gpio_hp_det)) {
+		snd_soc_jack_new(codec, "Headphones", SND_JACK_HEADPHONE,
+				 &rockchip_max98090_hp_jack);
 		snd_soc_jack_add_pins(&rockchip_max98090_hp_jack,
 				      ARRAY_SIZE(rockchip_max98090_hp_jack_pins),
 				      rockchip_max98090_hp_jack_pins);
-		snd_soc_jack_add_gpios(&rockchip_max98090_hp_jack, 1,
+
+		rockchip_max98090_hp_jack_gpio.gpio = machine->gpio_hp_det;
+		snd_soc_jack_add_gpios(&rockchip_max98090_hp_jack,
+				       1,
 				       &rockchip_max98090_hp_jack_gpio);
 	}
 
@@ -195,8 +149,6 @@ static struct snd_soc_card snd_soc_rockchip_max98090 = {
 	.num_controls = ARRAY_SIZE(rockchip_max98090_controls),
 	.dapm_widgets = rockchip_max98090_dapm_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(rockchip_max98090_dapm_widgets),
-	.dapm_routes = rockchip_max98090_audio_map,
-	.num_dapm_routes = ARRAY_SIZE(rockchip_max98090_audio_map),
 	.fully_routed = true,
 };
 
