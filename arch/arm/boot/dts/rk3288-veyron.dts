@@ -174,7 +174,7 @@
 	sound {
 		compatible = "rockchip,rockchip-audio-max98090-veyron",
 				 "rockchip,rockchip-audio-max98090";
-		rockchip,model = "ROCKCHIP-I2S";
+		rockchip,model = "ROCKCHIP Veyron";
 
 		rockchip,audio-routing =
 			"Headphones", "HPR",

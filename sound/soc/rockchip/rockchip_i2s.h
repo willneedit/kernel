@@ -202,9 +202,10 @@
 #define I2S_RXDR_MASK	(0xff)
 
 /* Clock divider id */
-#define ROCKCHIP_DIV_MCLK	0
-#define ROCKCHIP_DIV_BCLK	1
-#define ROCKCHIP_DIV_PRESCALER	2
+enum {
+	ROCKCHIP_DIV_MCLK = 0,
+	ROCKCHIP_DIV_BCLK,
+};
 
 /* I2S REGS */
 #define I2S_TXCR	(0x0000)

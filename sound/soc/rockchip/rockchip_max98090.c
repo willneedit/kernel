@@ -29,8 +29,6 @@
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 
-#include "rockchip_i2s.h"
-
 #define DRV_NAME "rockchip-snd-max98090"
 
 struct rockchip_max98090 {
@@ -104,7 +102,7 @@ static struct snd_soc_jack_gpio rockchip_max98090_hp_jack_gpio = {
 	.name = "Headphone detection",
 	.report = SND_JACK_HEADPHONE,
 	.debounce_time = 150,
-	.invert = 1,
+	.invert = 0,
 };
 
 static struct snd_soc_jack rockchip_max98090_mic_jack;
@@ -119,7 +117,12 @@ static struct snd_soc_jack_gpio rockchip_max98090_mic_jack_gpio = {
 	.name = "mic detect",
 	.report = SND_JACK_MICROPHONE,
 	.debounce_time = 150,
-	.invert = 0,
+	.invert = 1,
+};
+
+static const struct snd_soc_dapm_route rockchip_max98090_audio_map[] = {
+	{"Mic Jack", "NULL", "MICBIAS"},
+	{"MIC2", "NULL", "Mic Jack"},
 };
 
 static const struct snd_soc_dapm_widget rockchip_max98090_dapm_widgets[] = {
@@ -184,7 +187,7 @@ static struct snd_soc_dai_link rockchip_max98090_dai = {
 };
 
 static struct snd_soc_card snd_soc_rockchip_max98090 = {
-	.name = "ROCKCHIP-I2S",
+	.name = "rockchip-max98090",
 	.owner = THIS_MODULE,
 	.dai_link = &rockchip_max98090_dai,
 	.num_links = 1,
@@ -192,6 +195,8 @@ static struct snd_soc_card snd_soc_rockchip_max98090 = {
 	.num_controls = ARRAY_SIZE(rockchip_max98090_controls),
 	.dapm_widgets = rockchip_max98090_dapm_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(rockchip_max98090_dapm_widgets),
+	.dapm_routes = rockchip_max98090_audio_map,
+	.num_dapm_routes = ARRAY_SIZE(rockchip_max98090_audio_map),
 	.fully_routed = true,
 };
 

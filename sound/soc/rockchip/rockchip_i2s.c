@@ -168,10 +168,10 @@ static int rockchip_i2s_set_fmt(struct snd_soc_dai *cpu_dai,
 	mask = I2S_CKR_MSS_SLAVE;
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 	case SND_SOC_DAIFMT_CBS_CFS:
-		val = I2S_CKR_MSS_MASTER;
+		val = I2S_CKR_MSS_SLAVE;
 		break;
 	case SND_SOC_DAIFMT_CBM_CFM:
-		val = I2S_CKR_MSS_SLAVE;
+		val = I2S_CKR_MSS_MASTER;
 		break;
 	default:
 		return -EINVAL;
@@ -212,22 +212,6 @@ static int rockchip_i2s_set_fmt(struct snd_soc_dai *cpu_dai,
 	}
 
 	regmap_update_bits(i2s->regmap, I2S_RXCR, mask, val);
-
-	return 0;
-}
-
-static int rockchip_i2s_startup(struct snd_pcm_substream *substream,
-		struct snd_soc_dai *cpu_dai)
-{
-	struct rk_i2s_dev *dev = snd_soc_dai_get_drvdata(cpu_dai);
-	struct snd_dmaengine_dai_dma_data *dma_data = NULL;
-
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		dma_data = &dev->playback_dma_data;
-	else if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
-		dma_data = &dev->capture_dma_data;
-
-	snd_soc_dai_set_dma_data(cpu_dai, substream, (void *)dma_data);
 
 	return 0;
 }
@@ -313,40 +297,18 @@ static int rockchip_i2s_set_sysclk(struct snd_soc_dai *cpu_dai, int clk_id,
 	if (ret)
 		dev_err(i2s->dev, "Fail to set mclk %d\n", ret);
 
-	dev_info(i2s->dev, "set mclk %d\n", clk_get_rate(i2s->mclk));
-
 	return ret;
-}
-
-static void rockchip_i2s_shutdown(struct snd_pcm_substream *substream,
-		struct snd_soc_dai *dai)
-{
-	snd_soc_dai_set_dma_data(dai, substream, NULL);
-}
-
-static int rockchip_i2s_dai_probe(struct snd_soc_dai *dai)
-{
-	struct rk_i2s_dev *i2s = to_info(dai);
-
-	dai->capture_dma_data = &i2s->capture_dma_data;
-	dai->playback_dma_data = &i2s->playback_dma_data;
-
-	return 0;
 }
 
 static const struct snd_soc_dai_ops rockchip_i2s_dai_ops = {
 	.hw_params = rockchip_i2s_hw_params,
-	.startup = rockchip_i2s_startup,
-	.shutdown = rockchip_i2s_shutdown,
 	.set_sysclk = rockchip_i2s_set_sysclk,
 	.set_fmt = rockchip_i2s_set_fmt,
 	.trigger = rockchip_i2s_trigger,
 };
 
 static struct snd_soc_dai_driver rockchip_i2s_dai = {
-	.probe = rockchip_i2s_dai_probe,
 	.playback = {
-		.stream_name = "Playback",
 		.channels_min = 2,
 		.channels_max = 8,
 		.rates = SNDRV_PCM_RATE_8000_192000,
@@ -356,7 +318,6 @@ static struct snd_soc_dai_driver rockchip_i2s_dai = {
 			    SNDRV_PCM_FMTBIT_S24_LE),
 	},
 	.capture = {
-		.stream_name = "Capture",
 		.channels_min = 2,
 		.channels_max = 2,
 		.rates = SNDRV_PCM_RATE_8000_192000,
@@ -482,11 +443,11 @@ static int rockchip_i2s_probe(struct platform_device *pdev)
 
 	i2s->playback_dma_data.addr = res->start + I2S_TXDR;
 	i2s->playback_dma_data.addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
-	i2s->playback_dma_data.maxburst = 1;
+	i2s->playback_dma_data.maxburst = 16;
 
 	i2s->capture_dma_data.addr = res->start + I2S_RXDR;
 	i2s->capture_dma_data.addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
-	i2s->capture_dma_data.maxburst = 1;
+	i2s->capture_dma_data.maxburst = 16;
 
 	i2s->dev = &pdev->dev;
 	dev_set_drvdata(&pdev->dev, i2s);
