@@ -35,136 +35,10 @@
 #include "rockchip_drm_fbdev.h"
 #include "rockchip_drm_gem.h"
 #include "rockchip_drm_fb.h"
+#include "rockchip_drm_vop.h"
 
 #define VOP_DEFAULT_FRAMERATE 60
 #define VOP_MAX_WIN_SUPPORT 5
-
-/* register definition */
-#define REG_CFG_DONE			0x0000
-#define VERSION_INFO			0x0004
-#define SYS_CTRL			0x0008
-#define SYS_CTRL1			0x000c
-#define DSP_CTRL0			0x0010
-#define DSP_CTRL1			0x0014
-#define DSP_BG				0x0018
-#define MCU_CTRL			0x001c
-#define INTR_CTRL0			0x0020
-#define INTR_CTRL1			0x0024
-#define WIN0_CTRL0			0x0030
-#define WIN0_CTRL1			0x0034
-#define WIN0_COLOR_KEY			0x0038
-#define WIN0_VIR			0x003c
-#define WIN0_YRGB_MST			0x0040
-#define WIN0_CBR_MST			0x0044
-#define WIN0_ACT_INFO			0x0048
-#define WIN0_DSP_INFO			0x004c
-#define WIN0_DSP_ST			0x0050
-#define WIN0_SCL_FACTOR_YRGB		0x0054
-#define WIN0_SCL_FACTOR_CBR		0x0058
-#define WIN0_SCL_OFFSET			0x005c
-#define WIN0_SRC_ALPHA_CTRL		0x0060
-#define WIN0_DST_ALPHA_CTRL		0x0064
-#define WIN0_FADING_CTRL		0x0068
-/* win1 register */
-#define WIN1_CTRL0			0x0070
-#define WIN1_CTRL1			0x0074
-#define WIN1_COLOR_KEY			0x0078
-#define WIN1_VIR			0x007c
-#define WIN1_YRGB_MST			0x0080
-#define WIN1_CBR_MST			0x0084
-#define WIN1_ACT_INFO			0x0088
-#define WIN1_DSP_INFO			0x008c
-#define WIN1_DSP_ST			0x0090
-#define WIN1_SCL_FACTOR_YRGB		0x0094
-#define WIN1_SCL_FACTOR_CBR		0x0098
-#define WIN1_SCL_OFFSET			0x009c
-#define WIN1_SRC_ALPHA_CTRL		0x00a0
-#define WIN1_DST_ALPHA_CTRL		0x00a4
-#define WIN1_FADING_CTRL		0x00a8
-/* win2 register */
-#define WIN2_CTRL0			0x00b0
-#define WIN2_CTRL1			0x00b4
-#define WIN2_VIR0_1			0x00b8
-#define WIN2_VIR2_3			0x00bc
-#define WIN2_MST0			0x00c0
-#define WIN2_DSP_INFO0			0x00c4
-#define WIN2_DSP_ST0			0x00c8
-#define WIN2_COLOR_KEY			0x00cc
-#define WIN2_MST1			0x00d0
-#define WIN2_DSP_INFO1			0x00d4
-#define WIN2_DSP_ST1			0x00d8
-#define WIN2_SRC_ALPHA_CTRL		0x00dc
-#define WIN2_MST2			0x00e0
-#define WIN2_DSP_INFO2			0x00e4
-#define WIN2_DSP_ST2			0x00e8
-#define WIN2_DST_ALPHA_CTRL		0x00ec
-#define WIN2_MST3			0x00f0
-#define WIN2_DSP_INFO3			0x00f4
-#define WIN2_DSP_ST3			0x00f8
-#define WIN2_FADING_CTRL		0x00fc
-/* win3 register */
-#define WIN3_CTRL0			0x0100
-#define WIN3_CTRL1			0x0104
-#define WIN3_VIR0_1			0x0108
-#define WIN3_VIR2_3			0x010c
-#define WIN3_MST0			0x0110
-#define WIN3_DSP_INFO0			0x0114
-#define WIN3_DSP_ST0			0x0118
-#define WIN3_COLOR_KEY			0x011c
-#define WIN3_MST1			0x0120
-#define WIN3_DSP_INFO1			0x0124
-#define WIN3_DSP_ST1			0x0128
-#define WIN3_SRC_ALPHA_CTRL		0x012c
-#define WIN3_MST2			0x0130
-#define WIN3_DSP_INFO2			0x0134
-#define WIN3_DSP_ST2			0x0138
-#define WIN3_DST_ALPHA_CTRL		0x013c
-#define WIN3_MST3			0x0140
-#define WIN3_DSP_INFO3			0x0144
-#define WIN3_DSP_ST3			0x0148
-#define WIN3_FADING_CTRL		0x014c
-/* hwc register */
-#define HWC_CTRL0			0x0150
-#define HWC_CTRL1			0x0154
-#define HWC_MST				0x0158
-#define HWC_DSP_ST			0x015c
-#define HWC_SRC_ALPHA_CTRL		0x0160
-#define HWC_DST_ALPHA_CTRL		0x0164
-#define HWC_FADING_CTRL			0x0168
-/* post process register */
-#define POST_DSP_HACT_INFO		0x0170
-#define POST_DSP_VACT_INFO		0x0174
-#define POST_SCL_FACTOR_YRGB		0x0178
-#define POST_SCL_CTRL			0x0180
-#define POST_DSP_VACT_INFO_F1		0x0184
-#define DSP_HTOTAL_HS_END		0x0188
-#define DSP_HACT_ST_END			0x018c
-#define DSP_VTOTAL_VS_END		0x0190
-#define DSP_VACT_ST_END			0x0194
-#define DSP_VS_ST_END_F1		0x0198
-#define DSP_VACT_ST_END_F1		0x019c
-
-#define DSP_HOLD_VALID_INTR		(1 << 0)
-#define FS_INTR				(1 << 1)
-#define	LINE_FLAG_INTR			(1 << 2)
-#define	BUS_ERROR_INTR			(1 << 3)
-
-#define DSP_HOLD_VALID_INTR_EN(x)	((x) << 4)
-#define FS_INTR_EN(x)			((x) << 5)
-#define	LINE_FLAG_INTR_EN(x)		((x) << 6)
-#define	BUS_ERROR_INTR_EN(x)		((x) << 7)
-#define DSP_HOLD_VALID_INTR_MSK		(1 << 4)
-#define FS_INTR_EN_MSK			(1 << 5)
-#define	LINE_FLAG_INTR_MSK		(1 << 6)
-#define	BUS_ERROR_INTR_MSK		(1 << 7)
-
-#define DSP_HOLD_VALID_INTR_CLR		(1 << 8)
-#define FS_INTR_EN_CLR			(1 << 9)
-#define	LINE_FLAG_INTR_CLR		(1 << 10)
-#define	BUS_ERROR_INTR_CLR		(1 << 11)
-#define DSP_LINE_NUM(x)			(((x) & 0x1fff) << 12)
-#define DSP_LINE_NUM_MSK		(0x1fff << 12)
-
 #define VOP_REG(off, msk, s) \
 		{.offset = off, \
 		 .mask = msk, \
@@ -181,6 +55,9 @@
 #define VOP_CTRL_SET(x, name, v) \
 		REG_SET(x, 0, (x)->data->ctrl->name, v)
 
+#define VOP_WIN_GET_YRGBADDR(ctx,win) \
+		vop_readl(ctx,win->base + win->phy->yrgb_addr.offset)
+
 #define to_vop_ctx(x) container_of(x, struct vop_context, crtc)
 #define to_rockchip_plane(x) container_of(x, struct rockchip_plane, base)
 
@@ -189,6 +66,10 @@ struct rockchip_plane {
 	struct drm_plane base;
 	const struct vop_win *win;
 	struct vop_context *ctx;
+
+	dma_addr_t paddr;
+	struct drm_gem_object *front_obj;
+	struct drm_gem_object *pending_obj;
 };
 
 struct vop_context {
@@ -202,6 +83,10 @@ struct vop_context {
 	unsigned int win_msk;
 	wait_queue_head_t wait_vsync_queue;
 	atomic_t wait_vsync_event;
+
+	struct workqueue_struct *vsync_wq;
+	struct work_struct vsync_work;
+	struct mutex vsync_mutex;
 
 	struct vop_driver_data *data;
 
@@ -261,7 +146,7 @@ struct vop_ctrl {
 	struct vop_reg out_mode;
 	struct vop_reg dither_down;
 	struct vop_reg dither_up;
-	struct vop_reg pin_sync;
+	struct vop_reg pin_pol;
 
 	struct vop_reg htotal_pw;
 	struct vop_reg hact_st_end;
@@ -393,7 +278,7 @@ static const struct vop_ctrl ctrl_data = {
 	.dither_down = VOP_REG(DSP_CTRL1, 0xf, 1),
 	.dither_up = VOP_REG(DSP_CTRL1, 0x1, 6),
 	.out_mode = VOP_REG(DSP_CTRL0, 0xf, 0),
-	.pin_sync = VOP_REG(DSP_CTRL0, 0xf, 4),
+	.pin_pol = VOP_REG(DSP_CTRL0, 0xf, 4),
 	.htotal_pw = VOP_REG(DSP_HTOTAL_HS_END, 0x1fff1fff, 0),
 	.hact_st_end = VOP_REG(DSP_HACT_ST_END, 0x1fff1fff, 0),
 	.vtotal_pw = VOP_REG(DSP_VTOTAL_VS_END, 0x1fff1fff, 0),
@@ -528,7 +413,7 @@ struct device *vop_get_sysmmu_dev(struct vop_context *ctx)
 
 	pd = of_find_device_by_node(mmu_node);
 	if (!pd) {
-		pr_err("can't find platform device in device node\n");
+		DRM_ERROR("can't find platform device in device node\n");
 		of_node_put(mmu_node);
 		return  NULL;
 	}
@@ -542,7 +427,7 @@ int vop_sysmmu_fault_handler(struct device *dev, enum rk_iommu_inttype itype,
 			     unsigned long pgtable_base,
 			     unsigned long fault_addr, unsigned int status)
 {
-	DRM_ERROR("Generating Kernel OOPS... because it is unrecoverable.\n");
+	dev_err(dev, "Generating Kernel OOPS... because it is unrecoverable.\n");
 
 	return 0;
 }
@@ -655,9 +540,9 @@ static int rockchip_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	unsigned int dsp_stx;
 	unsigned int dsp_sty;
 	unsigned int y_vir_stride;
+	dma_addr_t paddr;
 	enum vop_data_format format;
 	bool is_alpha;
-	int ret;
 
 	if (!win) {
 		DRM_ERROR("can't find win data for vop, failed\n");
@@ -672,11 +557,9 @@ static int rockchip_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 
 	rk_obj = to_rockchip_obj(obj);
 
-	if (!rk_obj->paddr) {
-		ret = rockchip_iommu_mmap(ctx->dev, rk_obj);
-		if (ret < 0)
-			return ret;
-	}
+	paddr = rockchip_iommu_mmap(ctx->dev, rk_obj, ctx->pipe);
+	if (paddr <= 0)
+		return -ENOMEM;
 
 	actual_w = rockchip_plane_get_size(crtc_x,
 					   crtc_w, crtc->mode.hdisplay);
@@ -708,7 +591,7 @@ static int rockchip_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 
 	VOP_WIN_SET(ctx, win, format, format);
 	VOP_WIN_SET(ctx, win, yrgb_vir, y_vir_stride);
-	VOP_WIN_SET(ctx, win, yrgb_addr, rk_obj->paddr + offset);
+	VOP_WIN_SET(ctx, win, yrgb_addr, paddr + offset);
 	VOP_WIN_SET(ctx, win, act_info,
 		    ((actual_h - 1) << 16) | (actual_w - 1));
 	VOP_WIN_SET(ctx, win, dsp_info,
@@ -726,6 +609,21 @@ static int rockchip_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	vop_cfg_done(ctx);
 
 	spin_unlock(&ctx->reg_lock);
+
+	mutex_lock(&ctx->vsync_mutex);
+
+	/*
+	 * Because the buffer set to vop take effect at frame start time,
+	 * we need make sure old buffer is not in use before we release
+	 * it.
+	 * reference the gem obj, and unference it when it swap out of vop.
+	 */
+	if (obj != rockchip_plane->front_obj) {
+		drm_gem_object_reference(obj);
+		rockchip_plane->pending_obj = obj;
+		rockchip_plane->paddr = paddr + offset;
+	}
+	mutex_unlock(&ctx->vsync_mutex);
 
 	return 0;
 }
@@ -855,7 +753,7 @@ static void rockchip_drm_crtc_dpms(struct drm_crtc *crtc, int mode)
 		return;
 	}
 	if (mode > DRM_MODE_DPMS_ON) {
-	/* wait for the completion of page flip. */
+		/* wait for the completion of page flip. */
 		if (!wait_event_timeout(ctx->wait_vsync_queue,
 					!atomic_read(&ctx->wait_vsync_event),
 					HZ/20))
@@ -943,7 +841,10 @@ static int rockchip_drm_crtc_mode_set(struct drm_crtc *crtc,
 		return -EINVAL;
 	};
 
-	VOP_CTRL_SET(ctx, pin_sync, 0x8);
+	val = 0x8;
+	val |= (adjusted_mode->flags & DRM_MODE_FLAG_NHSYNC) ? 1 : 0;
+	val |= (adjusted_mode->flags & DRM_MODE_FLAG_NVSYNC) ? (1 << 1) : 0;
+	VOP_CTRL_SET(ctx, pin_pol, val);
 
 	VOP_CTRL_SET(ctx, htotal_pw, (htotal << 16) | hsync_len);
 	val = (hsync_len + left_margin) << 16;
@@ -992,7 +893,7 @@ static int rockchip_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 
 static void rockchip_drm_crtc_commit(struct drm_crtc *crtc)
 {
-	rockchip_drm_crtc_mode_set_base(crtc, crtc->x, crtc->y, crtc->fb);
+	rockchip_drm_crtc_dpms(crtc, DRM_MODE_DPMS_ON);
 }
 
 static const struct drm_crtc_helper_funcs rockchip_crtc_helper_funcs = {
@@ -1106,6 +1007,44 @@ static const struct drm_crtc_funcs rockchip_crtc_funcs = {
 	.destroy = rockchip_drm_crtc_destroy,
 };
 
+static void rockchip_vsync_worker(struct work_struct *work)
+{
+	struct vop_context *ctx = container_of(work, struct vop_context,
+					       vsync_work);
+	struct drm_device *drm = ctx->drm_dev;
+	struct rockchip_plane *rockchip_plane;
+	struct drm_plane *plane;
+
+	mutex_lock(&ctx->vsync_mutex);
+
+	list_for_each_entry(plane, &drm->mode_config.plane_list, head) {
+		rockchip_plane = to_rockchip_plane(plane);
+		if (!(rockchip_plane->ctx == ctx) ||
+		    !rockchip_plane->pending_obj)
+			continue;
+		/*
+		 * make sure the paddr take effect, so that
+		 * we can unreference the old gem obj
+		 */
+		if (rockchip_plane->paddr !=
+		    VOP_WIN_GET_YRGBADDR(ctx,rockchip_plane->win)) {
+			continue;
+		}
+
+		/*
+		 * drm_gem_object_unreference maybe call iommu unmap,
+		 * and iommu not allow unmap buffer at irq context,
+		 * so we do drm_gem_object_unreference at queue_work.
+		 */
+		if (rockchip_plane->front_obj)
+			drm_gem_object_unreference(rockchip_plane->front_obj);
+		rockchip_plane->front_obj = rockchip_plane->pending_obj;
+		rockchip_plane->pending_obj = NULL;
+	}
+
+	mutex_unlock(&ctx->vsync_mutex);
+}
+
 static int vop_bind(struct device *dev, struct device *master, void *data)
 {
 	struct drm_device *drm_dev = data;
@@ -1120,7 +1059,7 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 	ctx->drm_dev = drm_dev;
 
 	ctx->win_msk = 0;
-	ctx->pipe = private->pipe++;
+	ctx->pipe = private->num_pipe++;
 	crtc = &ctx->crtc;
 
 	private->rk_crtc[ctx->pipe].crtc = crtc;
@@ -1171,6 +1110,14 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 	rockchip_iovmm_set_fault_handler(ctx->dev,
 			vop_sysmmu_fault_handler);
 	rockchip_iovmm_activate(ctx->dev);
+
+	ctx->vsync_wq = create_singlethread_workqueue("vsync");
+	if (!ctx->vsync_wq) {
+		dev_err(dev, "failed to create workqueue\n");
+		return -EINVAL;
+	}
+	INIT_WORK(&ctx->vsync_work, rockchip_vsync_worker);
+	mutex_init(&ctx->vsync_mutex);
 
 	return 0;
 }
@@ -1252,6 +1199,8 @@ static irqreturn_t rockchip_vop_isr(int irq, void *data)
 
 	drm_handle_vblank(ctx->drm_dev, ctx->pipe);
 	rockchip_drm_crtc_finish_pageflip(ctx->drm_dev, ctx->pipe);
+
+	queue_work(ctx->vsync_wq, &ctx->vsync_work);
 
 	return IRQ_HANDLED;
 }

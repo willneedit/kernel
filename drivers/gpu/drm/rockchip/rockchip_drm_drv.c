@@ -390,6 +390,11 @@ static int rockchip_drm_init(void)
 		goto out_edp;
 #endif
 
+#ifdef CONFIG_RK32_HDMI
+	 ret = platform_driver_register(&rk32_hdmi_driver);
+	 if (ret)
+	 	goto out_hdmi;
+#endif
 	rockchip_drm_pdev = platform_device_register_simple("rockchip-drm", -1,
 							    NULL, 0);
 	if (IS_ERR(rockchip_drm_pdev)) {
@@ -408,6 +413,10 @@ out_drm_driver:
 out_drm_pdev:
 #ifdef CONFIG_ROCKCHIP_EDP
 	platform_driver_unregister(&rockchip_edp_driver);
+#ifdef CONFIG_RK32_HDMI
+        platform_driver_unregister(&rk32_hdmi_driver);
+out_hdmi:
+#endif
 out_edp:
 #endif
 #ifdef CONFIG_ROCKCHIP_LVDS

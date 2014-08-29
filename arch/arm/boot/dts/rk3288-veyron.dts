@@ -126,6 +126,10 @@
 			rockchip,data-width = <24>;
 			rockchip,panel = <&panel>;
 		};
+		
+		hdmi: hdmi@ff980000 {
+			status = "okay";
+		};
 
 		vopb: vopb@ff930000 {
 	      		status = "okay";

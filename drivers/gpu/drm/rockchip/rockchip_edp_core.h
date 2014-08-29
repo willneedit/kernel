@@ -1,10 +1,10 @@
-/* rk3288_dp_core.h
-*
-* based on exynos_dp_core.h
+/*
 * Copyright (C) Fuzhou Rockchip Electronics Co.Ltd
 * Author:
 *      yxj <yxj@rock-chips.com>
 *      cym <cym@rock-chips.com>
+*
+* based on exynos_dp_core.h
 *
 * This program is free software; you can redistribute it and/or modify it
 * under the terms of the GNU General Public License as published by the
@@ -12,8 +12,8 @@
 * option) any later version.
 */
 
-#ifndef __ROCKCHIP_DP_H
-#define __ROCKCHIP_DP_H
+#ifndef _ROCKCHIP_EDP_CORE_H
+#define _ROCKCHIP_EDP_CORE_H
 
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
@@ -267,10 +267,10 @@ void rockchip_edp_reset_macro(struct rockchip_edp_device *edp);
 int rockchip_edp_init_video(struct rockchip_edp_device *edp);
 
 void rockchip_edp_set_video_color_format(struct rockchip_edp_device *edp,
-				       u32 color_depth,
-				       u32 color_space,
-				       u32 dynamic_range,
-				       u32 coeff);
+					 u32 color_depth,
+					 u32 color_space,
+					 u32 dynamic_range,
+					 u32 coeff);
 int
 rockchip_edp_is_slave_video_stream_clock_on(struct rockchip_edp_device *edp);
 void rockchip_edp_set_video_cr_mn(struct rockchip_edp_device *edp,
@@ -284,7 +284,7 @@ void rockchip_edp_enable_video_master(struct rockchip_edp_device *edp,
 void rockchip_edp_start_video(struct rockchip_edp_device *edp);
 int rockchip_edp_is_video_stream_on(struct rockchip_edp_device *edp);
 void rockchip_edp_config_video_slave_mode(struct rockchip_edp_device *edp,
-					struct video_info *video_info);
+					  struct video_info *video_info);
 void rockchip_edp_enable_scrambling(struct rockchip_edp_device *edp);
 void rockchip_edp_disable_scrambling(struct rockchip_edp_device *edp);
 void rockchip_edp_rx_control(struct rockchip_edp_device *edp, bool enable);
@@ -371,4 +371,4 @@ void rockchip_edp_clear_hotplug_interrupts(struct rockchip_edp_device *edp);
 
 #define DPCD_SYMBOL_ERR_CONUT_LANE0		0x210
 
-#endif
+#endif  /* _ROCKCHIP_EDP_CORE_H */

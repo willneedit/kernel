@@ -111,7 +111,7 @@ static int rockchip_edp_clk_disable(struct rockchip_edp_device *edp)
 static int rockchip_edp_pre_init(struct rockchip_edp_device *edp)
 {
 	u32 val;
-	int ret = 0;
+	int ret;
 
 	val = GRF_EDP_REF_CLK_SEL_INTER | (GRF_EDP_REF_CLK_SEL_INTER << 16);
 	ret = regmap_write(edp->grf, edp->soc_data->grf_soc_con12, val);
@@ -121,7 +121,7 @@ static int rockchip_edp_pre_init(struct rockchip_edp_device *edp)
 	}
 
 	reset_control_assert(edp->rst);
-	usleep_range(1000, 2000);
+	usleep_range(10, 20);
 	reset_control_deassert(edp->rst);
 
 	return 0;
@@ -145,7 +145,7 @@ static int rockchip_edp_get_max_rx_bandwidth(
 					u8 *bandwidth)
 {
 	u8 data;
-	int retval = 0;
+	int retval;
 
 	/*
 	 * For DP rev.1.1, Maximum link rate of Main Link lanes
@@ -196,8 +196,8 @@ static int rockchip_edp_init_training(struct rockchip_edp_device *edp)
 	retval = rockchip_edp_get_max_rx_lane_count(
 				edp, &edp->link_train.lane_count);
 	dev_dbg(edp->dev, "max link rate:%d.%dGps max number of lanes:%d\n",
-		edp->link_train.link_rate * 27/100,
-		edp->link_train.link_rate*27%100,
+		edp->link_train.link_rate * 27 / 100,
+		edp->link_train.link_rate * 27 % 100,
 		edp->link_train.lane_count);
 
 	if ((edp->link_train.link_rate != LINK_RATE_1_62GBPS) &&
@@ -205,8 +205,8 @@ static int rockchip_edp_init_training(struct rockchip_edp_device *edp)
 		dev_warn(edp->dev, "Rx Max Link Rate is abnormal :%x !\n"
 			 "use default link rate:%d.%dGps\n",
 			 edp->link_train.link_rate,
-			 edp->video_info.link_rate*27/100,
-			 edp->video_info.link_rate*27%100);
+			 edp->video_info.link_rate * 27 / 100,
+			 edp->video_info.link_rate * 27 % 100);
 			 edp->link_train.link_rate = edp->video_info.link_rate;
 	}
 
@@ -238,7 +238,7 @@ static int rockchip_edp_hw_link_training(struct rockchip_edp_device *edp)
 			dev_err(edp->dev, "hw lt timeout");
 			return -ETIMEDOUT;
 		}
-		mdelay(100);
+		mdelay(1);
 		val = rockchip_edp_wait_hw_lt_done(edp);
 	}
 
@@ -291,7 +291,7 @@ static int rockchip_edp_config_video(struct rockchip_edp_device *edp,
 			return -ETIMEDOUT;
 		}
 
-		udelay(100);
+		udelay(1);
 	}
 
 	/* Set to use the register calculated M/N video */
@@ -322,7 +322,7 @@ static int rockchip_edp_config_video(struct rockchip_edp_device *edp,
 			return -ETIMEDOUT;
 		}
 
-		mdelay(100);
+		mdelay(1);
 	}
 
 	if (retval != 0)
@@ -368,7 +368,7 @@ static irqreturn_t rockchip_edp_isr(int irq, void *arg)
 static void rockchip_edp_commit(struct drm_encoder *encoder)
 {
 	struct rockchip_edp_device *edp = encoder_to_edp(encoder);
-	int ret = 0;
+	int ret;
 
 	ret = rockchip_edp_set_link_train(edp);
 	if (ret)
@@ -388,7 +388,7 @@ static void rockchip_edp_commit(struct drm_encoder *encoder)
 static void rockchip_edp_poweron(struct drm_encoder *encoder)
 {
 	struct rockchip_edp_device *edp = encoder_to_edp(encoder);
-	int ret = 0;
+	int ret;
 
 	if (edp->dpms_mode == DRM_MODE_DPMS_ON)
 		return;
@@ -555,6 +555,7 @@ static void rockchip_drm_encoder_prepare(struct drm_encoder *encoder)
 static void rockchip_drm_encoder_commit(struct drm_encoder *encoder)
 {
 	/*rockchip_edp_commit(encoder);*/
+	rockchip_drm_encoder_dpms(encoder, DRM_MODE_DPMS_ON);
 }
 
 static void rockchip_drm_encoder_disable(struct drm_encoder *encoder)
@@ -732,16 +733,16 @@ static int rockchip_edp_probe(struct platform_device *pdev)
 	}
 
 	edp->dev = &pdev->dev;
-	edp->video_info.h_sync_polarity	= 0;
-	edp->video_info.v_sync_polarity	= 0;
-	edp->video_info.interlaced	= 0;
-	edp->video_info.color_space	= CS_RGB;
-	edp->video_info.dynamic_range	= VESA;
-	edp->video_info.ycbcr_coeff	= COLOR_YCBCR601;
-	edp->video_info.color_depth	= COLOR_8;
+	edp->video_info.h_sync_polarity = 0;
+	edp->video_info.v_sync_polarity = 0;
+	edp->video_info.interlaced = 0;
+	edp->video_info.color_space = CS_RGB;
+	edp->video_info.dynamic_range = VESA;
+	edp->video_info.ycbcr_coeff = COLOR_YCBCR601;
+	edp->video_info.color_depth = COLOR_8;
 
-	edp->video_info.link_rate	= LINK_RATE_1_62GBPS;
-	edp->video_info.lane_count	= LANE_CNT4;
+	edp->video_info.link_rate = LINK_RATE_1_62GBPS;
+	edp->video_info.lane_count = LANE_CNT4;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	edp->regs = devm_ioremap_resource(&pdev->dev, res);

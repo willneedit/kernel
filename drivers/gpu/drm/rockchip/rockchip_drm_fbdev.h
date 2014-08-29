@@ -12,10 +12,10 @@
  * GNU General Public License for more details.
  */
 
-#ifndef _ROCKCHIP_DRM_FBDEV_H_
-#define _ROCKCHIP_DRM_FBDEV_H_
+#ifndef _ROCKCHIP_DRM_FBDEV_H
+#define _ROCKCHIP_DRM_FBDEV_H
 
 int rockchip_drm_fbdev_init(struct drm_device *dev);
 void rockchip_drm_fbdev_fini(struct drm_device *dev);
 
-#endif /* _ROCKCHIP_DRM_FBDEV_H_ */
+#endif /* _ROCKCHIP_DRM_FBDEV_H */
