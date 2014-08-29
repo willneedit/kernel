@@ -924,7 +924,17 @@
                         reset-names = "edp";
 			status = "disabled";
 		};
-	
+		
+		hdmi: hdmi@ff980000 {
+                	compatible = "rockchip,rk32-hdmi";
+                	reg = <0xff980000 0x20000>;
+			rockchip,grf = <&grf>;
+                	interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
+                	clocks = <&cru  PCLK_HDMI_CTRL>, <&cru SCLK_HDMI_HDCP>;
+                	clock-names = "pclk_hdmi", "hdcp_clk_hdmi";
+                	status = "disabled";
+        	};
+		
 		gpu{
 			compatible = "arm,malit764",
 				     "arm,malit76x",
