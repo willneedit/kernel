@@ -33,3 +33,10 @@ config ROCKCHIP_EDP
 	  Rockchip rk3288 SoC has eDP TX Controller can be used.
 	  If you have an Embedded DisplayPort Panel, say Y to enable its
 	  driver.
+
+config RK32_HDMI
+	bool "RK3288 HDMI support"
+	depends on DRM_ROCKCHIP
+	help
+	   Say y here enable HDMI support on RK3288 platform
+

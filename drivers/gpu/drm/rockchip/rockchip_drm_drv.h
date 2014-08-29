@@ -127,4 +127,7 @@ extern struct platform_driver rockchip_lvds_driver;
 #ifdef CONFIG_ROCKCHIP_EDP
 extern struct platform_driver rockchip_edp_driver;
 #endif
-#endif /* _ROCKCHIP_DRM_DRV_H */
+#ifdef CONFIG_RK32_HDMI
+extern struct platform_driver rk32_hdmi_driver;
+#endif
+#endif /* _ROCKCHIP_DRM_DRV_H_ */
