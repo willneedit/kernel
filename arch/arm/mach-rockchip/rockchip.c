@@ -24,9 +24,14 @@
 #include <asm/hardware/cache-l2x0.h>
 #include "core.h"
 
+#define GRF_PERIDMAC_CON0	0x2e0
 static void __init rockchip_dt_init(void)
 {
 	struct platform_device_info devinfo = { .name = "cpufreq-cpu0", };
+	void __iomem *tmp = ioremap(0xff770000, 0x1000);
+
+	/* set dma peripheral signals as SINGLE level request. */
+	writel((3<<17)|(0<<1), tmp + GRF_PERIDMAC_CON0);
 
 	l2x0_of_init(0, ~0UL);
 	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
