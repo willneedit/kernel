@@ -16,7 +16,6 @@
 #include <linux/clk.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
-#include <linux/mfd/syscon.h>
 #include <sound/pcm_params.h>
 #include <sound/dmaengine_pcm.h>
 
@@ -26,7 +25,6 @@
 
 struct rk_i2s_dev {
 	struct device *dev;
-	struct regmap *grf;
 
 	struct clk *hclk;
 	struct clk *mclk;
@@ -443,7 +441,6 @@ static const struct regmap_config rockchip_i2s_regmap_config = {
 
 static int rockchip_i2s_probe(struct platform_device *pdev)
 {
-	struct device_node *np = pdev->dev.of_node;
 	struct rk_i2s_dev *i2s;
 	struct resource *res;
 	void __iomem *regs;
@@ -453,12 +450,6 @@ static int rockchip_i2s_probe(struct platform_device *pdev)
 	if (!i2s) {
 		dev_err(&pdev->dev, "Can't allocate rk_i2s_dev\n");
 		return -ENOMEM;
-	}
-
-	i2s->grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
-	if (IS_ERR(i2s->grf)) {
-		dev_err(&pdev->dev, "Can't retrieve grf property\n");
-		return PTR_ERR(i2s->grf);
 	}
 
 	/* try to prepare related clocks */
@@ -499,15 +490,6 @@ static int rockchip_i2s_probe(struct platform_device *pdev)
 
 	i2s->dev = &pdev->dev;
 	dev_set_drvdata(&pdev->dev, i2s);
-
-	if (of_property_read_bool(np, "rockchip,i2s-power-1v8"))
-		ret = regmap_write(i2s->grf, 0x0380, 0x00400040);
-	else
-		ret = regmap_write(i2s->grf, 0x0380, 0x00400000);
-	if (ret) {
-		dev_err(i2s->dev, "Could not write to GRF: %d\n", ret);
-		return ret;
-	}
 
 	pm_runtime_enable(&pdev->dev);
 	if (!pm_runtime_enabled(&pdev->dev)) {
