@@ -1,0 +1,40 @@
+ROCKCHIP audio complex, with MAX98090 CODEC
+
+Required properties:
+- compatible : "rockchip,rockchip-audio-max98090"
+- rockchip,audio-routing : A list of the connections between audio components.
+  Each entry is a pair of strings, the first being the connection's sink,
+  the second being the connection's source. Valid names for sources and
+  sinks are the MAX98090's pins (as documented in its binding), and the jacks
+  on the board:
+
+  * Headphones
+  * Speakers
+  * Mic Jack
+
+- rockchip,i2s-controller : The phandle of the Tegra I2S controller that's
+  connected to the CODEC.
+- rockchip,audio-codec : The phandle of the MAX98090 audio codec.
+
+Optional properties:
+- rockchip,hp-det-gpios : The GPIO that detect headphones are plugged in
+- rockchip,mic-det-gpios : The GPIO that detect micphones are plugged in
+
+Example:
+
+sound {
+	compatible = "rockchip,rockchip-audio-max98090-veyron",
+		     "rockchip,rockchip-audio-max98090";
+	nvidia,model = "ROCKCHIP-I2S";
+
+	nvidia,audio-routing =
+		"Headphones", "HPR",
+		"Headphones", "HPL",
+		"Speakers", "SPKR",
+		"Speakers", "SPKL",
+		"Mic Jack", "MICBIAS",
+		"IN34", "Mic Jack";
+
+	nvidia,i2s-controller = <&i2s>;
+	nvidia,audio-codec = <&max98090>;
+};
