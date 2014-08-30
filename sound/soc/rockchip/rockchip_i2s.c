@@ -10,14 +10,15 @@
  * published by the Free Software Foundation.
  */
 
-#include <linux/module.h>
-#include <linux/delay.h>
-#include <linux/of_gpio.h>
 #include <linux/clk.h>
+#include <linux/delay.h>
+#include <linux/mfd/syscon.h>
+#include <linux/module.h>
+#include <linux/of_gpio.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
-#include <sound/pcm_params.h>
 #include <sound/dmaengine_pcm.h>
+#include <sound/pcm_params.h>
 
 #include "rockchip_i2s.h"
 
@@ -25,6 +26,7 @@
 
 struct rk_i2s_dev {
 	struct device *dev;
+	struct regmap *grf;
 
 	struct clk *hclk;
 	struct clk *mclk;
@@ -66,11 +68,6 @@ static int i2s_runtime_resume(struct device *dev)
 	return 0;
 }
 
-static inline struct rk_i2s_dev *to_info(struct snd_soc_dai *dai)
-{
-	return snd_soc_dai_get_drvdata(dai);
-}
-
 static void rockchip_snd_txctrl(struct rk_i2s_dev *i2s, int on)
 {
 	unsigned int val = 0;
@@ -79,7 +76,6 @@ static void rockchip_snd_txctrl(struct rk_i2s_dev *i2s, int on)
 	if (on) {
 		regmap_update_bits(i2s->regmap, I2S_DMACR,
 				   I2S_DMACR_TDE_ENABLE, I2S_DMACR_TDE_ENABLE);
-
 		regmap_update_bits(i2s->regmap, I2S_XFER,
 				   I2S_XFER_TXS_START | I2S_XFER_RXS_START,
 				   I2S_XFER_TXS_START | I2S_XFER_RXS_START);
@@ -89,7 +85,7 @@ static void rockchip_snd_txctrl(struct rk_i2s_dev *i2s, int on)
 		i2s->tx_start = false;
 
 		regmap_update_bits(i2s->regmap, I2S_DMACR,
-				   I2S_DMACR_TDE_ENABLE, I2S_DMACR_TDE_ENABLE);
+				   I2S_DMACR_TDE_ENABLE, I2S_DMACR_RDE_DISABLE);
 
 		if (!i2s->rx_start) {
 			regmap_update_bits(i2s->regmap, I2S_XFER,
@@ -99,8 +95,8 @@ static void rockchip_snd_txctrl(struct rk_i2s_dev *i2s, int on)
 					   I2S_XFER_RXS_STOP);
 
 			regmap_update_bits(i2s->regmap, I2S_CLR,
-					   I2S_CLR_TXC | I2S_CLR_TXC,
-					   I2S_CLR_TXC | I2S_CLR_TXC);
+					   I2S_CLR_TXC | I2S_CLR_RXC,
+					   I2S_CLR_TXC | I2S_CLR_RXC);
 
 			regmap_read(i2s->regmap, I2S_CLR, &val);
 
@@ -143,8 +139,8 @@ static void rockchip_snd_rxctrl(struct rk_i2s_dev *i2s, int on)
 					   I2S_XFER_RXS_STOP);
 
 			regmap_update_bits(i2s->regmap, I2S_CLR,
-					   I2S_CLR_TXC | I2S_CLR_TXC,
-					   I2S_CLR_TXC | I2S_CLR_TXC);
+					   I2S_CLR_TXC | I2S_CLR_RXC,
+					   I2S_CLR_TXC | I2S_CLR_RXC);
 
 			regmap_read(i2s->regmap, I2S_CLR, &val);
 
@@ -159,19 +155,20 @@ static void rockchip_snd_rxctrl(struct rk_i2s_dev *i2s, int on)
 	}
 }
 
-static int rockchip_i2s_set_fmt(struct snd_soc_dai *cpu_dai,
+static int rockchip_i2s_set_fmt(struct snd_soc_dai *dai,
 				unsigned int fmt)
 {
-	struct rk_i2s_dev *i2s = to_info(cpu_dai);
+	struct rk_i2s_dev *i2s = snd_soc_dai_get_drvdata(dai);
 	unsigned int mask = 0, val = 0;
 
-	mask = I2S_CKR_MSS_SLAVE;
+	mask = I2S_CKR_MSS_MASK;
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 	case SND_SOC_DAIFMT_CBS_CFS:
-		val = I2S_CKR_MSS_SLAVE;
+		/* Set default source clock in Master mode */
+		val = I2S_CKR_MSS_MASTER;
 		break;
 	case SND_SOC_DAIFMT_CBM_CFM:
-		val = I2S_CKR_MSS_MASTER;
+		val = I2S_CKR_MSS_SLAVE;
 		break;
 	default:
 		return -EINVAL;
@@ -220,7 +217,7 @@ static int rockchip_i2s_hw_params(struct snd_pcm_substream *substream,
 				  struct snd_pcm_hw_params *params,
 				  struct snd_soc_dai *dai)
 {
-	struct rk_i2s_dev *i2s = to_info(dai);
+	struct rk_i2s_dev *i2s = snd_soc_dai_get_drvdata(dai);
 	unsigned int val = 0;
 
 	switch (params_format(params)) {
@@ -243,24 +240,13 @@ static int rockchip_i2s_hw_params(struct snd_pcm_substream *substream,
 	regmap_update_bits(i2s->regmap, I2S_TXCR, I2S_TXCR_VDW_MASK, val);
 	regmap_update_bits(i2s->regmap, I2S_RXCR, I2S_RXCR_VDW_MASK, val);
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		dai->playback_dma_data = &i2s->playback_dma_data;
-		regmap_update_bits(i2s->regmap, I2S_DMACR, I2S_DMACR_TDL_MASK,
-				   I2S_DMACR_TDL(1) | I2S_DMACR_TDE_ENABLE);
-	} else {
-		dai->capture_dma_data = &i2s->capture_dma_data;
-		regmap_update_bits(i2s->regmap, I2S_DMACR, I2S_DMACR_RDL_MASK,
-				   I2S_DMACR_RDL(1) | I2S_DMACR_RDE_ENABLE);
-	}
-
 	return 0;
 }
 
 static int rockchip_i2s_trigger(struct snd_pcm_substream *substream,
 				int cmd, struct snd_soc_dai *dai)
 {
-	struct rk_i2s_dev *i2s = to_info(dai);
-	int ret = 0;
+	struct rk_i2s_dev *i2s = snd_soc_dai_get_drvdata(dai);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -280,17 +266,16 @@ static int rockchip_i2s_trigger(struct snd_pcm_substream *substream,
 			rockchip_snd_txctrl(i2s, 0);
 		break;
 	default:
-		ret = -EINVAL;
-		break;
+		return -EINVAL;
 	}
 
-	return ret;
+	return 0;
 }
 
-static int rockchip_i2s_set_sysclk(struct snd_soc_dai *cpu_dai, int clk_id,
+static int rockchip_i2s_set_sysclk(struct snd_soc_dai *dai, int clk_id,
 				   unsigned int freq, int dir)
 {
-	struct rk_i2s_dev *i2s = to_info(cpu_dai);
+	struct rk_i2s_dev *i2s = snd_soc_dai_get_drvdata(dai);
 	int ret;
 
 	ret = clk_set_rate(i2s->mclk, freq);
@@ -298,6 +283,16 @@ static int rockchip_i2s_set_sysclk(struct snd_soc_dai *cpu_dai, int clk_id,
 		dev_err(i2s->dev, "Fail to set mclk %d\n", ret);
 
 	return ret;
+}
+
+static int rockchip_i2s_dai_probe(struct snd_soc_dai *dai)
+{
+	struct rk_i2s_dev *i2s = snd_soc_dai_get_drvdata(dai);
+
+	dai->capture_dma_data = &i2s->capture_dma_data;
+	dai->playback_dma_data = &i2s->playback_dma_data;
+
+	return 0;
 }
 
 static const struct snd_soc_dai_ops rockchip_i2s_dai_ops = {
@@ -308,7 +303,9 @@ static const struct snd_soc_dai_ops rockchip_i2s_dai_ops = {
 };
 
 static struct snd_soc_dai_driver rockchip_i2s_dai = {
+	.probe = rockchip_i2s_dai_probe,
 	.playback = {
+		.stream_name = "Playback",
 		.channels_min = 2,
 		.channels_max = 8,
 		.rates = SNDRV_PCM_RATE_8000_192000,
@@ -318,6 +315,7 @@ static struct snd_soc_dai_driver rockchip_i2s_dai = {
 			    SNDRV_PCM_FMTBIT_S24_LE),
 	},
 	.capture = {
+		.stream_name = "Capture",
 		.channels_min = 2,
 		.channels_max = 2,
 		.rates = SNDRV_PCM_RATE_8000_192000,
@@ -361,6 +359,8 @@ static bool rockchip_i2s_rd_reg(struct device *dev, unsigned int reg)
 	case I2S_XFER:
 	case I2S_CLR:
 	case I2S_RXDR:
+	case I2S_FIFOLR:
+	case I2S_INTSR:
 		return true;
 	default:
 		return false;
@@ -370,8 +370,8 @@ static bool rockchip_i2s_rd_reg(struct device *dev, unsigned int reg)
 static bool rockchip_i2s_volatile_reg(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
-	case I2S_FIFOLR:
 	case I2S_INTSR:
+	case I2S_CLR:
 		return true;
 	default:
 		return false;
@@ -381,8 +381,6 @@ static bool rockchip_i2s_volatile_reg(struct device *dev, unsigned int reg)
 static bool rockchip_i2s_precious_reg(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
-	case I2S_FIFOLR:
-		return true;
 	default:
 		return false;
 	}
@@ -402,15 +400,20 @@ static const struct regmap_config rockchip_i2s_regmap_config = {
 
 static int rockchip_i2s_probe(struct platform_device *pdev)
 {
+	struct device_node *np = pdev->dev.of_node;
 	struct rk_i2s_dev *i2s;
 	struct resource *res;
 	void __iomem *regs;
 	int ret;
 
 	i2s = devm_kzalloc(&pdev->dev, sizeof(*i2s), GFP_KERNEL);
-	if (!i2s) {
-		dev_err(&pdev->dev, "Can't allocate rk_i2s_dev\n");
+	if (!i2s)
 		return -ENOMEM;
+
+	i2s->grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
+	if (IS_ERR(i2s->grf)) {
+		dev_err(&pdev->dev, "Can't retrieve grf property\n");
+		return PTR_ERR(i2s->grf);
 	}
 
 	/* try to prepare related clocks */
@@ -418,6 +421,11 @@ static int rockchip_i2s_probe(struct platform_device *pdev)
 	if (IS_ERR(i2s->hclk)) {
 		dev_err(&pdev->dev, "Can't retrieve i2s bus clock\n");
 		return PTR_ERR(i2s->hclk);
+	}
+	ret = clk_prepare_enable(i2s->hclk);
+	if (ret) {
+		dev_err(i2s->dev, "hclock enable failed %d\n", ret);
+		return ret;
 	}
 
 	i2s->mclk = devm_clk_get(&pdev->dev, "i2s_clk");
@@ -449,6 +457,17 @@ static int rockchip_i2s_probe(struct platform_device *pdev)
 
 	i2s->dev = &pdev->dev;
 	dev_set_drvdata(&pdev->dev, i2s);
+
+	if (of_property_read_bool(np, "rockchip,grf-io-vsel"))
+		ret = regmap_write(i2s->grf, GRF_IO_VSEL,
+				   BIT(6) << 16 | BIT(6));
+	else
+		ret = regmap_write(i2s->grf, GRF_IO_VSEL,
+				   BIT(6) << 16);
+	if (ret) {
+		dev_err(i2s->dev, "Could not write to GRF: %d\n", ret);
+		return ret;
+	}
 
 	pm_runtime_enable(&pdev->dev);
 	if (!pm_runtime_enabled(&pdev->dev)) {

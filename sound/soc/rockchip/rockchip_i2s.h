@@ -201,12 +201,6 @@
 */
 #define I2S_RXDR_MASK	(0xff)
 
-/* Clock divider id */
-enum {
-	ROCKCHIP_DIV_MCLK = 0,
-	ROCKCHIP_DIV_BCLK,
-};
-
 /* I2S REGS */
 #define I2S_TXCR	(0x0000)
 #define I2S_RXCR	(0x0004)
@@ -219,5 +213,12 @@ enum {
 #define I2S_CLR		(0x0020)
 #define I2S_TXDR	(0x0024)
 #define I2S_RXDR	(0x0028)
+
+/*
+ * IO voltage select
+ * 1: I2S controller powerd by 1.8v
+ * 0: I2S controller powerd by 3.3v (default)
+*/
+#define GRF_IO_VSEL (0x380)
 
 #endif /* _ROCKCHIP_IIS_H */
