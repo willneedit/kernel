@@ -22,262 +22,287 @@
 #include <linux/slab.h>
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
-
 #include <sound/core.h>
 #include <sound/jack.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
-
 #include "rockchip_i2s.h"
 
 #define DRV_NAME "rockchip-snd-max98090"
+#define RK_PLAT_CLK_12M      12000000
 
-struct rockchip_max98090 {
-	int gpio_hp_det;
-	int gpio_mic_det;
+struct rk_mc_private {
+	struct snd_soc_jack hp_jack;
+	struct snd_soc_jack mic_jack;
 };
 
-static int rockchip_max98090_asoc_hw_params(struct snd_pcm_substream *substream,
-					    struct snd_pcm_hw_params *params)
+static const struct snd_soc_dapm_widget rk_dapm_widgets[] = {
+	SND_SOC_DAPM_HP("Headphone", NULL),
+	SND_SOC_DAPM_MIC("Headset Mic", NULL),
+	SND_SOC_DAPM_MIC("Int Mic", NULL),
+	SND_SOC_DAPM_SPK("Ext Spk", NULL),
+};
+
+static const struct snd_soc_dapm_route rk_audio_map[] = {
+	{"IN34", NULL, "Headset Mic"},
+	{"IN34", NULL, "MICBIAS"},
+	{"MICBIAS", NULL, "Headset Mic"},
+	{"DMICL", NULL, "Int Mic"},
+	{"Headphone", NULL, "HPL"},
+	{"Headphone", NULL, "HPR"},
+	{"Ext Spk", NULL, "SPKL"},
+	{"Ext Spk", NULL, "SPKR"},
+};
+
+static const struct snd_kcontrol_new rk_mc_controls[] = {
+	SOC_DAPM_PIN_SWITCH("Headphone"),
+	SOC_DAPM_PIN_SWITCH("Headset Mic"),
+	SOC_DAPM_PIN_SWITCH("Int Mic"),
+	SOC_DAPM_PIN_SWITCH("Ext Spk"),
+};
+
+static int rk_aif1_hw_params(struct snd_pcm_substream *substream,
+			     struct snd_pcm_hw_params *params)
 {
+	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct snd_soc_codec *codec = codec_dai->codec;
-	struct snd_soc_card *card = codec->card;
-	int mclk, ret;
-	unsigned int dai_fmt = rtd->dai_link->dai_fmt;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 
-	/* set codec DAI configuration */
-	ret = snd_soc_dai_set_fmt(codec_dai, dai_fmt);
-	if (ret < 0) {
-		dev_err(card->dev, "codec_dai format not set, %d\n", ret);
-		return ret;
-	}
-
-	/* set cpu DAI configuration */
-	ret = snd_soc_dai_set_fmt(cpu_dai, dai_fmt);
-	if (ret < 0) {
-		dev_err(card->dev, "cpu_dai format not set, %d\n", ret);
-		return ret;
-	}
-
-	switch (params_rate(params)) {
-	case 8000:
-	case 16000:
-	case 24000:
-	case 32000:
-	case 48000:
-	case 64000:
-	case 96000:
-		mclk = 12288000;
-		break;
-	case 11025:
-	case 22050:
-	case 44100:
-	case 88200:
-		mclk = 11289600;
-		break;
-	default:
-		return -EINVAL;
-	}
-	mclk = 12000000;
-	ret = snd_soc_dai_set_sysclk(cpu_dai, 0, mclk,
+/* Set max98090 as master, i2s clock output 12MHz for max98090 */
+	ret = snd_soc_dai_set_sysclk(cpu_dai, 0,
+				     RK_PLAT_CLK_12M,
 				     SND_SOC_CLOCK_OUT);
 	if (ret < 0) {
-		dev_err(card->dev, "cpu_dai clock not set, %d\n", ret);
+		dev_err(codec_dai->dev, "Can't set codec clock %d\n", ret);
 		return ret;
 	}
 
-	ret = snd_soc_dai_set_sysclk(codec_dai, 0, mclk,
+/* Max98090 receive 12MHz as input
+  * work with internel pll.
+  */
+	ret = snd_soc_dai_set_sysclk(codec_dai, 0,
+				     RK_PLAT_CLK_12M,
 				     SND_SOC_CLOCK_IN);
 	if (ret < 0) {
-		dev_err(card->dev, "codec_dai clock not set, %d\n", ret);
+		dev_err(codec_dai->dev, "Can't set codec clock %d\n", ret);
 		return ret;
 	}
 
 	return ret;
 }
 
-static struct snd_soc_ops rockchip_max98090_ops = {
-	.hw_params = rockchip_max98090_asoc_hw_params,
+static struct snd_soc_jack_pin hp_jack_pin = {
+	.pin	= "Headphone",
+	.mask	= SND_JACK_HEADPHONE,
 };
 
-static struct snd_soc_jack rockchip_max98090_hp_jack;
-static struct snd_soc_jack_pin rockchip_max98090_hp_jack_pins[] = {
-	{
-		.pin = "Headphones",
-		.mask = SND_JACK_HEADPHONE,
-	},
+static struct snd_soc_jack_pin mic_jack_pin = {
+	.pin	= "Headset Mic",
+	.mask	= SND_JACK_MICROPHONE,
 };
 
-static struct snd_soc_jack_gpio rockchip_max98090_hp_jack_gpio = {
-	.name = "Headphone detection",
-	.report = SND_JACK_HEADPHONE,
-	.debounce_time = 150,
-	.invert = 1,
+static struct snd_soc_jack_gpio hp_jack_gpio = {
+	.name			= "hp-gpio",
+	.report			= SND_JACK_HEADPHONE,
+	.debounce_time		= 200,
+	.invert			= 1,
 };
 
-static struct snd_soc_jack rockchip_max98090_mic_jack;
-static struct snd_soc_jack_pin rockchip_max98090_mic_jack_pins[] = {
-	{
-		.pin = "Mic Jack",
-		.mask = SND_JACK_MICROPHONE,
-	},
+static struct snd_soc_jack_gpio mic_jack_gpio = {
+	.name			= "mic-gpio",
+	.report			= SND_JACK_MICROPHONE,
+	.debounce_time		= 200,
+	.invert			= 1,
 };
 
-static struct snd_soc_jack_gpio rockchip_max98090_mic_jack_gpio = {
-	.name = "mic detect",
-	.report = SND_JACK_MICROPHONE,
-	.debounce_time = 150,
-	.invert = 0,
-};
-
-static const struct snd_soc_dapm_widget rockchip_max98090_dapm_widgets[] = {
-	SND_SOC_DAPM_HP("Headphones", NULL),
-	SND_SOC_DAPM_SPK("Speakers", NULL),
-	SND_SOC_DAPM_MIC("Mic Jack", NULL),
-};
-
-static const struct snd_kcontrol_new rockchip_max98090_controls[] = {
-	SOC_DAPM_PIN_SWITCH("Speakers"),
-};
-
-static int rockchip_max98090_asoc_init(struct snd_soc_pcm_runtime *rtd)
+static int rk_init(struct snd_soc_pcm_runtime *runtime)
 {
-	struct snd_soc_codec *codec = rtd->codec;
-	struct snd_soc_card *card = codec->card;
-	struct device_node *dn = card->dev->of_node;
+	int ret = 0;
+	struct snd_soc_codec *codec = runtime->codec;
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
+	struct snd_soc_card *card = runtime->card;
+	struct rk_mc_private *drv = snd_soc_card_get_drvdata(card);
+	struct snd_soc_jack *hp_jack = &drv->hp_jack;
+	struct snd_soc_jack *mic_jack = &drv->mic_jack;
 
-	if (dn) {
-		enum of_gpio_flags flags;
+	card->dapm.idle_bias_off = true;
 
-		rockchip_max98090_mic_jack_gpio.gpio = of_get_named_gpio_flags(
-				dn, "rockchip,mic-det-gpios", 0, &flags);
-		rockchip_max98090_mic_jack_gpio.invert = !!(flags & OF_GPIO_ACTIVE_LOW);
-
-		rockchip_max98090_hp_jack_gpio.gpio = of_get_named_gpio_flags(
-				dn, "rockchip,hp-det-gpios", 0, &flags);
-		rockchip_max98090_hp_jack_gpio.invert = !!(flags & OF_GPIO_ACTIVE_LOW);
+	ret = snd_soc_add_card_controls(card, rk_mc_controls,
+					ARRAY_SIZE(rk_mc_controls));
+	if (ret) {
+		pr_err("unable to add card controls\n");
+		return ret;
 	}
 
-	if (gpio_is_valid(rockchip_max98090_mic_jack_gpio.gpio)) {
-		snd_soc_jack_new(codec, "Mic Jack", SND_JACK_MICROPHONE,
-				 &rockchip_max98090_mic_jack);
-		snd_soc_jack_add_pins(&rockchip_max98090_mic_jack,
-				      ARRAY_SIZE(rockchip_max98090_mic_jack_pins),
-				      rockchip_max98090_mic_jack_pins);
-		snd_soc_jack_add_gpios(&rockchip_max98090_mic_jack, 1,
-				       &rockchip_max98090_mic_jack_gpio);
-	}
+	snd_soc_dapm_enable_pin(dapm, "Headset Mic");
+	snd_soc_dapm_enable_pin(dapm, "Headphone");
+	snd_soc_dapm_enable_pin(dapm, "Ext Spk");
+	snd_soc_dapm_enable_pin(dapm, "Int Mic");
 
-	if (gpio_is_valid(rockchip_max98090_hp_jack_gpio.gpio)) {
-		snd_soc_jack_new(codec, "Headphone Jack",
-				 SND_JACK_HEADPHONE, &rockchip_max98090_hp_jack);
-		snd_soc_jack_add_pins(&rockchip_max98090_hp_jack,
-				      ARRAY_SIZE(rockchip_max98090_hp_jack_pins),
-				      rockchip_max98090_hp_jack_pins);
-		snd_soc_jack_add_gpios(&rockchip_max98090_hp_jack, 1,
-				       &rockchip_max98090_hp_jack_gpio);
-	}
+	snd_soc_dapm_sync(dapm);
 
-	return 0;
+	/* Enable headphone jack detection */
+	ret = snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE,
+			       hp_jack);
+	if (ret)
+		return ret;
+
+	ret = snd_soc_jack_add_pins(hp_jack, 1, &hp_jack_pin);
+	if (ret)
+		return ret;
+
+	ret = snd_soc_jack_add_gpios(hp_jack, 1, &hp_jack_gpio);
+	if (ret)
+		return ret;
+
+	/* Enable mic jack detection */
+	ret = snd_soc_jack_new(codec, "Mic Jack", SND_JACK_MICROPHONE,
+			       mic_jack);
+	if (ret)
+		return ret;
+
+	ret = snd_soc_jack_add_pins(mic_jack, 1, &mic_jack_pin);
+	if (ret)
+		return ret;
+
+	ret = snd_soc_jack_add_gpios(mic_jack, 1, &mic_jack_gpio);
+	if (ret)
+		return ret;
+
+	return ret;
 }
 
-static struct snd_soc_dai_link rockchip_max98090_dai = {
+static struct snd_soc_ops rk_aif1_ops = {
+	.hw_params = rk_aif1_hw_params,
+};
+
+static struct snd_soc_dai_link rk_dailink = {
 	.name = "max98090",
-	.stream_name = "max98090 PCM",
+	.stream_name = "Audio",
 	.codec_dai_name = "HiFi",
-	.init = rockchip_max98090_asoc_init,
-	.ops = &rockchip_max98090_ops,
+	.init = rk_init,
+	.ops = &rk_aif1_ops,
+	/* set max98090 as master */
 	.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
-		   SND_SOC_DAIFMT_CBM_CFM,
+		SND_SOC_DAIFMT_CBM_CFM,
 };
 
-static struct snd_soc_card snd_soc_rockchip_max98090 = {
+static struct snd_soc_card snd_soc_card_rk = {
 	.name = "ROCKCHIP-I2S",
-	.owner = THIS_MODULE,
-	.dai_link = &rockchip_max98090_dai,
+	.dai_link = &rk_dailink,
 	.num_links = 1,
-	.controls = rockchip_max98090_controls,
-	.num_controls = ARRAY_SIZE(rockchip_max98090_controls),
-	.dapm_widgets = rockchip_max98090_dapm_widgets,
-	.num_dapm_widgets = ARRAY_SIZE(rockchip_max98090_dapm_widgets),
-	.fully_routed = true,
+	.dapm_widgets = rk_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(rk_dapm_widgets),
+	.dapm_routes = rk_audio_map,
+	.num_dapm_routes = ARRAY_SIZE(rk_audio_map),
+	.controls = rk_mc_controls,
+	.num_controls = ARRAY_SIZE(rk_mc_controls),
 };
 
-static int rockchip_max98090_probe(struct platform_device *pdev)
+#ifdef CONFIG_PM_SLEEP
+static int snd_rk_prepare(struct device *dev)
 {
-	struct device_node *np = pdev->dev.of_node;
-	struct snd_soc_card *card = &snd_soc_rockchip_max98090;
-	struct rockchip_max98090 *machine;
-	int ret;
+	struct snd_soc_card *card = dev_get_drvdata(dev);
+	struct rk_mc_private *drv = snd_soc_card_get_drvdata(card);
 
-	machine = devm_kzalloc(&pdev->dev, sizeof(*machine), GFP_KERNEL);
-	if (!machine) {
-		dev_err(&pdev->dev, "Can't allocate rockchip_max98090\n");
+	snd_soc_jack_free_gpios(&drv->hp_jack, 1, &hp_jack_gpio);
+	snd_soc_jack_free_gpios(&drv->mic_jack, 1, &mic_jack_gpio);
+
+	return snd_soc_suspend(dev);
+}
+
+static void snd_rk_complete(struct device *dev)
+{
+	struct snd_soc_card *card = dev_get_drvdata(dev);
+	struct rk_mc_private *drv = snd_soc_card_get_drvdata(card);
+
+	snd_soc_jack_add_gpios(&drv->hp_jack, 1, &hp_jack_gpio);
+	snd_soc_jack_add_gpios(&drv->mic_jack, 1, &mic_jack_gpio);
+
+	snd_soc_resume(dev);
+}
+
+static const struct dev_pm_ops rk_max98090_pm_ops = {
+	.prepare = snd_rk_prepare,
+	.complete = snd_rk_complete,
+};
+
+#define RK_MAX98090_PM_OPS	(&rk_max98090_pm_ops)
+#else
+#define RK_MAX98090_PM_OPS	NULL
+#endif
+
+static int snd_rk_mc_probe(struct platform_device *pdev)
+{
+	int ret = 0;
+	struct rk_mc_private *drv;
+	struct snd_soc_card *card = &snd_soc_card_rk;
+	struct device_node *np = pdev->dev.of_node;
+
+	drv = devm_kzalloc(&pdev->dev, sizeof(*drv), GFP_KERNEL);
+	if (!drv) {
+		pr_err("allocation failed\n");
 		return -ENOMEM;
 	}
 
-	card->dev = &pdev->dev;
-	platform_set_drvdata(pdev, card);
-	snd_soc_card_set_drvdata(card, machine);
-
-	machine->gpio_hp_det = of_get_named_gpio(np, "rockchip,hp-det-gpios", 0);
-	if (machine->gpio_hp_det == -EPROBE_DEFER)
+	hp_jack_gpio.gpio = of_get_named_gpio(np, "rockchip,hp-det-gpios", 0);
+	if (hp_jack_gpio.gpio == -EPROBE_DEFER)
 		return -EPROBE_DEFER;
 
-	ret = snd_soc_of_parse_card_name(card, "rockchip,model");
-	if (ret)
-		goto err;
+	mic_jack_gpio.gpio = of_get_named_gpio(np, "rockchip,mic-det-gpios", 0);
+	if (mic_jack_gpio.gpio == -EPROBE_DEFER)
+		return -EPROBE_DEFER;
 
-	ret = snd_soc_of_parse_audio_routing(card, "rockchip,audio-routing");
-	if (ret)
-		goto err;
+	/* register the soc card */
+	card->dev = &pdev->dev;
+	platform_set_drvdata(pdev, card);
+	snd_soc_card_set_drvdata(card, drv);
 
-	rockchip_max98090_dai.codec_of_node = of_parse_phandle(np,
+	rk_dailink.codec_of_node = of_parse_phandle(np,
 			"rockchip,audio-codec", 0);
-	if (!rockchip_max98090_dai.codec_of_node) {
+	if (!rk_dailink.codec_of_node) {
 		dev_err(&pdev->dev,
 			"Property 'rockchip,audio-codec' missing or invalid\n");
-		ret = -EINVAL;
-		goto err;
+		return -EINVAL;
 	}
 
-	rockchip_max98090_dai.cpu_of_node = of_parse_phandle(np,
+	rk_dailink.cpu_of_node = of_parse_phandle(np,
 			"rockchip,i2s-controller", 0);
-	if (!rockchip_max98090_dai.cpu_of_node) {
+	if (!rk_dailink.cpu_of_node) {
 		dev_err(&pdev->dev,
 			"Property 'rockchip,i2s-controller' missing or invalid\n");
-		ret = -EINVAL;
-		goto err;
+		return -EINVAL;
 	}
 
-	rockchip_max98090_dai.platform_of_node = rockchip_max98090_dai.cpu_of_node;
+	rk_dailink.platform_of_node = rk_dailink.cpu_of_node;
 
 	ret = snd_soc_register_card(card);
 	if (ret) {
-		dev_err(&pdev->dev, "snd_soc_register_card failed (%d)\n",
-			ret);
-		goto err;
+		pr_err("snd_soc_register_card failed %d\n", ret);
+		return ret;
 	}
+	platform_set_drvdata(pdev, &card);
 
-	return 0;
+	ret = snd_soc_of_parse_card_name(card, "rockchip,model");
+	if (ret)
+		return ret;
 
-err:
 	return ret;
 }
 
-static int rockchip_max98090_remove(struct platform_device *pdev)
+static int snd_rk_mc_remove(struct platform_device *pdev)
 {
-	struct snd_soc_card *card = platform_get_drvdata(pdev);
+	struct snd_soc_card *soc_card = platform_get_drvdata(pdev);
+	struct rk_mc_private *drv = snd_soc_card_get_drvdata(soc_card);
 
-	snd_soc_jack_free_gpios(&rockchip_max98090_hp_jack, 1,
-				&rockchip_max98090_hp_jack_gpio);
+	snd_soc_jack_free_gpios(&drv->hp_jack, 1, &hp_jack_gpio);
+	snd_soc_jack_free_gpios(&drv->mic_jack, 1, &mic_jack_gpio);
 
-	snd_soc_unregister_card(card);
-
+	snd_soc_card_set_drvdata(soc_card, NULL);
+	snd_soc_unregister_card(soc_card);
+	platform_set_drvdata(pdev, NULL);
 	return 0;
 }
 
@@ -286,19 +311,19 @@ static const struct of_device_id rockchip_max98090_of_match[] = {
 	{},
 };
 
-static struct platform_driver rockchip_max98090_driver = {
+static struct platform_driver snd_rk_mc_driver = {
+	.probe = snd_rk_mc_probe,
+	.remove = snd_rk_mc_remove,
 	.driver = {
 		.name = DRV_NAME,
 		.owner = THIS_MODULE,
-		.pm = &snd_soc_pm_ops,
+		.pm = RK_MAX98090_PM_OPS,
 		.of_match_table = rockchip_max98090_of_match,
 	},
-	.probe = rockchip_max98090_probe,
-	.remove = rockchip_max98090_remove,
 };
-module_platform_driver(rockchip_max98090_driver);
 
-MODULE_AUTHOR("jianqun <xjq@rock-chips.com>");
+module_platform_driver(snd_rk_mc_driver);
+MODULE_AUTHOR("jianqun <jay.xu@rock-chips.com>");
 MODULE_DESCRIPTION("Rockchip max98090 machine ASoC driver");
 MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("platform:" DRV_NAME);
