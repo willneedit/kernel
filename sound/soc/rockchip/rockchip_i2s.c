@@ -85,7 +85,7 @@ static void rockchip_snd_txctrl(struct rk_i2s_dev *i2s, int on)
 		i2s->tx_start = false;
 
 		regmap_update_bits(i2s->regmap, I2S_DMACR,
-				   I2S_DMACR_TDE_ENABLE, I2S_DMACR_RDE_DISABLE);
+				   I2S_DMACR_TDE_ENABLE, I2S_DMACR_TDE_DISABLE);
 
 		if (!i2s->rx_start) {
 			regmap_update_bits(i2s->regmap, I2S_XFER,
