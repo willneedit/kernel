@@ -365,7 +365,7 @@ static void __init rk3188_init_suspend(void)
 #define CONFIG_ARCH_RK3188
 #define RK30_DDR_PCTL_BASE RK_DDR_VIRT
 #define RK30_DDR_PUBL_BASE (RK_DDR_VIRT + RK3188_DDR_PCTL_SIZE)
-#define rk_pll_flag() 0 /* FIXME */
+#define rk_pll_flag() 3 /* FIXME - needs efuse, or dtb config */
 #define sram_printascii(s) do {} while (0) /* FIXME */
 #include "ddr_rk30.c"
 

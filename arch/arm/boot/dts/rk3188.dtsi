@@ -493,8 +493,10 @@
 			<&aclk_peri &clk_gpll>,	<&clk_i2s_pll_mux &clk_cpll>,
 			<&clk_uart_pll_mux &clk_gpll>;
 		rockchip,clocks-init-rate =
-			<&clk_core 792000000>,	<&clk_gpll 768000000>,
-			<&clk_cpll 594000000>,	<&aclk_cpu 192000000>,
+			/* <&clk_core 792000000>,	<&clk_gpll 768000000>,
+			<&clk_cpll 594000000>,	<&aclk_cpu 192000000>, */
+			<&clk_core 816000000>,	<&clk_gpll 891000000>,
+			<&clk_cpll 24000000>,	<&aclk_cpu 192000000>,
 			<&hclk_cpu 96000000>,	<&pclk_cpu 48000000>,
 			<&pclk_ahb2apb 48000000>,	<&aclk_peri 192000000>,
 			<&hclk_peri 96000000>,	<&pclk_peri 48000000>,
@@ -539,7 +541,7 @@
 		rochchip,pwr18 = <0>;
 		reg = <0x1010c000 0x1000>;
 		interrupts = <GIC_SPI 13 IRQ_TYPE_LEVEL_HIGH>;
-		status = "disabled";
+		status = "okay";
 	};
 
 	lcdc1:lcdc@1010e000 {
@@ -551,7 +553,7 @@
 		pinctrl-names = "default", "gpio";
 		pinctrl-0 = <&lcdc1_lcdc>;
 		pinctrl-1 = <&lcdc1_gpio>;
-		status = "disabled";
+		status = "okay";
   	};
 
 	rga@10114000 {
@@ -708,11 +710,8 @@
 		#size-cells = <0>;
 		rockchip,ion-heap@1 { /* CMA HEAP */
 			compatible = "rockchip,ion-reserve";
-			reg = <1>;
-			memory-reservation = <0x00000000 0x10000000>; /* 256MB */
-		};
-		rockchip,ion-heap@3 { /* SYSTEM HEAP */
-			reg = <3>;
+			rockchip,ion_heap = <1>;
+			reg = <0x00000000 0x08000000>; /* 128MB */
 		};
 	};
 
