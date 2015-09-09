@@ -32,9 +32,9 @@
 
 #define		X_REVERSE_ENABLE	0
 
-#define		Y_REVERSE_ENABLE	1
+#define		Y_REVERSE_ENABLE	0
 
-#define		CHIP_UPDATE_ENABLE	1
+#define		CHIP_UPDATE_ENABLE	0
 
 #define		DEBUG_ENABLE		0
 
