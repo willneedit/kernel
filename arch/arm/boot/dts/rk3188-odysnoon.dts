@@ -163,7 +163,7 @@
 	supports-emmc;
         bootpart-no-access;
         
-    	status = "okay";
+    	status = "disabled";
 };
     
 &sdmmc {
