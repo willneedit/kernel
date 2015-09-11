@@ -2819,7 +2819,7 @@ static int init_lcdc_device_driver(struct rk_fb *rk_fb,
 	if (rk_fb->disp_mode == ONE_DUAL) {
 		struct rk_screen *screen1 = devm_kzalloc(dev_drv->dev,
 						sizeof(struct rk_screen), GFP_KERNEL);
-		if (screen1) {
+		if (!screen1) {
 			dev_err(dev_drv->dev, "malloc screen1 for lcdc%d fail!",
 						dev_drv->id);
 			return -ENOMEM;
@@ -2947,7 +2947,20 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 			}
 		#endif		
 			rk_fb_alloc_buffer(fbi, rk_fb->num_fb);
-		}	
+
+			init_waitqueue_head(&dev_drv->vsync_info.wait);
+			ret = device_create_file(fbi->dev, &dev_attr_vsync);
+			if (ret)
+				dev_err(fbi->dev, "failed to create vsync file\n");
+
+			dev_drv->timeline = sw_sync_timeline_create("fb-timeline");			dev_drv->timeline_max = 1;
+		}
+
+		printk(KERN_INFO "Registering fb%d with %dx%d, %d bpp, %d pixclock\n",
+			rk_fb->num_fb,
+			fbi->var.xres, fbi->var.yres,
+			fbi->var.bits_per_pixel, fbi->var.pixclock);
+
 		ret = register_framebuffer(fbi);
 		if (ret < 0) {
 			dev_err(&fb_pdev->dev, "%s fb%d register_framebuffer fail!\n",
@@ -2961,10 +2974,6 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 		rk_fb->num_fb++;
 
 		if (i == 0) {
-			init_waitqueue_head(&dev_drv->vsync_info.wait);
-			ret = device_create_file(fbi->dev, &dev_attr_vsync);
-			if (ret)
-				dev_err(fbi->dev, "failed to create vsync file\n");
 			dev_drv->vsync_info.thread = kthread_run(rk_fb_wait_for_vsync_thread,
 								dev_drv, "fb-vsync");
 			if (dev_drv->vsync_info.thread == ERR_PTR(-ENOMEM)) {
@@ -2989,19 +2998,18 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 				return err;
 			}
 			init_kthread_work(&dev_drv->update_regs_work, rk_fb_update_regs_handler);
-
-			dev_drv->timeline = sw_sync_timeline_create("fb-timeline");			dev_drv->timeline_max = 1;
 		}
-
 	}
 
  /*show logo for primary display device*/
-#if !defined(CONFIG_FRAMEBUFFER_CONSOLE) && defined(CONFIG_LOGO)
+#if defined(CONFIG_LOGO)
 if (dev_drv->prop == PRMRY) {
 	struct fb_info *main_fbi = rk_fb->fb[0];
 	main_fbi->fbops->fb_open(main_fbi, 1);
 	if(support_uboot_display())
 		return 0;
+	printk("==== CPE: Showing logo on %s ====\n", main_fbi->fix.id);
+
 	main_fbi->fbops->fb_set_par(main_fbi);
 #if  defined(CONFIG_LOGO_LINUX_BMP)
 	if (fb_prewine_bmp_logo(main_fbi, FB_ROTATE_UR)) {
@@ -3015,9 +3023,9 @@ if (dev_drv->prop == PRMRY) {
 	}
 #endif
 	main_fbi->fbops->fb_pan_display(&main_fbi->var, main_fbi);
+	main_fbi->fbops->fb_ioctl(main_fbi,RK_FBIOSET_CONFIG_DONE,0);
 }
 #endif
-
 	return 0;
 
 
@@ -3145,5 +3153,5 @@ static void __exit rk_fb_exit(void)
 	platform_driver_unregister(&rk_fb_driver);
 }
 
-fs_initcall(rk_fb_init);
+subsys_initcall_sync(rk_fb_init);
 module_exit(rk_fb_exit);
