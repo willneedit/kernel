@@ -3323,7 +3323,7 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
                         printk("%s: Warning : No pinctrl used!\n",mmc_hostname(host->mmc));
                 }else{
                         host->pins_idle= pinctrl_lookup_state(host->pinctrl,PINCTRL_STATE_IDLE);
-                        if(IS_ERR(host->pins_default)){
+                        if(IS_ERR(host->pins_idle)){
                                 printk("%s: Warning : No IDLE pinctrl matched!\n", mmc_hostname(host->mmc));
                         }
                         else
